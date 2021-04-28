@@ -10,6 +10,7 @@ use ark_std::{end_timer, start_timer};
 use clap::arg_enum;
 use log::debug;
 use structopt::StructOpt;
+use mpc_trait::MpcWire;
 
 use std::net::{SocketAddr, ToSocketAddrs};
 
@@ -43,6 +44,23 @@ impl<F: Field> RepeatedSquaringCircuit<F> {
     fn squarings(&self) -> usize {
         self.chain.len() - 1
     }
+}
+
+fn mpc_squaring_circuit(start: ark_bls12_377::Fr, squarings: usize) -> RepeatedSquaringCircuit<MpcVal<ark_bls12_377::Fr>> {
+    let rng = &mut test_rng();
+    let raw_chain: Vec<ark_bls12_377::Fr> = std::iter::successors(Some(start), |a| Some(a.square())).take(squarings + 1).collect();
+    let randomness: Vec<ark_bls12_377::Fr> = std::iter::repeat_with(|| ark_bls12_377::Fr::rand(rng)).take(squarings + 1).collect();
+    let first_shares: Vec<ark_bls12_377::Fr> = randomness.iter().zip(raw_chain.into_iter()).map(|(r, v)| v + r).collect();
+    let second_shares: Vec<ark_bls12_377::Fr> = randomness.into_iter().map(|r| -r).collect();
+
+    let my_shares = if channel::am_first() {
+        channel::exchange(second_shares);
+        first_shares
+    } else {
+        let zeros: Vec<ark_bls12_377::Fr> = std::iter::repeat_with(|| ark_bls12_377::Fr::from(0u64)).take(squarings + 1).collect();
+        channel::exchange(zeros.clone())
+    };
+    RepeatedSquaringCircuit { chain: my_shares.into_iter().map(|s| Some(MpcVal::from_shared(s))).collect() }
 }
 
 impl<ConstraintF: Field> ConstraintSynthesizer<ConstraintF>
@@ -82,9 +100,9 @@ fn test_squaring_mpc(n: usize) {
     let pvk = prepare_verifying_key::<Bls12_377>(&params.vk);
     let mpc_params = pk_to_mpc(params);
 
-    let a = MpcVal::<ark_bls12_377::Fr>::rand(rng);
-    let computation_timer = start_timer!(|| "do the mpc");
-    let circ_data = RepeatedSquaringCircuit::from_start(a, n);
+    let a = ark_bls12_377::Fr::rand(rng);
+    let computation_timer = start_timer!(|| "do the mpc (cheat)");
+    let circ_data = mpc_squaring_circuit(a, n);
     let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().publicize_unwrap()];
     end_timer!(computation_timer);
     channel::reset_stats();

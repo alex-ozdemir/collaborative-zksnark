@@ -89,7 +89,7 @@ where
     // Synthesize the circuit.
     let synthesis_time = start_timer!(|| "Constraint synthesis");
     circuit.generate_constraints(cs.clone())?;
-    debug_assert!(cs.is_satisfied().unwrap());
+    //debug_assert!(cs.is_satisfied().unwrap());
     end_timer!(synthesis_time);
 
     let lc_time = start_timer!(|| "Inlining LCs");
