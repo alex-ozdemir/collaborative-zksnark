@@ -255,7 +255,8 @@ macro_rules! impl_basics {
                 F: for<'a> AddAssign<&'a F>
                     + ark_serialize::CanonicalSerialize
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > ark_serialize::CanonicalSerialize for $ty<F>
         {
             fn serialize<W>(
@@ -307,7 +308,8 @@ macro_rules! impl_basics {
                 F: for<'a> AddAssign<&'a F>
                     + ark_serialize::CanonicalSerializeWithFlags
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > ark_serialize::CanonicalSerializeWithFlags for $ty<F>
         {
             fn serialize_with_flags<W, Fl>(
@@ -333,7 +335,8 @@ macro_rules! impl_basics {
                 F: for<'a> AddAssign<&'a F>
                     + ark_serialize::CanonicalSerialize
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > MpcWire for $ty<F>
         {
             //            type Base = F;
@@ -343,6 +346,11 @@ macro_rules! impl_basics {
                     self.val += &other_val;
                     self.shared = false;
                 }
+                debug_assert!({
+                    println!("Check publicize");
+                    let other_val = channel::exchange(self.val.clone());
+                    self.val == other_val
+                })
             }
             //            fn publicize_unwrap(self) -> Self::Base {
             //                self.publicize().val
@@ -371,7 +379,8 @@ macro_rules! impl_basics {
                 F: for<'a> AddAssign<&'a F>
                     + ark_serialize::CanonicalSerialize
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > $ty<F>
         {
             pub fn publicize_unwrap(mut self) -> F {
@@ -427,7 +436,8 @@ macro_rules! impl_to_bytes_pub {
                     + ark_serialize::CanonicalSerialize
                     + ark_serialize::CanonicalDeserialize
                     + ark_ff::ToBytes
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > ark_ff::ToBytes for $ty<F>
         {
             #[inline]
@@ -687,7 +697,8 @@ macro_rules! impl_mult_basics {
                 F: for<'a> MulAssign<&'a F>
                     + ark_serialize::CanonicalSerialize
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > ark_serialize::CanonicalSerialize for $ty<F>
         {
             fn serialize<W>(
@@ -739,7 +750,8 @@ macro_rules! impl_mult_basics {
                 F: for<'a> MulAssign<&'a F>
                     + ark_serialize::CanonicalSerializeWithFlags
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > ark_serialize::CanonicalSerializeWithFlags for $ty<F>
         {
             fn serialize_with_flags<W, Fl>(
@@ -1042,7 +1054,8 @@ macro_rules! impl_mult_basics {
                 F: for<'a> MulAssign<&'a F>
                     + ark_serialize::CanonicalSerialize
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > MpcWire for $ty<F>
         {
             //type Base = F;
@@ -1052,6 +1065,11 @@ macro_rules! impl_mult_basics {
                     self.val *= &other_val;
                     self.shared = false;
                 }
+                debug_assert!({
+                    println!("Check publicize");
+                    let other_val = channel::exchange(self.val.clone());
+                    self.val == other_val
+                })
             }
             fn is_shared(&self) -> bool {
                 self.shared
@@ -1077,7 +1095,8 @@ macro_rules! impl_mult_basics {
                 F: for<'a> MulAssign<&'a F>
                     + ark_serialize::CanonicalSerialize
                     + ark_serialize::CanonicalDeserialize
-                    + Clone,
+                    + Clone
+                    + std::cmp::PartialEq,
             > $ty<F>
         {
             pub fn publicize_unwrap(mut self) -> F {
@@ -1808,6 +1827,17 @@ macro_rules! curve_impl {
             fn mul_by_cofactor_inv(&self) -> Self {
                 todo!("AffineCurve::mul_by_cofactor_inv")
             }
+            fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
+                assert!(bases.iter().all(|b| !b.shared));
+                assert!(scalars.iter().all(|b| b.shared));
+                let bigint_scalars = cfg_into_iter!(scalars)
+                    .map(|s| s.into_repr())
+                    .collect::<Vec<_>>();
+                let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
+                // This is shared because the big intergers are representations of a shared value.
+                product.cast_to_shared();
+                product
+            }
         }
         impl From<$curve_wrapper<$curve_proj>> for $curve_wrapper<$curve> {
             fn from(p: $curve_wrapper<$curve_proj>) -> Self {
@@ -2011,43 +2041,6 @@ impl PairingEngine for MpcPairingEngine<Bls12_377> {
 }
 
 // /// Vector-Commitable Field
-// pub trait MpcWire: Clone {
-//     type Base: Clone;
-//     fn publicize(self) -> Self;
-//     fn cast_to_shared(self) -> Self;
-//     fn cast_to_public(self) -> Self;
-//     fn is_shared(&self) -> bool;
-//     fn publicize_unwrap(self) -> Self::Base;
-//     fn publicize_cow<'b>(&'b self) -> Cow<'b, Self>;
-// }
-//
-// macro_rules! impl_wire_base {
-//     ($ty:ty) => {
-//         impl MpcWire for $ty {
-//             type Base = $ty;
-//             fn publicize(self) -> Self {
-//                 self
-//             }
-//             fn cast_to_shared(self) -> Self {
-//                 self
-//             }
-//             fn cast_to_public(self) -> Self {
-//                 self
-//             }
-//             fn publicize_unwrap(self) -> Self {
-//                 self
-//             }
-//             fn is_shared(&self) -> bool {
-//                 false
-//             }
-//             fn publicize_cow(&self) -> Cow<Self> {
-//                 Cow::Borrowed(&self)
-//             }
-//         }
-//     }
-// }
-//
-// impl_wire_base!(ark_ff::Fp256<ark_bls12_377::FrParameters>);
 
 use mpc_trait::MpcWire;
 
@@ -2178,46 +2171,6 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
         &(hash1, hash0) == c
     }
 }
-
-/// multi-scalar multiplication curve
-pub trait MsmCurve: AffineCurve {
-    /// Perform a multi-scalar multiplication.
-    /// That is, compute P = sum_i s_i * P_i
-    fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
-        //assert_eq!(bases.len(), scalars.len());
-        let bigint_scalars = cfg_into_iter!(scalars)
-            .map(|s| s.into_repr())
-            .collect::<Vec<_>>();
-        let product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
-        product
-    }
-}
-
-impl<P: ark_ec::models::SWModelParameters> MsmCurve
-    for ark_ec::short_weierstrass_jacobian::GroupAffine<P>
-{
-}
-
-macro_rules! impl_msm {
-    ($wrap:ident, $curve:ty) => {
-        impl MsmCurve for $wrap<$curve> {
-            fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
-                assert!(bases.iter().all(|b| !b.shared));
-                assert!(scalars.iter().all(|b| b.shared));
-                let bigint_scalars = cfg_into_iter!(scalars)
-                    .map(|s| s.into_repr())
-                    .collect::<Vec<_>>();
-                let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
-                // This is shared because the big intergers are representations of a shared value.
-                product.cast_to_shared();
-                product
-            }
-        }
-    };
-}
-
-impl_msm!(MpcCurve, ark_bls12_377::G1Affine);
-impl_msm!(MpcCurve2, ark_bls12_377::G2Affine);
 
 pub trait BatchProd: Field {
     fn batch_product(mut xs: Vec<Self>, ys: Vec<Self>) -> Vec<Self> {

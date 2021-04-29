@@ -1,4 +1,7 @@
 use super::*;
+use rand::RngCore;
+use std::ops::Div;
+
 
 use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_poly_commit::{Evaluations, BatchLCProof, PolynomialCommitment, QuerySet, LabeledPolynomial, LabeledCommitment, LinearCombination, PCRandomness};
@@ -11,9 +14,9 @@ pub struct MpcPolyCommit<F: Field, P: Polynomial<F>, PC: PolynomialCommitment<F,
 
 type F = ark_bls12_377::Fr;
 type P = ark_poly::univariate::DensePolynomial<F>;
-type MP = ark_poly::univariate::DensePolynomial<MpcVal<F>>;
+type MP = MpcVal<ark_poly::univariate::DensePolynomial<MpcVal<F>>>;
 type E = ark_bls12_377::Bls12_377;
-type ME = crate::mpc::MpcPairingEngine<E>;
+type ME = mpc_algebra::MpcPairingEngine<E>;
 type PC = MarlinKZG10<E, P>;
 type PCR = <PC as PolynomialCommitment<F, P>>::Randomness;
 type MPC = MarlinKZG10<ME, MP>;
@@ -213,7 +216,6 @@ where
     where
         Self::Commitment: 'a,
     {
-        println!("Check individual");
         assert!(!point.shared, "shared point");
         let opening_challenges_local = |u| {
             let c = opening_challenges(u);

@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use mpc_algebra::{MsmCurve, BatchProd};
+use mpc_algebra::{BatchProd};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{Field, PrimeField, UniformRand, Zero};
 use super::r1cs_to_qap::R1CStoQAP;
@@ -31,8 +31,6 @@ pub fn create_random_proof<E, C, R>(
 ) -> R1CSResult<Proof<E>>
 where
     E: PairingEngine,
-    E::G1Affine: MsmCurve,
-    E::G2Affine: MsmCurve,
     E::Fr: BatchProd,
     C: ConstraintSynthesizer<<E as PairingEngine>::Fr>,
     R: Rng,
@@ -48,8 +46,6 @@ where
 pub fn create_proof_no_zk<E, C>(circuit: C, pk: &ProvingKey<E>) -> R1CSResult<Proof<E>>
 where
     E: PairingEngine,
-    E::G1Affine: MsmCurve,
-    E::G2Affine: MsmCurve,
     E::Fr: BatchProd,
     C: ConstraintSynthesizer<<E as PairingEngine>::Fr>,
 {
@@ -71,8 +67,6 @@ pub fn create_proof<E, C>(
 ) -> R1CSResult<Proof<E>>
 where
     E: PairingEngine,
-    E::G1Affine: MsmCurve,
-    E::G2Affine: MsmCurve,
     E::Fr: BatchProd,
     C: ConstraintSynthesizer<<E as PairingEngine>::Fr>,
 {
@@ -103,11 +97,11 @@ where
     end_timer!(witness_map_time);
     let prover_crypto_time = start_timer!(|| "crypto");
     let c_acc_time = start_timer!(|| "Compute C");
-    let h_acc = <<E as PairingEngine>::G1Affine as MsmCurve>::multi_scalar_mul(&pk.h_query, &h);
+    let h_acc = <<E as PairingEngine>::G1Affine as AffineCurve>::multi_scalar_mul(&pk.h_query, &h);
     debug!("h_acc: {}", h_acc);
     // Compute C
     let prover = cs.borrow().unwrap();
-    let l_aux_acc = <<E as PairingEngine>::G1Affine as MsmCurve>::multi_scalar_mul(&pk.l_query, &prover.witness_assignment);
+    let l_aux_acc = <<E as PairingEngine>::G1Affine as AffineCurve>::multi_scalar_mul(&pk.l_query, &prover.witness_assignment);
 
     let r_s_delta_g1 = pk
         .delta_g1
@@ -210,7 +204,7 @@ where
     }
 }
 
-fn calculate_coeff<G: AffineCurve + MsmCurve>(
+fn calculate_coeff<G: AffineCurve>(
     initial: G::Projective,
     query: &[G],
     vk_param: G,

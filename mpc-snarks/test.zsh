@@ -66,12 +66,30 @@ $BIN --port 8000 --peer-host localhost --peer-port 8001 groth16 --party 1 & ; pi
 
 wait $pid0 $pid1
 
-# # poly eval
-# $BIN --port 8001 --peer-host localhost --peer-port 8000 polyeval 1 2 --party 0 & ; pid0=$!
-# $BIN --port 8000 --peer-host localhost --peer-port 8001 polyeval 3 2 --party 1 & ; pid1=$!
-# 
-# wait $pid0 $pid1
-# 
+# poly eval
+$BIN --port 8001 --peer-host localhost --peer-port 8000 polyeval 1 2 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 polyeval 3 2 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+# KZG commit (no blind)
+$BIN --port 8001 --peer-host localhost --peer-port 8000 kzg 1 2 0 4 4 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 kzg 3 2 0 0 1 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+# KZG commit (zk)
+$BIN --port 8001 --peer-host localhost --peer-port 8000 kzgzk 1 2 0 4 4 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 kzgzk 3 2 0 0 1 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+# KZG commit (zk, batch verify)
+$BIN --port 8001 --peer-host localhost --peer-port 8000 kzgzk 1 2 0 4 4 0 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 kzgzk 3 2 0 0 1 0 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
 # # poly commit
 # $BIN --port 8001 --peer-host localhost --peer-port 8000 pccom 0 0 --party 0 & ; pid0=$!
 # $BIN --port 8000 --peer-host localhost --peer-port 8001 pccom 0 0 --party 1 & ; pid1=$!

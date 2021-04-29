@@ -1,3 +1,4 @@
+//! Mostly just for testing
 use log::debug;
 
 use ark_bls12_377::Fr;
@@ -11,9 +12,10 @@ use ark_poly::{Polynomial, UVPolynomial};
 use ark_poly_commit::PolynomialCommitment;
 use ark_serialize::CanonicalSerialize;
 use ark_std::rand::SeedableRng;
+use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 
-use mpc_algebra::{channel, ComField, MpcCurve, MpcCurve2, MpcVal};
+use mpc_algebra::{channel, ComField, MpcCurve, MpcCurve2, MpcPairingEngine, MpcVal};
 use mpc_trait::MpcWire;
 
 use clap::arg_enum;
@@ -21,6 +23,8 @@ use merlin::Transcript;
 use structopt::StructOpt;
 
 mod groth;
+//mod marlin;
+//mod poly;
 mod silly;
 
 arg_enum! {
@@ -40,6 +44,10 @@ arg_enum! {
         Marlin,
         PolyEval,
         PcCom,
+        Kzg,
+        KzgZk,
+        KzgZkBatch,
+        PcTwoCom,
     }
 }
 
@@ -107,45 +115,258 @@ impl Opt {
             Computation::PairingDh | Computation::PairingProd | Computation::PairingDiv => {
                 ComputationDomain::Pairing
             }
-            Computation::Marlin | Computation::Groth16 | Computation::PcCom => {
-                ComputationDomain::BlsPairing
-            }
+            Computation::Marlin
+            | Computation::Groth16
+            | Computation::PcCom
+            | Computation::Kzg
+            | Computation::KzgZk
+            | Computation::KzgZkBatch
+            => ComputationDomain::BlsPairing,
             Computation::PolyEval => ComputationDomain::PolyField,
             _ => ComputationDomain::Field,
         }
     }
 }
 
+fn powers_to_mpc<'a>(
+    p: ark_poly_commit::kzg10::Powers<'a, ark_bls12_377::Bls12_377>,
+) -> ark_poly_commit::kzg10::Powers<'a, MpcPairingEngine<ark_bls12_377::Bls12_377>> {
+    ark_poly_commit::kzg10::Powers {
+        powers_of_g: Cow::Owned(
+            p.powers_of_g
+                .iter()
+                .cloned()
+                .map(MpcCurve::from_public)
+                .collect(),
+        ),
+        powers_of_gamma_g: Cow::Owned(
+            p.powers_of_gamma_g
+                .iter()
+                .cloned()
+                .map(MpcCurve::from_public)
+                .collect(),
+        ),
+    }
+}
+fn commit_from_mpc<'a>(
+    p: ark_poly_commit::kzg10::Commitment<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
+) -> ark_poly_commit::kzg10::Commitment<ark_bls12_377::Bls12_377> {
+    ark_poly_commit::kzg10::Commitment(p.0.publicize_unwrap())
+}
+fn pf_from_mpc<'a>(
+    pf: ark_poly_commit::kzg10::Proof<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
+) -> ark_poly_commit::kzg10::Proof<ark_bls12_377::Bls12_377> {
+    ark_poly_commit::kzg10::Proof {
+        w: pf.w.publicize_unwrap(),
+        random_v: pf.random_v.map(MpcVal::publicize_unwrap),
+    }
+}
+
 impl Computation {
     fn run_bls(&self, inputs: Vec<MFr>) -> Vec<MFr> {
         let outputs: Vec<MFr> = match self {
-                        Computation::Groth16 => {
-                            groth::mpc_test_prove_and_verify(1);
-                            vec![]
-                        }
+            Computation::Groth16 => {
+                groth::mpc_test_prove_and_verify(1);
+                vec![]
+            }
             //            Computation::Marlin => {
             //                //mpc::marlin::local_test_prove_and_verify::<ark_bls12_377::Bls12_377>(1);
             //                mpc::marlin::mpc_test_prove_and_verify(1);
             //                vec![]
             //            }
-            //            Computation::PcCom => {
-            //                let poly = MP::from_coefficients_slice(&inputs);
-            //                let x = MFr::from(2u32);
-            //                let rng = &mut ark_std::test_rng();
-            //                let srs = mpc::poly::pc::MpcPolyCommit::setup(10, Some(1), rng).unwrap();
-            //                let (ck, vk) = mpc::poly::pc::MpcPolyCommit::trim(&srs, 2, 1, Some(&[2])).unwrap();
-            //                let (commits, rands) = mpc::poly::pc::MpcPolyCommit::commit(
-            //                    &ck,
-            //                    &[ark_poly_commit::LabeledPolynomial::new("a".into(), poly, Some(2), Some(1))],
-            //                    Some(rng),
-            //                )
-            //                .unwrap();
-            //                println!("{:#?}", commits.len());
-            //                println!("{:#?}", commits[0].commitment());
-            //                println!("{:#?}", rands[0]);
-            //                println!("{:#?}", rands.len());
-            //                vec![]
-            //            }
+            Computation::PcCom => {
+                let poly = MP::from_coefficients_slice(&inputs);
+                let x = MFr::from(2u32);
+                let labeled_polynomials = vec![ark_poly_commit::LabeledPolynomial::new(
+                    "a".into(),
+                    poly.clone(),
+                    Some(2),
+                    Some(1),
+                )];
+                let rng = &mut ark_std::test_rng();
+                let srs = mpc_algebra::poly::pc::MpcPolyCommit::setup(10, Some(1), rng).unwrap();
+                let (ck, vk) =
+                    mpc_algebra::poly::pc::MpcPolyCommit::trim(&srs, 2, 1, Some(&[2])).unwrap();
+                let (labeled_commits, rands) = mpc_algebra::poly::pc::MpcPolyCommit::commit(
+                    &ck,
+                    &labeled_polynomials,
+                    Some(rng),
+                )
+                .unwrap();
+                let chal = MFr::from(2u32);
+                let mut values = vec![poly.evaluate(&x)];
+                values[0].publicize();
+                println!("{} -> {}", x, values[0]);
+                let pf = mpc_algebra::poly::pc::MpcPolyCommit::open(
+                    &ck,
+                    &labeled_polynomials,
+                    &labeled_commits,
+                    &x,
+                    chal,
+                    &rands,
+                    Some(rng),
+                )
+                .unwrap();
+                println!("{:?}", pf);
+                let result = mpc_algebra::poly::pc::MpcPolyCommit::check(
+                    &vk,
+                    &labeled_commits,
+                    &x,
+                    values,
+                    &pf,
+                    chal,
+                    Some(rng),
+                )
+                .unwrap();
+                println!("{:?}", result);
+                vec![]
+            }
+            Computation::Kzg => {
+                let poly = MP::from_coefficients_slice(&inputs);
+                let rng = &mut ark_std::test_rng();
+                let pp = ark_poly_commit::kzg10::KZG10::<
+                    ark_bls12_377::Bls12_377,
+                    ark_poly::univariate::DensePolynomial<ark_bls12_377::Fr>,
+                >::setup(10, true, rng)
+                .unwrap();
+                let powers_of_gamma_g = (0..11)
+                    .map(|i| pp.powers_of_gamma_g[&i])
+                    .collect::<Vec<_>>();
+                let powers = ark_poly_commit::kzg10::Powers::<ark_bls12_377::Bls12_377> {
+                    powers_of_g: Cow::Borrowed(&pp.powers_of_g),
+                    powers_of_gamma_g: Cow::Owned(powers_of_gamma_g),
+                };
+                let mpc_powers = powers_to_mpc(powers);
+                let (commit, rand) =
+                    ark_poly_commit::kzg10::KZG10::commit(&mpc_powers, &poly, None, None).unwrap();
+                println!("{:?}", commit);
+                let commit = commit_from_mpc(commit);
+                println!("{:?}", commit);
+                let mpc_x = MFr::from(2u32);
+                let mpc_pf =
+                    ark_poly_commit::kzg10::KZG10::open(&mpc_powers, &poly, mpc_x, &rand).unwrap();
+                let y = poly.evaluate(&mpc_x).publicize_unwrap();
+                let x = mpc_x.publicize_unwrap();
+                println!("{:?}", mpc_pf);
+                let pf = pf_from_mpc(mpc_pf);
+                println!("{:?}", pf);
+                let vk = ark_poly_commit::kzg10::VerifierKey::<ark_bls12_377::Bls12_377> {
+                    g: pp.powers_of_g[0],
+                    gamma_g: pp.powers_of_gamma_g[&0],
+                    h: pp.h,
+                    beta_h: pp.beta_h,
+                    prepared_h: pp.prepared_h,
+                    prepared_beta_h: pp.prepared_beta_h,
+                };
+                println!("{:?}", commit);
+                println!("{} -> {}", x, y);
+                let result = ark_poly_commit::kzg10::KZG10::<
+                    ark_bls12_377::Bls12_377,
+                    ark_poly::univariate::DensePolynomial<ark_bls12_377::Fr>,
+                >::check(&vk, &commit, x, y, &pf)
+                .unwrap();
+                assert_eq!(result, true);
+                vec![]
+            }
+            Computation::KzgZk => {
+                let poly = MP::from_coefficients_slice(&inputs);
+                let rng = &mut ark_std::test_rng();
+                let pp = ark_poly_commit::kzg10::KZG10::<
+                    ark_bls12_377::Bls12_377,
+                    ark_poly::univariate::DensePolynomial<ark_bls12_377::Fr>,
+                >::setup(10, true, rng)
+                .unwrap();
+                let powers_of_gamma_g = (0..11)
+                    .map(|i| pp.powers_of_gamma_g[&i])
+                    .collect::<Vec<_>>();
+                let powers = ark_poly_commit::kzg10::Powers::<ark_bls12_377::Bls12_377> {
+                    powers_of_g: Cow::Borrowed(&pp.powers_of_g),
+                    powers_of_gamma_g: Cow::Owned(powers_of_gamma_g),
+                };
+                let mpc_powers = powers_to_mpc(powers);
+                let (commit, rand) =
+                    ark_poly_commit::kzg10::KZG10::commit(&mpc_powers, &poly, Some(2), Some(rng))
+                        .unwrap();
+                let commit = commit_from_mpc(commit);
+                let mpc_x = MFr::from(2u32);
+                let mpc_pf =
+                    ark_poly_commit::kzg10::KZG10::open(&mpc_powers, &poly, mpc_x, &rand).unwrap();
+                let y = poly.evaluate(&mpc_x).publicize_unwrap();
+                let x = mpc_x.publicize_unwrap();
+                let pf = pf_from_mpc(mpc_pf);
+                let vk = ark_poly_commit::kzg10::VerifierKey::<ark_bls12_377::Bls12_377> {
+                    g: pp.powers_of_g[0],
+                    gamma_g: pp.powers_of_gamma_g[&0],
+                    h: pp.h,
+                    beta_h: pp.beta_h,
+                    prepared_h: pp.prepared_h,
+                    prepared_beta_h: pp.prepared_beta_h,
+                };
+                println!("{} -> {}", x, y);
+                let result = ark_poly_commit::kzg10::KZG10::<
+                    ark_bls12_377::Bls12_377,
+                    ark_poly::univariate::DensePolynomial<ark_bls12_377::Fr>,
+                >::check(&vk, &commit, x, y, &pf)
+                .unwrap();
+                assert_eq!(result, true);
+                vec![]
+            }
+            Computation::KzgZkBatch => {
+                assert_eq!(inputs.len(), 6);
+                let poly = MP::from_coefficients_slice(&inputs[0..3]);
+                let poly2 = MP::from_coefficients_slice(&inputs[3..6]);
+                let rng = &mut ark_std::test_rng();
+                let pp = ark_poly_commit::kzg10::KZG10::<
+                    ark_bls12_377::Bls12_377,
+                    ark_poly::univariate::DensePolynomial<ark_bls12_377::Fr>,
+                >::setup(10, true, rng)
+                .unwrap();
+                let powers_of_gamma_g = (0..11)
+                    .map(|i| pp.powers_of_gamma_g[&i])
+                    .collect::<Vec<_>>();
+                let powers = ark_poly_commit::kzg10::Powers::<ark_bls12_377::Bls12_377> {
+                    powers_of_g: Cow::Borrowed(&pp.powers_of_g),
+                    powers_of_gamma_g: Cow::Owned(powers_of_gamma_g),
+                };
+                let mpc_powers = powers_to_mpc(powers);
+                let (commit, rand) =
+                    ark_poly_commit::kzg10::KZG10::commit(&mpc_powers, &poly, Some(2), Some(rng))
+                        .unwrap();
+                let (commit2, rand2) =
+                    ark_poly_commit::kzg10::KZG10::commit(&mpc_powers, &poly2, Some(2), Some(rng))
+                        .unwrap();
+                let commit = commit_from_mpc(commit);
+                let commit2 = commit_from_mpc(commit2);
+                let mpc_x = MFr::from(2u32);
+                let mpc_x2 = MFr::from(1u32);
+                let mpc_pf =
+                    ark_poly_commit::kzg10::KZG10::open(&mpc_powers, &poly, mpc_x, &rand).unwrap();
+                let mpc_pf2 =
+                    ark_poly_commit::kzg10::KZG10::open(&mpc_powers, &poly2, mpc_x2, &rand2).unwrap();
+                let y = poly.evaluate(&mpc_x).publicize_unwrap();
+                let y2 = poly2.evaluate(&mpc_x2).publicize_unwrap();
+                let x = mpc_x.publicize_unwrap();
+                let x2 = mpc_x2.publicize_unwrap();
+                let pf = pf_from_mpc(mpc_pf);
+                let pf2 = pf_from_mpc(mpc_pf2);
+                let vk = ark_poly_commit::kzg10::VerifierKey::<ark_bls12_377::Bls12_377> {
+                    g: pp.powers_of_g[0],
+                    gamma_g: pp.powers_of_gamma_g[&0],
+                    h: pp.h,
+                    beta_h: pp.beta_h,
+                    prepared_h: pp.prepared_h,
+                    prepared_beta_h: pp.prepared_beta_h,
+                };
+                println!("{} -> {}", x, y);
+                println!("{} -> {}", x2, y2);
+                let result = ark_poly_commit::kzg10::KZG10::<
+                    ark_bls12_377::Bls12_377,
+                    ark_poly::univariate::DensePolynomial<ark_bls12_377::Fr>,
+                >::batch_check(&vk, &[commit, commit2], &[x, x2], &[y, y2], &[pf, pf2], rng)
+                .unwrap();
+                assert_eq!(result, true);
+                vec![]
+            }
             c => unimplemented!("Cannot run_pairing {:?}", c),
         };
         println!("Stats: {:#?}", channel::stats());
