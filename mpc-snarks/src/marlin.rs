@@ -10,7 +10,6 @@ use ark_poly_commit::Evaluations;
 use ark_poly_commit::{LabeledCommitment, PCUniversalParams, PolynomialCommitment};
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_std::rand::RngCore;
-use digest::Digest;
 use std::marker::PhantomData;
 use ark_marlin::{*, rng::{FiatShamirRng}, ahp::prover::*};
 use mpc_algebra::{MpcCurve, MpcCurve2, MpcVal, MpcPairingEngine, MpcPrepCurve2};
@@ -593,7 +592,7 @@ fn lift_matrix_arith(mat: ark_marlin::ahp::constraint_systems::MatrixArithmetiza
 }
 
 
-fn lift_index_pk(pk: ark_marlin::IndexProverKey<Fr, LocalMarlinKZG10>) -> ark_marlin::IndexProverKey<MFr, MpcMarlinKZG10> {
+pub fn lift_index_pk(pk: ark_marlin::IndexProverKey<Fr, LocalMarlinKZG10>) -> ark_marlin::IndexProverKey<MFr, MpcMarlinKZG10> {
   ark_marlin::IndexProverKey {
     index_vk: lift_index_vk(pk.index_vk),
     index_comm_rands: pk.index_comm_rands.into_iter().map(mpc_algebra::poly::pc::lift_randomness).collect(),
@@ -606,7 +605,6 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
     let rng = &mut test_rng();
 
     let srs = LocalMarlin::universal_setup(100, 50, 100, rng).unwrap();
-    let mpc_srs = lift_pp(srs.clone());
     let empty_circuit: MySillyCircuit<Fr> = MySillyCircuit { a: None, b: None };
     let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit.clone()).unwrap();
     let mpc_index_pk = lift_index_pk(index_pk);
