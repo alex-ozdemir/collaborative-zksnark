@@ -23,7 +23,7 @@ use merlin::Transcript;
 use structopt::StructOpt;
 
 mod groth;
-//mod marlin;
+mod marlin;
 //mod poly;
 mod silly;
 
@@ -171,11 +171,10 @@ impl Computation {
                 groth::mpc_test_prove_and_verify(1);
                 vec![]
             }
-            //            Computation::Marlin => {
-            //                //mpc::marlin::local_test_prove_and_verify::<ark_bls12_377::Bls12_377>(1);
-            //                mpc::marlin::mpc_test_prove_and_verify(1);
-            //                vec![]
-            //            }
+            Computation::Marlin => {
+                marlin::mpc_test_prove_and_verify(1);
+                vec![]
+            }
             Computation::MarlinPc => {
                 let poly = MP::from_coefficients_slice(&inputs);
                 let x = MFr::from(2u32);

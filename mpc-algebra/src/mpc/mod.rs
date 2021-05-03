@@ -458,6 +458,7 @@ macro_rules! impl_to_bytes_pub {
             fn is_zero(&self) -> bool {
                 // TODO: avoid revealing?
                 if self.shared {
+                    //println!("Warning: zero check on shared data");
                     false
                     //let mut other_val = channel::exchange(self.val.clone());
                     //(other_val + self.val.clone()).is_zero()
@@ -1829,9 +1830,12 @@ macro_rules! curve_impl {
             }
             fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
                 assert!(bases.iter().all(|b| !b.shared));
-                assert!(scalars.iter().all(|b| b.shared));
                 let bigint_scalars = cfg_into_iter!(scalars)
-                    .map(|s| s.into_repr())
+                    .map(|s| if s.shared || channel::am_first() {
+                      s.into_repr()
+                    } else {
+                      Self::ScalarField::from(0u64).into_repr()
+                    })
                     .collect::<Vec<_>>();
                 let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
                 // This is shared because the big intergers are representations of a shared value.

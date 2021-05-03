@@ -102,9 +102,9 @@ $BIN --port 8000 --peer-host localhost --peer-port 8001 marlinpcbatch 3 2 0 0 1 
 
 wait $pid0 $pid1
 
-# 
-# # marlin (local)
-# $BIN --port 8001 --peer-host localhost --peer-port 8000 marlin --party 0 & ; pid0=$!
-# $BIN --port 8000 --peer-host localhost --peer-port 8001 marlin --party 1 >& /dev/null & ; pid1=$!
-# 
-# wait $pid0 $pid1
+# groth16
+$BIN --port 8001 --peer-host localhost --peer-port 8000 marlin --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 marlin --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+

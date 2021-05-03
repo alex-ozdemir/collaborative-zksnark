@@ -44,17 +44,6 @@ pub fn lift_ck(ck: ark_poly_commit::marlin_pc::CommitterKey<E>) -> ark_poly_comm
     }
 }
 
-// Lift a locally computed commitent key to an MPC one.
-pub fn lift_vk(ck: ark_poly_commit::marlin_pc::VerifierKey<E>) -> ark_poly_commit::marlin_pc::VerifierKey<ME> {
-    unimplemented!()
-    // ark_poly_commit::marlin_pc::VerifierKey {
-    //     powers: ck.powers.into_iter().map(MpcCurve::from_public).collect(),
-    //     shifted_powers: ck.shifted_powers.map(|v| v.into_iter().map(MpcCurve::from_public).collect()),
-    //     powers_of_gamma_g: ck.powers_of_gamma_g.into_iter().map(MpcCurve::from_public).collect(),
-    //     enforced_degree_bounds: ck.enforced_degree_bounds,
-    //     max_degree: ck.max_degree,
-    // }
-}
 
 // Lower a (batched) proof
 pub fn lower_batch_pf(pf: BatchLCProof<MpcVal<F>, MP, MpcMarlinKZG10>) -> BatchLCProof<F, P, PC> {
