@@ -43,7 +43,8 @@ arg_enum! {
         Groth16,
         Marlin,
         PolyEval,
-        PcCom,
+        MarlinPc,
+        MarlinPcBatch,
         Kzg,
         KzgZk,
         KzgZkBatch,
@@ -117,10 +118,11 @@ impl Opt {
             }
             Computation::Marlin
             | Computation::Groth16
-            | Computation::PcCom
             | Computation::Kzg
             | Computation::KzgZk
             | Computation::KzgZkBatch
+            | Computation::MarlinPc
+            | Computation::MarlinPcBatch
             => ComputationDomain::BlsPairing,
             Computation::PolyEval => ComputationDomain::PolyField,
             _ => ComputationDomain::Field,
@@ -174,7 +176,7 @@ impl Computation {
             //                mpc::marlin::mpc_test_prove_and_verify(1);
             //                vec![]
             //            }
-            Computation::PcCom => {
+            Computation::MarlinPc => {
                 let poly = MP::from_coefficients_slice(&inputs);
                 let x = MFr::from(2u32);
                 let labeled_polynomials = vec![ark_poly_commit::LabeledPolynomial::new(
@@ -219,6 +221,45 @@ impl Computation {
                 )
                 .unwrap();
                 println!("{:?}", result);
+                vec![]
+            }
+            Computation::MarlinPcBatch => {
+                assert_eq!(inputs.len(), 6);
+                let poly = MP::from_coefficients_slice(&inputs[0..3]);
+                let poly2 = MP::from_coefficients_slice(&inputs[3..6]);
+                let labeled_polys = vec![ark_poly_commit::LabeledPolynomial::new("1".to_owned(), poly, Some(2), Some(1)),
+                ark_poly_commit::LabeledPolynomial::new("2".to_owned(), poly2, Some(2), Some(1))];
+                let rng = &mut ark_std::test_rng();
+                let usrs = mpc_algebra::poly::pc::MpcPolyCommit::setup(10, Some(1), rng).unwrap();
+                let (ck, vk) = mpc_algebra::poly::pc::MpcPolyCommit::trim(&usrs, 2, 1, Some(&[2])).unwrap();
+                let (labeled_commits, rands) = mpc_algebra::poly::pc::MpcPolyCommit::commit(
+                    &ck,
+                    &labeled_polys,
+                    Some(rng),
+                ).unwrap();
+                let x = MFr::from(2u32);
+                let chal = MFr::from(4u32);
+                let pf = mpc_algebra::poly::pc::MpcPolyCommit::open(
+                    &ck,
+                    &labeled_polys,
+                    &labeled_commits,
+                    &x,
+                    chal,
+                    &rands,
+                    Some(rng),
+                ).unwrap();
+                let mut values = labeled_polys.iter().map(|p| p.polynomial().evaluate(&x)).collect::<Vec<_>>();
+                for v in &mut values { v.publicize(); }
+                let result = mpc_algebra::poly::pc::MpcPolyCommit::check(
+                    &vk,
+                    &labeled_commits,
+                    &x,
+                    values,
+                    &pf,
+                    chal,
+                    Some(rng),
+                ).unwrap();
+                assert_eq!(result, true);
                 vec![]
             }
             Computation::Kzg => {

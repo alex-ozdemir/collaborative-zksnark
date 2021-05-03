@@ -85,16 +85,23 @@ $BIN --port 8000 --peer-host localhost --peer-port 8001 kzgzk 3 2 0 0 1 --party 
 wait $pid0 $pid1
 
 # KZG commit (zk, batch verify)
-$BIN --port 8001 --peer-host localhost --peer-port 8000 kzgzk 1 2 0 4 4 0 --party 0 & ; pid0=$!
-$BIN --port 8000 --peer-host localhost --peer-port 8001 kzgzk 3 2 0 0 1 0 --party 1 & ; pid1=$!
+$BIN --port 8001 --peer-host localhost --peer-port 8000 kzgzkbatch 1 2 0 4 4 0 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 kzgzkbatch 3 2 0 0 1 0 --party 1 & ; pid1=$!
 
 wait $pid0 $pid1
 
-# # poly commit
-# $BIN --port 8001 --peer-host localhost --peer-port 8000 pccom 0 0 --party 0 & ; pid0=$!
-# $BIN --port 8000 --peer-host localhost --peer-port 8001 pccom 0 0 --party 1 & ; pid1=$!
-# 
-# wait $pid0 $pid1
+# poly commit
+$BIN --port 8001 --peer-host localhost --peer-port 8000 marlinpc 0 0 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 marlinpc 0 0 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+# marlin poly commit (zk, batch verify)
+$BIN --port 8001 --peer-host localhost --peer-port 8000 marlinpcbatch 1 2 0 4 4 0 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 marlinpcbatch 3 2 0 0 1 0 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
 # 
 # # marlin (local)
 # $BIN --port 8001 --peer-host localhost --peer-port 8000 marlin --party 0 & ; pid0=$!
