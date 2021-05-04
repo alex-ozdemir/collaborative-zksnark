@@ -1,0 +1,39 @@
+[package]
+name = "mpc-plonk"
+version = "0.1.0"
+authors = ["Alex Ozdemir <aozdemir@hmc.edu>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ark-ff = { path = "../../algebra/ff", version = "0.2.0", default-features = false }
+ark-ec = { path = "../../algebra/ec", version = "0.2.0", default-features = false }
+ark-poly = { path = "../../algebra/poly", version = "0.2.0", default-features = false }
+ark-relations = { path = "../../snark/relations", version = "0.2.0", default-features = false }
+ark-serialize = { path = "../../algebra/serialize", version = "0.2.0", default-features = false, features = [ "derive" ] }
+ark-std = { version = "0.2.0", default-features = false, features = [ "print-trace" ] }
+ark-groth16 = { path = "../../groth16", version = "0.2.0", default-features = false, features = [ "std" ] }
+ark-bls12-377 = { path = "../../curves/bls12_377", version = "0.2.0", default-features = false, features = ["curve"] }
+ark-poly-commit = { path = "../../poly-commit", version = "0.2.0", default-features = false, features = [ "std" ] }
+lazy_static = "1"
+derivative = { version = "2.0", features = ["use_core"]}
+log = {version = "0.4"}
+digest = { version = "0.9" }
+
+rand = { version = "0.7", default-features = false }
+rand_chacha = { version = "0.2", default-features = false }
+rayon = { version = "1", optional = true }
+zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
+thiserror = "1"
+
+mpc-net = { path = "../mpc-net" }
+mpc-trait = { path = "../mpc-trait" }
+mpc-algebra = { path = "../mpc-algebra" }
+
+env_logger = "0.8"
+structopt = "0.3"
+clap = "2"
+merlin = "3"
+sha2 = "0.9"
+blake2 = "0.9"
