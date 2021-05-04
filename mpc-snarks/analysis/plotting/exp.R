@@ -7,4 +7,4 @@ ggplot(data=data, mapping = aes(y = time, x = constraints, color = infra, linety
   scale_y_continuous(trans = "log2") +
   scale_x_continuous(trans = "log2") +
   facet_wrap(vars(proof))
-ggsave("./analysis/plots/groth16.png")
+ggsave("./analysis/plots/exp.png")
