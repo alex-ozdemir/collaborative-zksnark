@@ -278,14 +278,14 @@ where
     /// Checks that `values` are the true evaluations at `query_set` of the polynomials
     /// committed in `labeled_commitments`.
     fn check_combinations_individual_opening_challenges<'a, R: RngCore>(
-        vk: &Self::VerifierKey,
-        lc_s: impl IntoIterator<Item = &'a LinearCombination<MpcVal<F>>>,
-        commitments: impl IntoIterator<Item = &'a LabeledCommitment<Self::Commitment>>,
-        query_set: &QuerySet<MpcVal<F>>,
-        evaluations: &Evaluations<MpcVal<F>, MpcVal<F>>,
-        proof: &BatchLCProof<MpcVal<F>, MP, Self>,
-        opening_challenges: &dyn Fn(u64) -> MpcVal<F>,
-        rng: &mut R,
+        _vk: &Self::VerifierKey,
+        _lc_s: impl IntoIterator<Item = &'a LinearCombination<MpcVal<F>>>,
+        _commitments: impl IntoIterator<Item = &'a LabeledCommitment<Self::Commitment>>,
+        _query_set: &QuerySet<MpcVal<F>>,
+        _evaluations: &Evaluations<MpcVal<F>, MpcVal<F>>,
+        _proof: &BatchLCProof<MpcVal<F>, MP, Self>,
+        _opening_challenges: &dyn Fn(u64) -> MpcVal<F>,
+        _rng: &mut R,
     ) -> Result<bool, Self::Error>
     where
         Self::Commitment: 'a,
@@ -296,13 +296,13 @@ where
     /// On input a list of labeled polynomials and a query set, `open` outputs a proof of evaluation
     /// of the polynomials at the points in the query set.
     fn batch_open_individual_opening_challenges<'a>(
-        ck: &Self::CommitterKey,
-        labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<MpcVal<F>, MP>>,
-        commitments: impl IntoIterator<Item = &'a LabeledCommitment<Self::Commitment>>,
-        query_set: &QuerySet<MpcVal<F>>,
-        opening_challenges: &dyn Fn(u64) -> MpcVal<F>,
-        rands: impl IntoIterator<Item = &'a Self::Randomness>,
-        rng: Option<&mut dyn RngCore>,
+        _ck: &Self::CommitterKey,
+        _labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<MpcVal<F>, MP>>,
+        _commitments: impl IntoIterator<Item = &'a LabeledCommitment<Self::Commitment>>,
+        _query_set: &QuerySet<MpcVal<F>>,
+        _opening_challenges: &dyn Fn(u64) -> MpcVal<F>,
+        _rands: impl IntoIterator<Item = &'a Self::Randomness>,
+        _rng: Option<&mut dyn RngCore>,
     ) -> Result<Vec<Self::Proof>, Self::Error>
     where
         P: 'a,
