@@ -56,6 +56,7 @@ impl FieldChannel {
             self.base.send_slice(&bytes_out[..]);
             bytes_in
         };
+        println!("Exchange {}", bytes_in.len());
         self.base.exchanges += 1;
         debug!("Exchange serde: {:?}\nfor {:?}", bytes_out, bytes_in);
         F::deserialize(&bytes_in[..]).unwrap()

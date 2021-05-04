@@ -1639,6 +1639,9 @@ macro_rules! shared_field {
             fn frobenius_map(&mut self, _: usize) {
                 todo!()
             }
+            fn batch_product_in_place(selfs: &mut [Self], others: &[Self]) {
+                selfs.copy_from_slice(&channel::field_batch_mul(selfs.to_owned(), others.to_owned()));
+            }
         }
     };
 }

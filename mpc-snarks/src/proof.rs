@@ -373,4 +373,5 @@ fn main() {
   let opt = Opt::from_args();
   env_logger::init();
   opt.field.run(opt.computation, opt.proof_system, opt.computation_size);
+  println!("Exchange stats: {:#?}", channel::stats());
 }
