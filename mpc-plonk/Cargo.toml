@@ -15,6 +15,7 @@ ark-serialize = { path = "../../algebra/serialize", version = "0.2.0", default-f
 ark-std = { version = "0.2.0", default-features = false, features = [ "print-trace" ] }
 ark-groth16 = { path = "../../groth16", version = "0.2.0", default-features = false, features = [ "std" ] }
 ark-bls12-377 = { path = "../../curves/bls12_377", version = "0.2.0", default-features = false, features = ["curve"] }
+ark-bls12-381 = { path = "../../curves/bls12_381", version = "0.2.0", default-features = false, features = ["curve"] }
 ark-poly-commit = { path = "../../poly-commit", version = "0.2.0", default-features = false, features = [ "std" ] }
 lazy_static = "1"
 derivative = { version = "2.0", features = ["use_core"]}
