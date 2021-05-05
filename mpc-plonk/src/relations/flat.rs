@@ -10,6 +10,8 @@ use ark_poly::{
 
 use std::iter;
 
+use crate::util::shift;
+
 use super::structured::PlonkCircuit;
 
 pub struct CircuitLayout<F: FftField> {
@@ -212,16 +214,6 @@ impl<F: FftField> CircuitLayout<F> {
         self.check_wiring();
         self.check_inputs(public_wires);
     }
-}
-
-/// Computes f(a*X) from a and f(X)
-fn shift<F: FftField>(mut f: DensePolynomial<F>, a: F) -> DensePolynomial<F> {
-    let mut s = F::one();
-    for c in &mut f.coeffs {
-        *c *= s;
-        s *= a;
-    }
-    f
 }
 
 /// We assume a power-of-two number of gates.

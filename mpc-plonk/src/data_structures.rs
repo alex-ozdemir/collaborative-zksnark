@@ -1,1 +1,109 @@
 //! Data structures for the plonk proof system
+#![allow(dead_code)]
+
+use ark_poly_commit::PolynomialCommitment;
+use ark_poly::univariate::DensePolynomial;
+use ark_ff::FftField;
+use std::marker::PhantomData;
+
+/// Commitment in the plonk proof
+pub struct Commits<C> {
+    /// Commitment to L1
+    l1: C,
+    /// Commitment to partial products of L1
+    l1_prods: C,
+    /// Commitment to the L2 quotient
+    l2_q: C,
+    /// Commitment to the quotient of the gate-check polynomial
+    gates_q: C,
+    /// Commitment to the quotient of W - v
+    public_q: C,
+}
+
+/// Check that S(X)*(P(X) + P(wX)) + (1-S(X))*P(X)*P(WX) - P(WWX) = Q(X)*Z(X)
+/// where Z vanishes on the gate domain, and Q is existential
+pub struct GateProof<F, C, O> {
+    /// Q commitment
+    pub q_cmt: C,
+    /// Verifier query point
+    pub x: F,
+    /// S(x) proof
+    pub s_open: O,
+    /// Q(x) proof
+    pub q_open: O,
+    /// P(x) proof
+    pub p_open: O,
+    /// P(w*x) proof
+    pub p_w_open: O,
+    /// P(w*w*x) proof
+    pub p_w2_open: O,
+}
+
+/// Check that P(X) agree with v(X) for the public wires
+/// via P(X) - v(X) = Q(X)*Z(X)
+/// where Z vanishes on the public wires
+pub struct PublicProof<F, C, O> {
+    /// Q commitment
+    pub q_cmt: C,
+    /// Verifier query point
+    pub x: F,
+    /// Q(x) proof
+    pub q_open: O,
+    /// P(x) proof
+    pub p_open: O,
+}
+
+/// Proof that some polynomial f has a product pi over a domain
+pub struct ProductProof<F, C, O> {
+    /// t (partial products) commitment
+    pub t_cmt: C,
+    /// quotient commitment
+    pub q_cmt: C,
+    /// challenge location
+    pub r: F,
+    /// t(w^{k-1}) opening
+    pub t_wk_open: O,
+    /// t(r) opening
+    pub t_r_open: O,
+    /// t(w*r) opening
+    pub t_wr_open: O,
+    /// f(w*r) opening
+    pub f_wr_open: O,
+    /// q(r) opening
+    pub q_r_open: O,
+}
+
+/// Check that P(X) = P(W(X)) on the wires
+/// via P(X) - v(X) = Q(X)*Z(X)
+/// where Z vanishes on the public wires
+pub struct WiringProof<F, C, O> {
+    /// verifier challenge
+    pub y: F,
+    /// verifier challenge
+    pub z: F,
+    /// commitment to L_1
+    pub l1_cmt: C,
+    /// proof that L_1 multiplies to 1
+    /// over the wire wire domain
+    pub l1_prod_pf: ProductProof<F, C, O>,
+    /// commitment to L_2's quotient over the wire domain
+    pub l2_q_cmt: C,
+    /// Challeng point for the L_2 equation
+    pub x: F,
+    /// p(x) openning
+    pub p_x_open: O,
+    /// L_1(x) openning
+    pub l1_x_open: O,
+    /// L_2(x) openning
+    pub l2_q_x_open: O,
+}
+
+/// Plonk proof
+pub struct Proof<F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> {
+    /// Commitment to P
+    p: PC::Commitment,
+    /// Phantom field
+    _field: PhantomData<F>,
+    /// Phantom polynomial commitment
+    _pc: PhantomData<PC>,
+}
