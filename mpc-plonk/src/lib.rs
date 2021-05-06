@@ -110,7 +110,7 @@ where
         f_cmt: &LabeledCommitment<PC::Commitment>,
         f_rand: &PC::Randomness,
         domain: D,
-    ) -> ProductProof<F, PC::Commitment, (F, PC::Proof)> {
+    ) -> ProductProof<PC::Commitment, (F, PC::Proof)> {
         let t_evals = {
             let mut t = f.evaluate_over_domain_by_ref(domain);
             partial_products_in_place(&mut t.evals);
@@ -180,7 +180,6 @@ where
         ProductProof {
             t_cmt: t_cmt.commitment,
             q_cmt: q_cmt.commitment,
-            r,
             t_wk_open,
             t_r_open,
             t_wr_open,
@@ -197,7 +196,7 @@ where
         p_rand: &PC::Randomness,
         pp: &PubParams<F, PC>,
         dom: D,
-    ) -> WiringProof<F, PC::Commitment, (F, PC::Proof)> {
+    ) -> WiringProof<PC::Commitment, (F, PC::Proof)> {
         let y = self.fs_rng.gen::<F>();
         let z = self.fs_rng.gen::<F>();
         let p_evals = p.evaluate_over_domain_by_ref(dom);
@@ -237,9 +236,6 @@ where
             l2_q_x_open.0 * dom.evaluate_vanishing_polynomial(x)
         );
         WiringProof {
-            y,
-            z,
-            x,
             l1_prod_pf,
             l2_q_x_open,
             l1_x_open,
@@ -256,7 +252,7 @@ where
         p_cmt: &LabeledCommitment<PC::Commitment>,
         p_rand: &PC::Randomness,
         circ: &relations::flat::CircuitLayout<F>,
-    ) -> PublicProof<F, PC::Commitment, (F, PC::Proof)> {
+    ) -> PublicProof<PC::Commitment, (F, PC::Proof)> {
         let points: Vec<(F, F)> = circ
             .public_indices
             .iter()
@@ -280,7 +276,6 @@ where
             q_open,
             q_cmt: q_cmt.commitment,
             p_open,
-            x,
         }
     }
 
@@ -424,7 +419,7 @@ where
     fn verify_unit_product<D: EvaluationDomain<F>>(
         &mut self,
         f_cmt: &LabeledCommitment<PC::Commitment>,
-        pf: ProductProof<F, PC::Commitment, (F, PC::Proof)>,
+        pf: ProductProof<PC::Commitment, (F, PC::Proof)>,
         domain: D,
     ) {
         let k = domain.size();
@@ -432,7 +427,6 @@ where
         let t_cmt = self.recv_commit("t", pf.t_cmt, None);
         let q_cmt = self.recv_commit("q", pf.q_cmt, None);
         let r = self.fs_rng.gen::<F>();
-        assert_eq!(r, pf.r, "Difference challenge");
         // Check commitments
         let f_wr = self.check(f_cmt, w * r, &pf.f_wr_open);
         let q_r = self.check(&q_cmt, r, &pf.q_r_open);
@@ -502,12 +496,11 @@ where
         &mut self,
         circ: &relations::flat::CircuitLayout<F>,
         p_cmt: &LabeledCommitment<PC::Commitment>,
-        pf: PublicProof<F, PC::Commitment, (F, PC::Proof)>,
+        pf: PublicProof<PC::Commitment, (F, PC::Proof)>,
         public: &HashMap<String, F>,
     ) {
         let q_cmt = self.recv_commit("pub_q", pf.q_cmt, None);
         let x = self.fs_rng.gen::<F>();
-        assert_eq!(pf.x, x);
         let p_val = self.check(p_cmt, x, &pf.p_open);
         let q_val = self.check(&q_cmt, x, &pf.q_open);
         let z = circ.vanishing_poly_on_inputs();
@@ -541,17 +534,14 @@ where
         p_cmt: &LabeledCommitment<PC::Commitment>,
         pp: &PubParams<F, PC>,
         dom: D,
-        pf: WiringProof<F, PC::Commitment, (F, PC::Proof)>,
+        pf: WiringProof<PC::Commitment, (F, PC::Proof)>,
     ) {
         let y = self.fs_rng.gen::<F>();
         let z = self.fs_rng.gen::<F>();
-        assert_eq!(y, pf.y);
-        assert_eq!(z, pf.z);
         let l1 = self.recv_commit("l1", pf.l1_cmt, None);
         self.verify_unit_product(&l1, pf.l1_prod_pf, dom);
         let l2_q = self.recv_commit("l2_q", pf.l2_q_cmt, None);
         let x = self.fs_rng.gen::<F>();
-        assert_eq!(x, pf.x);
 
         let l2_q_x = self.check(&l2_q, x, &pf.l2_q_x_open);
         let w_x = self.check(&pp.w_cmt, x, &pf.w_x_open);

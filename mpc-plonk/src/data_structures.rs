@@ -6,20 +6,6 @@ use ark_poly::univariate::DensePolynomial;
 use ark_ff::FftField;
 use std::marker::PhantomData;
 
-/// Commitment in the plonk proof
-pub struct Commits<C> {
-    /// Commitment to L1
-    l1: C,
-    /// Commitment to partial products of L1
-    l1_prods: C,
-    /// Commitment to the L2 quotient
-    l2_q: C,
-    /// Commitment to the quotient of the gate-check polynomial
-    gates_q: C,
-    /// Commitment to the quotient of W - v
-    public_q: C,
-}
-
 /// Check that S(X)*(P(X) + P(wX)) + (1-S(X))*P(X)*P(WX) - P(WWX) = Q(X)*Z(X)
 /// where Z vanishes on the gate domain, and Q is existential
 pub struct GateProof<F, C, O> {
@@ -42,11 +28,9 @@ pub struct GateProof<F, C, O> {
 /// Check that P(X) agree with v(X) for the public wires
 /// via P(X) - v(X) = Q(X)*Z(X)
 /// where Z vanishes on the public wires
-pub struct PublicProof<F, C, O> {
+pub struct PublicProof<C, O> {
     /// Q commitment
     pub q_cmt: C,
-    /// Verifier query point
-    pub x: F,
     /// Q(x) proof
     pub q_open: O,
     /// P(x) proof
@@ -54,13 +38,11 @@ pub struct PublicProof<F, C, O> {
 }
 
 /// Proof that some polynomial f has a product pi over a domain
-pub struct ProductProof<F, C, O> {
+pub struct ProductProof<C, O> {
     /// t (partial products) commitment
     pub t_cmt: C,
     /// quotient commitment
     pub q_cmt: C,
-    /// challenge location
-    pub r: F,
     /// t(w^{k-1}) opening
     pub t_wk_open: O,
     /// t(r) opening
@@ -76,20 +58,14 @@ pub struct ProductProof<F, C, O> {
 /// Check that P(X) = P(W(X)) on the wires
 /// via P(X) - v(X) = Q(X)*Z(X)
 /// where Z vanishes on the public wires
-pub struct WiringProof<F, C, O> {
-    /// verifier challenge
-    pub y: F,
-    /// verifier challenge
-    pub z: F,
+pub struct WiringProof<C, O> {
     /// commitment to L_1
     pub l1_cmt: C,
     /// proof that L_1 multiplies to 1
     /// over the wire wire domain
-    pub l1_prod_pf: ProductProof<F, C, O>,
+    pub l1_prod_pf: ProductProof<C, O>,
     /// commitment to L_2's quotient over the wire domain
     pub l2_q_cmt: C,
-    /// Challeng point for the L_2 equation
-    pub x: F,
     /// p(x) openning
     pub p_x_open: O,
     /// w(x) openning
@@ -105,11 +81,11 @@ pub struct Proof<F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> {
     /// Commitment to P
     pub p_cmt: PC::Commitment,
     /// Proof of wiring
-    pub wiring: WiringProof<F, PC::Commitment, (F, PC::Proof)>,
+    pub wiring: WiringProof<PC::Commitment, (F, PC::Proof)>,
     /// Proof of gates
     pub gates: GateProof<F, PC::Commitment, (F, PC::Proof)>,
     /// Proof of gates
-    pub public: PublicProof<F, PC::Commitment, (F, PC::Proof)>,
+    pub public: PublicProof<PC::Commitment, (F, PC::Proof)>,
     /// Phantom polynomial commitment
     pub _pc: PhantomData<PC>,
 }
