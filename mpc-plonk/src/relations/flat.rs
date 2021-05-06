@@ -6,6 +6,7 @@ use ark_poly::{
     evaluations::univariate::Evaluations,
     univariate::DensePolynomial,
     Polynomial,
+    UVPolynomial,
 };
 
 use std::iter;
@@ -14,19 +15,20 @@ use crate::util::shift;
 
 use super::structured::PlonkCircuit;
 
+#[derive(Clone)]
 pub struct CircuitLayout<F: FftField> {
     /// Wiring permutation polynomial
-    w: DensePolynomial<F>,
+    pub w: DensePolynomial<F>,
     /// Gate selection polynomial
-    s: DensePolynomial<F>,
+    pub s: DensePolynomial<F>,
     /// Map from variables to indices in the layout
-    vars_to_indices: HashMap<u32, Vec<usize>>,
+    pub vars_to_indices: HashMap<u32, Vec<usize>>,
     /// Public variables
-    public_indices: HashMap<String, usize>,
+    pub public_indices: HashMap<String, usize>,
     /// Wire value polynomial
-    p: Option<DensePolynomial<F>>,
+    pub p: Option<DensePolynomial<F>>,
     /// Domains over which the polynomials have meaning
-    domains: Domains<F>,
+    pub domains: Domains<F>,
 }
 
 impl<F: FftField> CircuitLayout<F> {
@@ -136,7 +138,7 @@ impl<F: FftField> CircuitLayout<F> {
         }
     }
 
-    fn evaluate_over_gates(
+    pub fn evaluate_over_gates(
         &self,
         p: &DensePolynomial<F>,
     ) -> Evaluations<F, Radix2EvaluationDomain<F>> {
@@ -209,6 +211,33 @@ impl<F: FftField> CircuitLayout<F> {
         }
     }
 
+    /// Returns the monic polynomial which vanishes at the input pins
+    pub fn vanishing_poly_on_inputs(&self) -> DensePolynomial<F> {
+        let roots: Vec<F> = self
+            .public_indices
+            .iter()
+            .map(|(_, i)| self.domains.wires.element(*i))
+            .collect();
+        poly_from_roots(&roots)
+    }
+
+    pub fn inputs_poly(
+        &self,
+        inputs: &HashMap<String, F>,
+    ) -> DensePolynomial<F> {
+        assert!(inputs.len() > 0);
+        let points: Vec<(F, F)> = inputs
+            .iter()
+            .map(|(var, val)| {
+                let idx = self.public_indices[var];
+                let x = self.domains.wires.element(idx);
+                (x, *val)
+            })
+            .collect();
+        crate::util::interpolate(&points)
+    }
+
+
     pub fn check(&self, public_wires: &HashMap<String, F>) {
         self.check_gates();
         self.check_wiring();
@@ -220,8 +249,8 @@ impl<F: FftField> CircuitLayout<F> {
 /// We use a 2^r*3-sized domain for wires and a 2^r-sized domain for gates.
 #[derive(Clone, Debug)]
 pub struct Domains<F: FftField> {
-    wires: MixedRadixEvaluationDomain<F>,
-    gates: Radix2EvaluationDomain<F>,
+    pub wires: MixedRadixEvaluationDomain<F>,
+    pub gates: Radix2EvaluationDomain<F>,
 }
 
 impl<F: FftField> Domains<F> {
@@ -240,6 +269,14 @@ impl<F: FftField> Domains<F> {
         Domains { gates, wires }
     }
 }
+
+fn poly_from_roots<F: FftField>(roots: &[F]) -> DensePolynomial<F> {
+    roots.iter().fold(
+        DensePolynomial::from_coefficients_vec(vec![F::one()]),
+        |acc, r| acc.naive_mul(&DensePolynomial::from_coefficients_vec(vec![-*r, F::one()])),
+    )
+}
+
 
 
 #[cfg(test)]

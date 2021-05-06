@@ -1,7 +1,7 @@
 //! Data structures for the plonk proof system
 #![allow(dead_code)]
 
-use ark_poly_commit::PolynomialCommitment;
+use ark_poly_commit::{PolynomialCommitment, LabeledCommitment, LabeledPolynomial};
 use ark_poly::univariate::DensePolynomial;
 use ark_ff::FftField;
 use std::marker::PhantomData;
@@ -92,6 +92,8 @@ pub struct WiringProof<F, C, O> {
     pub x: F,
     /// p(x) openning
     pub p_x_open: O,
+    /// w(x) openning
+    pub w_x_open: O,
     /// L_1(x) openning
     pub l1_x_open: O,
     /// L_2(x) openning
@@ -101,9 +103,23 @@ pub struct WiringProof<F, C, O> {
 /// Plonk proof
 pub struct Proof<F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> {
     /// Commitment to P
-    p: PC::Commitment,
-    /// Phantom field
-    _field: PhantomData<F>,
+    pub p_cmt: PC::Commitment,
+    /// Proof of wiring
+    pub wiring: WiringProof<F, PC::Commitment, (F, PC::Proof)>,
+    /// Proof of gates
+    pub gates: GateProof<F, PC::Commitment, (F, PC::Proof)>,
+    /// Proof of gates
+    pub public: PublicProof<F, PC::Commitment, (F, PC::Proof)>,
     /// Phantom polynomial commitment
-    _pc: PhantomData<PC>,
+    pub _pc: PhantomData<PC>,
+}
+
+pub struct PubParams<F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> {
+    pub w: LabeledPolynomial<F, DensePolynomial<F>>,
+    pub w_cmt: LabeledCommitment<PC::Commitment>,
+    pub w_rand: PC::Randomness,
+    pub s: LabeledPolynomial<F, DensePolynomial<F>>,
+    pub s_cmt: LabeledCommitment<PC::Commitment>,
+    pub s_rand: PC::Randomness,
+    pub _pc: PhantomData<PC>,
 }
