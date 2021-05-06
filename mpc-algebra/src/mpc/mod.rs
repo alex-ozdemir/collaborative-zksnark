@@ -358,11 +358,8 @@ macro_rules! impl_basics {
             fn is_shared(&self) -> bool {
                 self.shared
             }
-            fn cast_to_shared(&mut self) {
-                self.shared = true;
-            }
-            fn cast_to_public(&mut self) {
-                self.shared = false;
+            fn set_shared(&mut self, shared: bool) {
+                self.shared = shared;
             }
             fn publicize_cow<'b>(&'b self) -> Cow<'b, Self> {
                 if self.shared {
@@ -372,6 +369,23 @@ macro_rules! impl_basics {
                 } else {
                     Cow::Borrowed(self)
                 }
+            }
+        }
+        impl<
+                F: for<'a> AddAssign<&'a F>
+                    + ark_serialize::CanonicalSerialize
+                    + ark_serialize::CanonicalDeserialize
+                    + Clone
+                    + std::cmp::PartialEq,
+            > Reveal for $ty<F>
+        {
+            type Base = F;
+            fn reveal(mut self) -> Self::Base {
+                self.publicize();
+                self.val
+            }
+            fn obscure(b: Self::Base) -> Self {
+                Self::from_public(b)
             }
         }
 
@@ -1075,11 +1089,8 @@ macro_rules! impl_mult_basics {
             fn is_shared(&self) -> bool {
                 self.shared
             }
-            fn cast_to_shared(&mut self) {
-                self.shared = true;
-            }
-            fn cast_to_public(&mut self) {
-                self.shared = false;
+            fn set_shared(&mut self, shared: bool) {
+                self.shared = shared;
             }
             fn publicize_cow<'b>(&'b self) -> Cow<'b, Self> {
                 if self.shared {
@@ -1089,6 +1100,23 @@ macro_rules! impl_mult_basics {
                 } else {
                     Cow::Borrowed(self)
                 }
+            }
+        }
+        impl<
+                F: for<'a> MulAssign<&'a F>
+                    + ark_serialize::CanonicalSerialize
+                    + ark_serialize::CanonicalDeserialize
+                    + Clone
+                    + std::cmp::PartialEq,
+            > Reveal for $ty<F>
+        {
+            type Base = F;
+            fn reveal(mut self) -> Self::Base {
+                self.publicize();
+                self.val
+            }
+            fn obscure(b: Self::Base) -> Self {
+                Self::from_public(b)
             }
         }
 
@@ -2049,7 +2077,7 @@ impl PairingEngine for MpcPairingEngine<Bls12_377> {
 
 // /// Vector-Commitable Field
 
-use mpc_trait::MpcWire;
+use mpc_trait::{MpcWire, Reveal};
 
 /// Vector-Commitable Field
 pub trait ComField: FftField + MpcWire {

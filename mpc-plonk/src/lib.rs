@@ -16,7 +16,7 @@ use blake2::Blake2s;
 
 use ark_ff::{FftField, Field, Zero};
 
-use ark_poly_commit::{LabeledCommitment, LabeledPolynomial, PolynomialCommitment};
+use ark_poly_commit::{LabeledCommitment, LabeledPolynomial, PolynomialCommitment, PCRandomness};
 
 use ark_poly::{
     domain::EvaluationDomain,
@@ -38,27 +38,22 @@ pub fn setup<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>>(
     pc_ck: &PC::CommitterKey,
     circ: &relations::flat::CircuitLayout<F>,
     rng: &mut dyn RngCore,
-) -> PubParams<F, PC> {
+) -> PubParams<F, PC::Commitment> {
     let w = LabeledPolynomial::new("w".into(), circ.w.clone(), None, None);
-    let (mut cs, mut rs) = PC::commit(pc_ck, once(&w), Some(rng)).unwrap();
+    let (mut cs, rs) = PC::commit(pc_ck, once(&w), Some(rng)).unwrap();
     assert_eq!(cs.len(), 1);
     assert_eq!(rs.len(), 1);
     let w_cmt = cs.pop().unwrap();
-    let w_rand = rs.pop().unwrap();
     let s = LabeledPolynomial::new("s".into(), circ.s.clone(), None, None);
-    let (mut cs, mut rs) = PC::commit(pc_ck, once(&s), Some(rng)).unwrap();
+    let (mut cs, rs) = PC::commit(pc_ck, once(&s), Some(rng)).unwrap();
     assert_eq!(cs.len(), 1);
     assert_eq!(rs.len(), 1);
     let s_cmt = cs.pop().unwrap();
-    let s_rand = rs.pop().unwrap();
     PubParams {
         w,
         w_cmt,
-        w_rand,
         s,
         s_cmt,
-        s_rand,
-        _pc: PhantomData::default(),
     }
 }
 
@@ -194,7 +189,7 @@ where
         p: &LabeledPolynomial<F, DensePolynomial<F>>,
         p_cmt: &LabeledCommitment<PC::Commitment>,
         p_rand: &PC::Randomness,
-        pp: &PubParams<F, PC>,
+        pp: &PubParams<F, PC::Commitment>,
         dom: D,
     ) -> WiringProof<PC::Commitment, (F, PC::Proof)> {
         let y = self.fs_rng.gen::<F>();
@@ -228,7 +223,7 @@ where
         let (l2_q_cmt, l2_q, l2_q_rand) = self.commit("l2_q", l2_q, None, None).unwrap();
         let x = self.fs_rng.gen::<F>();
         let l2_q_x_open = self.eval(&l2_q, &l2_q_rand, &l2_q_cmt, x).unwrap();
-        let w_x_open = self.eval(&pp.w, &pp.w_rand, &pp.w_cmt, x).unwrap();
+        let w_x_open = self.eval(&pp.w, &PC::Randomness::empty(), &pp.w_cmt, x).unwrap();
         let l1_x_open = self.eval(&l1, &l1_rand, &l1_cmt, x).unwrap();
         let p_x_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
         debug_assert_eq!(
@@ -285,8 +280,8 @@ where
         p_cmt: &LabeledCommitment<PC::Commitment>,
         p_rand: &PC::Randomness,
         circ: &relations::flat::CircuitLayout<F>,
-        pp: &PubParams<F, PC>,
-    ) -> GateProof<F, PC::Commitment, (F, PC::Proof)> {
+        pp: &PubParams<F, PC::Commitment>,
+    ) -> GateProof<PC::Commitment, (F, PC::Proof)> {
         let w = circ.domains.wires.group_gen;
         let pw = util::shift(p.polynomial().clone(), w);
         let pww = util::shift(p.polynomial().clone(), w * w);
@@ -301,7 +296,7 @@ where
         debug_assert!(r.is_zero());
         let (q_cmt, q, q_rand) = self.commit("gates_q", q, None, None).unwrap();
         let x = self.fs_rng.gen::<F>();
-        let s_open = self.eval(&pp.s, &pp.s_rand, &pp.s_cmt, x).unwrap();
+        let s_open = self.eval(&pp.s, &PC::Randomness::empty(), &pp.s_cmt, x).unwrap();
         let p_open = self.eval(p, p_rand, p_cmt, x).unwrap();
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_w_open = self.eval(p, p_rand, p_cmt, w * x).unwrap();
@@ -313,7 +308,6 @@ where
         );
         GateProof {
             q_cmt: q_cmt.commitment,
-            x,
             s_open,
             p_open,
             q_open,
@@ -377,8 +371,8 @@ where
     fn prove(
         &mut self,
         circ: relations::flat::CircuitLayout<F>,
-        pp: &PubParams<F, PC>,
-    ) -> Proof<F, PC> {
+        pp: &PubParams<F, PC::Commitment>,
+    ) -> Proof<F, PC::Commitment, PC::Proof> {
         assert!(circ.p.is_some());
         let n_gates = circ.domains.gates.size();
         let n_wires = n_gates * 3;
@@ -398,7 +392,6 @@ where
             wiring,
             gates,
             public,
-            _pc: PhantomData::default(),
         }
     }
 }
@@ -479,9 +472,9 @@ where
     fn verify(
         &mut self,
         circ: relations::flat::CircuitLayout<F>,
-        pf: Proof<F, PC>,
+        pf: Proof<F, PC::Commitment, PC::Proof>,
         public: &HashMap<String, F>,
-        pp: &PubParams<F, PC>,
+        pp: &VerifierParams<PC::Commitment>,
     ) {
         assert!(circ.p.is_none());
         let n_gates = circ.domains.gates.size();
@@ -512,12 +505,11 @@ where
         &mut self,
         p_cmt: &LabeledCommitment<PC::Commitment>,
         circ: &relations::flat::CircuitLayout<F>,
-        pp: &PubParams<F, PC>,
-        pf: GateProof<F, PC::Commitment, (F, PC::Proof)>,
+        pp: &VerifierParams<PC::Commitment>,
+        pf: GateProof<PC::Commitment, (F, PC::Proof)>,
     ) {
         let q_cmt = self.recv_commit("gates_q", pf.q_cmt, None);
         let x = self.fs_rng.gen::<F>();
-        assert_eq!(x, pf.x);
         let w = circ.domains.wires.group_gen;
         let s = self.check(&pp.s_cmt, x, &pf.s_open);
         let q = self.check(&q_cmt, x, &pf.q_open);
@@ -532,7 +524,7 @@ where
     fn verify_wiring<D: EvaluationDomain<F>>(
         &mut self,
         p_cmt: &LabeledCommitment<PC::Commitment>,
-        pp: &PubParams<F, PC>,
+        pp: &VerifierParams<PC::Commitment>,
         dom: D,
         pf: WiringProof<PC::Commitment, (F, PC::Proof)>,
     ) {
@@ -656,10 +648,11 @@ mod tests {
             t
         };
 
-        let pp = setup(&ck, &v_circ, setup_rng);
+        let pp = setup::<F, PC>(&ck, &v_circ, setup_rng);
         let mut prv: Prover<F, PC> = Prover::new(vk.clone(), ck.clone(), fs_rng, zk_rng);
         let mut ver: Verifier<F, PC> = Verifier::new(vk.clone(), v_fs_rng, v_rng);
         let pf = prv.prove(circ.clone(), &pp);
-        ver.verify(v_circ, pf, &public, &pp);
+        let vp = VerifierParams::from(&pp);
+        ver.verify(v_circ, pf, &public, &vp);
     }
 }
