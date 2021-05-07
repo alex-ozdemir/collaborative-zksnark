@@ -32,7 +32,8 @@ pub struct CircuitLayout<F: FftField> {
 }
 
 impl<F: FftField> CircuitLayout<F> {
-    pub fn from_circuit(c: &PlonkCircuit<F>, domains: &Domains<F>) -> Self {
+    pub fn from_circuit(c: &PlonkCircuit<F>) -> Self {
+        let domains = Domains::from_circuit(c);
         // Our layout is products followed by sums
 
         // Start with gate selector polynomial

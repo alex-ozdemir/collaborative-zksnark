@@ -17,7 +17,7 @@ use log::debug;
 
 use blake2::Blake2s;
 
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{FftField, Field};
 
 use ark_poly_commit::{LabeledCommitment, LabeledPolynomial, PCRandomness, PolynomialCommitment};
 
@@ -304,7 +304,7 @@ where
         let d = &(&circ.s * &(p.polynomial() + &pw)
             + &(&(&circ.s * &-F::one()) + &F::one()) * &(p.polynomial() * &pw))
             - &pww;
-        let (q, r) = DenseOrSparsePolynomial::DPolynomial(Cow::Owned(d))
+        let (q, _r) = DenseOrSparsePolynomial::DPolynomial(Cow::Owned(d))
             .divide_with_q_and_r(&DenseOrSparsePolynomial::SPolynomial(Cow::Owned(
                 circ.domains.gates.vanishing_polynomial(),
             )))
@@ -649,8 +649,7 @@ mod tests {
         let c = PlonkCircuit::<F>::new_squaring_circuit(steps, Some(start));
         let res = (0..steps).fold(start, |a, _| a * a);
         let public: HashMap<String, F> = vec![("out".to_owned(), res)].into_iter().collect();
-        let d = Domains::from_circuit(&c);
-        let circ = CircuitLayout::from_circuit(&c, &d);
+        let circ = CircuitLayout::from_circuit(&c);
 
         let setup_rng = &mut ark_std::test_rng();
         let zk_rng = &mut ark_std::test_rng();
