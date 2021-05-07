@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
 //! Mostly just for testing
 use log::debug;
 
@@ -24,7 +26,8 @@ use structopt::StructOpt;
 
 mod groth;
 mod marlin;
-//mod poly;
+mod plonk;
+mod reveal;
 mod silly;
 
 arg_enum! {
@@ -49,6 +52,7 @@ arg_enum! {
         KzgZk,
         KzgZkBatch,
         PcTwoCom,
+        Plonk,
     }
 }
 
@@ -118,6 +122,7 @@ impl Opt {
             }
             Computation::Marlin
             | Computation::Groth16
+            | Computation::Plonk
             | Computation::Kzg
             | Computation::KzgZk
             | Computation::KzgZkBatch
@@ -173,6 +178,11 @@ impl Computation {
             }
             Computation::Marlin => {
                 marlin::mpc_test_prove_and_verify(1);
+                vec![]
+            }
+            Computation::Plonk => {
+                //plonk::local_test_prove_and_verify(10);
+                plonk::mpc_test_prove_and_verify(10);
                 vec![]
             }
             Computation::MarlinPc => {

@@ -30,6 +30,7 @@ zeroize = { version = "1", default-features = false, features = ["zeroize_derive
 mpc-net = { path = "../mpc-net" }
 mpc-trait = { path = "../mpc-trait" }
 mpc-algebra = { path = "../mpc-algebra" }
+mpc-plonk = { path = "../mpc-plonk" }
 
 env_logger = "0.8"
 structopt = "0.3"

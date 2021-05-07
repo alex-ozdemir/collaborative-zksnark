@@ -483,131 +483,13 @@ type MpcMarlin = Marlin<MFr, MpcMarlinKZG10, Blake2s>;
 //type MpcBlsMarlin = Marlin<MpcVal<ark_bls12_377::Fr>, MpcMarlinKZG10, Blake2s>;
 //type MpcBlsMarlin = Marlin<MpcVal<ark_bls12_377::Fr>, MpcMarlinKZG10, Blake2s>;
  
-fn index_info_publicize<F: ark_ff::Field>(i: ahp::indexer::IndexInfo<MpcVal<F>>) -> ahp::indexer::IndexInfo<F> {
-    ahp::indexer::IndexInfo {
-        num_variables: i.num_variables,
-        num_constraints: i.num_constraints,
-        num_non_zero: i.num_non_zero,
-        num_instance_variables: i.num_instance_variables,
-        f: std::marker::PhantomData::default(),
-    }
-}
-
-fn lift_index_info<F: ark_ff::Field>(i: ahp::indexer::IndexInfo<F>) -> ahp::indexer::IndexInfo<MpcVal<F>> {
-    ahp::indexer::IndexInfo {
-        num_variables: i.num_variables,
-        num_constraints: i.num_constraints,
-        num_non_zero: i.num_non_zero,
-        num_instance_variables: i.num_instance_variables,
-        f: std::marker::PhantomData::default(),
-    }
-}
-
-fn lift_pp(pp: ark_poly_commit::kzg10::UniversalParams<E>) -> ark_poly_commit::kzg10::UniversalParams<ME> {
-  ark_poly_commit::kzg10::UniversalParams {
-    powers_of_g: pp.powers_of_g.into_iter().map(MpcCurve::from_public).collect(),
-    powers_of_gamma_g: pp.powers_of_gamma_g.into_iter().map(|(i, w)| (i, MpcCurve::from_public(w))).collect(),
-    h: MpcCurve2::from_public(pp.h),
-    beta_h: MpcCurve2::from_public(pp.beta_h),
-    neg_powers_of_h: pp.neg_powers_of_h.into_iter().map(|(i, w)| (i, MpcCurve2::from_public(w))).collect(),
-    prepared_h: MpcPrepCurve2::from_public(pp.prepared_h),
-    prepared_beta_h: MpcPrepCurve2::from_public(pp.prepared_beta_h),
-  }
-}
-
-fn lift_index_vk(vk: ark_marlin::IndexVerifierKey<Fr, LocalMarlinKZG10>) -> ark_marlin::IndexVerifierKey<MFr, MpcMarlinKZG10> {
-  ark_marlin::IndexVerifierKey {
-    index_comms: vk.index_comms.into_iter().map(mpc_algebra::poly::pc::lift_commitment).collect(),
-    verifier_key: lift_vk(vk.verifier_key),
-    index_info: lift_index_info(vk.index_info),
-  }
-}
-
-// Lift a locally computed commitent key to an MPC one.
-pub fn lift_kzg_vk(vk: ark_poly_commit::kzg10::VerifierKey<E>) -> ark_poly_commit::kzg10::VerifierKey<ME> {
-  ark_poly_commit::kzg10::VerifierKey {
-    g: MpcCurve::from_public(vk.g),
-    gamma_g: MpcCurve::from_public(vk.gamma_g),
-    h: MpcCurve2::from_public(vk.h),
-    beta_h: MpcCurve2::from_public(vk.beta_h),
-    prepared_h: MpcPrepCurve2::from_public(vk.prepared_h),
-    prepared_beta_h: MpcPrepCurve2::from_public(vk.prepared_beta_h),
-  }
-
-}
-pub fn lift_vk(vk: ark_poly_commit::marlin_pc::VerifierKey<E>) -> ark_poly_commit::marlin_pc::VerifierKey<ME> {
-    ark_poly_commit::marlin_pc::VerifierKey {
-      vk: lift_kzg_vk(vk.vk),
-      degree_bounds_and_shift_powers: vk.degree_bounds_and_shift_powers.map(|v| v.into_iter().map(|(i, g)| (i, MpcCurve::from_public(g))).collect()),
-      max_degree: vk.max_degree,
-      supported_degree: vk.supported_degree,
-    }
-}
-
-fn lift_index_matrix(mat: ark_marlin::ahp::indexer::Matrix<Fr>) -> ark_marlin::ahp::indexer::Matrix<MFr> {
-  mat.into_iter().map(|v| v.into_iter().map(|(f, i)| (MpcVal::from_public(f), i)).collect()).collect()
-}
-fn lift_index(ii: ark_marlin::ahp::indexer::Index<Fr>) -> ark_marlin::ahp::indexer::Index<MFr> {
-  ark_marlin::ahp::indexer::Index {
-    index_info: lift_index_info(ii.index_info),
-    a: lift_index_matrix(ii.a),
-    b: lift_index_matrix(ii.b),
-    c: lift_index_matrix(ii.c),
-    a_star_arith: lift_matrix_arith(ii.a_star_arith),
-    b_star_arith: lift_matrix_arith(ii.b_star_arith),
-    c_star_arith: lift_matrix_arith(ii.c_star_arith),
-  }
-}
-
-fn lift_labelled_poly(p: ark_poly_commit::data_structures::LabeledPolynomial<Fr, DensePolynomial<Fr>>) -> ark_poly_commit::data_structures::LabeledPolynomial<MFr, DensePolynomial<MFr>> {
-  use ark_poly::UVPolynomial;
-  ark_poly_commit::data_structures::LabeledPolynomial::new(p.label().clone(), DensePolynomial::from_coefficients_vec(p.polynomial().coeffs().into_iter().map(|c| MpcVal::from_public(c.clone())).collect()), p.degree_bound(), p.hiding_bound())
-}
-
-fn lift_evals(es: ark_poly::evaluations::univariate::Evaluations<Fr>) -> ark_poly::evaluations::univariate::Evaluations<MFr> {
-  ark_poly::evaluations::univariate::Evaluations {
-    evals: es.evals.into_iter().map(MpcVal::from_public).collect(),
-    domain: ark_poly::GeneralEvaluationDomain::new(es.domain.size()).unwrap(),
-  }
-}
-
-fn lift_matrix_evals(mat: ark_marlin::ahp::constraint_systems::MatrixEvals<Fr>) -> ark_marlin::ahp::constraint_systems::MatrixEvals<MFr> {
-  ark_marlin::ahp::constraint_systems::MatrixEvals {
-    row: lift_evals(mat.row),
-    col: lift_evals(mat.col),
-    val: lift_evals(mat.val),
-  }
-}
-
-fn lift_matrix_arith(mat: ark_marlin::ahp::constraint_systems::MatrixArithmetization<Fr>) -> ark_marlin::ahp::constraint_systems::MatrixArithmetization<MFr> {
-  ark_marlin::ahp::constraint_systems::MatrixArithmetization {
-    row: lift_labelled_poly(mat.row),
-    col: lift_labelled_poly(mat.col),
-    val: lift_labelled_poly(mat.val),
-    row_col: lift_labelled_poly(mat.row_col),
-    evals_on_K: lift_matrix_evals(mat.evals_on_K),
-    evals_on_B: lift_matrix_evals(mat.evals_on_B),
-    row_col_evals_on_B: lift_evals(mat.row_col_evals_on_B),
-  }
-}
-
-
-pub fn lift_index_pk(pk: ark_marlin::IndexProverKey<Fr, LocalMarlinKZG10>) -> ark_marlin::IndexProverKey<MFr, MpcMarlinKZG10> {
-  ark_marlin::IndexProverKey {
-    index_vk: lift_index_vk(pk.index_vk),
-    index_comm_rands: pk.index_comm_rands.into_iter().map(mpc_algebra::poly::pc::lift_randomness).collect(),
-    index: lift_index(pk.index),
-    committer_key: mpc_algebra::poly::pc::lift_ck(pk.committer_key),
-  }
-}
-
 pub fn mpc_test_prove_and_verify(n_iters: usize) {
     let rng = &mut test_rng();
 
     let srs = LocalMarlin::universal_setup(100, 50, 100, rng).unwrap();
     let empty_circuit: MySillyCircuit<Fr> = MySillyCircuit { a: None, b: None };
     let (index_pk, index_vk) = LocalMarlin::index(&srs, empty_circuit.clone()).unwrap();
-    let mpc_index_pk = lift_index_pk(index_pk);
+    let mpc_index_pk = crate::reveal::marlin::lift_index_pk(index_pk);
 
     for _ in 0..n_iters {
         let a = MpcVal::<ark_bls12_377::Fr>::rand(rng);

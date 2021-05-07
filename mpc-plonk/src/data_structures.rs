@@ -4,7 +4,7 @@
 use ark_ff::Field;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::{LabeledCommitment, LabeledPolynomial, PCCommitment};
-use mpc_trait::{struct_mpc_wire_impl, struct_reveal_impl, MpcWire, Reveal};
+use mpc_trait::{struct_mpc_wire_impl, MpcWire};
 
 /// Check that S(X)*(P(X) + P(wX)) + (1-S(X))*P(X)*P(WX) - P(WWX) = Q(X)*Z(X)
 /// where Z vanishes on the gate domain, and Q is existential
@@ -112,42 +112,17 @@ impl<C: MpcWire, O: MpcWire> MpcWire for GateProof<C, O> {
         (C, q_cmt), (O, s_open), (O, q_open), (O, p_open), (O, p_w_open), (O, p_w2_open));
 }
 
-impl<C: Reveal, O: Reveal> Reveal for GateProof<C, O> {
-    type Base = GateProof<C::Base, O::Base>;
-    struct_reveal_impl!(GateProof<C, O>, GateProof;
-        (C, q_cmt), (O, s_open), (O, q_open), (O, p_open), (O, p_w_open), (O, p_w2_open));
-}
-
 impl<C: MpcWire, O: MpcWire> MpcWire for PublicProof<C, O> {
     struct_mpc_wire_impl!(PublicProof<C, O>;
         (C, q_cmt), (O, q_open), (O, p_open));
 }
-
-impl<C: Reveal, O: Reveal> Reveal for PublicProof<C, O> {
-    type Base = PublicProof<C::Base, O::Base>;
-    struct_reveal_impl!(PublicProof<C, O>, PublicProof;
-        (C, q_cmt), (O, q_open), (O, p_open));
-}
-
 impl<C: MpcWire, O: MpcWire> MpcWire for ProductProof<C, O> {
     struct_mpc_wire_impl!(ProductProof<C, O>;
         (C, q_cmt), (C, t_cmt), (O, t_wk_open), (O, t_r_open), (O, t_wr_open), (O, f_wr_open), (O, q_r_open));
 }
 
-impl<C: Reveal, O: Reveal> Reveal for ProductProof<C, O> {
-    type Base = ProductProof<C::Base, O::Base>;
-    struct_reveal_impl!(ProductProof<C, O>, ProductProof;
-        (C, q_cmt), (C, t_cmt), (O, t_wk_open), (O, t_r_open), (O, t_wr_open), (O, f_wr_open), (O, q_r_open));
-}
-
 impl<C: MpcWire, O: MpcWire> MpcWire for WiringProof<C, O> {
     struct_mpc_wire_impl!(WiringProof<C, O>;
-        (C, l1_cmt), (ProductProof<C, O>, l1_prod_pf), (C, l2_q_cmt), (O, p_x_open), (O, w_x_open), (O, l1_x_open), (O, l2_q_x_open));
-}
-
-impl<C: Reveal, O: Reveal> Reveal for WiringProof<C, O> {
-    type Base = WiringProof<C::Base, O::Base>;
-    struct_reveal_impl!(WiringProof<C, O>, WiringProof;
         (C, l1_cmt), (ProductProof<C, O>, l1_prod_pf), (C, l2_q_cmt), (O, p_x_open), (O, w_x_open), (O, l1_x_open), (O, l2_q_x_open));
 }
 
@@ -160,39 +135,22 @@ impl<F: MpcWire, C: MpcWire, O: MpcWire> MpcWire for Proof<F, C, O> {
     );
 }
 
-impl<F: Reveal, C: Reveal, O: Reveal> Reveal for Proof<F, C, O> {
-    type Base = Proof<F::Base, C::Base, O::Base>;
-    struct_reveal_impl!(Proof<F, PC>, Proof;
-        (C, p_cmt),
-        (WiringProof<C, (F, O)>, wiring),
-        (GateProof<C, (F, O)>, gates),
-        (PublicProof<C, (F, O)>, public)
-    );
-}
-
-// impl<C: MpcWire, O: MpcWire> MpcWire for GateProof<C, O> {
-//     fn publicize(&mut self) {
-//         self.q_cmt.publicize();
-//         self.s_open.publicize();
-//         self.q_open.publicize();
-//         self.p_open.publicize();
-//         self.p_w_open.publicize();
-//         self.p_w2_open.publicize();
-//     }
-//     fn set_shared(&mut self, shared: bool) {
-//         self.q_cmt.set_shared(shared);
-//         self.s_open.set_shared(shared);
-//         self.q_open.set_shared(shared);
-//         self.p_open.set_shared(shared);
-//         self.p_w_open.set_shared(shared);
-//         self.p_w2_open.set_shared(shared);
-//     }
-//     fn is_shared(&self) -> bool {
-//         self.q_cmt.is_shared()
-//             && self.s_open.is_shared()
-//             && self.q_open.is_shared()
-//             && self.p_open.is_shared()
-//             && self.p_w_open.is_shared()
-//             && self.p_w2_open.is_shared()
-//     }
+// impl<F: MpcWire, C: MpcWire, PcCk: MpcWire> MpcWire for ProverKey<F, C, PcCk> {
+//     struct_mpc_wire_impl!(ProverKey<F, C, PcCk>;
+//         (C, p_cmt),
+//         (WiringProof<C, (F, O)>, wiring),
+//         (GateProof<C, (F, O)>, gates),
+//         (PublicProof<C, (F, O)>, public)
+//     );
 // }
+// 
+// impl<F: Reveal, C: Reveal, O: Reveal> Reveal for Proof<F, C, O> {
+//     type Base = Proof<F::Base, C::Base, O::Base>;
+//     struct_reveal_impl!(Proof<F, PC>, Proof;
+//         (C, p_cmt),
+//         (WiringProof<C, (F, O)>, wiring),
+//         (GateProof<C, (F, O)>, gates),
+//         (PublicProof<C, (F, O)>, public)
+//     );
+// }
+

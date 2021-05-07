@@ -26,28 +26,51 @@ pub trait MpcWire: Clone {
     }
 }
 
-pub trait Reveal: MpcWire {
-    type Base;
-    fn reveal(self) -> Self::Base;
-    fn obscure(b: Self::Base) -> Self;
-}
 
 impl<T> MpcWire for std::marker::PhantomData<T> {}
 
 impl<A: MpcWire, B: MpcWire> MpcWire for (A, B) {
     struct_mpc_wire_impl!((A, B); (A, 0), (A, 1));
 }
-
-impl<A: Reveal, B: Reveal> Reveal for (A, B) {
-    type Base = (A::Base, B::Base);
-    fn reveal(self) -> Self::Base {
-        (self.0.reveal(), self.1.reveal())
+impl<T: MpcWire> MpcWire for Vec<T> {
+    fn publicize(&mut self) {
+        for x in self {
+            x.publicize();
+        }
     }
-    fn obscure(other: Self::Base) -> Self {
-        (
-            <A as Reveal>::obscure(other.0),
-            <B as Reveal>::obscure(other.1),
-        )
+    fn set_shared(&mut self, shared: bool) {
+        for x in self {
+            x.set_shared(shared);
+        }
+    }
+    fn is_shared(&self) -> bool {
+        for x in self {
+            if x.is_shared() {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+impl<T: MpcWire> MpcWire for Option<T> {
+    fn publicize(&mut self) {
+        for x in self {
+            x.publicize();
+        }
+    }
+    fn set_shared(&mut self, shared: bool) {
+        for x in self {
+            x.set_shared(shared);
+        }
+    }
+    fn is_shared(&self) -> bool {
+        for x in self {
+            if x.is_shared() {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -74,26 +97,6 @@ macro_rules! struct_mpc_wire_impl {
                 }
             )*
             false
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! struct_reveal_impl {
-    ($s:ty, $con:tt ; $( ($x_ty:ty, $x:tt) ),*) => {
-        fn reveal(self) -> Self::Base {
-            $con {
-                $(
-                    $x: self.$x.reveal(),
-                )*
-            }
-        }
-        fn obscure(other: Self::Base) -> Self {
-            $con {
-                $(
-                    $x: <$x_ty as Reveal>::obscure(other.$x),
-                )*
-            }
         }
     }
 }

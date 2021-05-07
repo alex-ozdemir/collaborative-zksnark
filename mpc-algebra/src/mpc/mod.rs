@@ -371,23 +371,6 @@ macro_rules! impl_basics {
                 }
             }
         }
-        impl<
-                F: for<'a> AddAssign<&'a F>
-                    + ark_serialize::CanonicalSerialize
-                    + ark_serialize::CanonicalDeserialize
-                    + Clone
-                    + std::cmp::PartialEq,
-            > Reveal for $ty<F>
-        {
-            type Base = F;
-            fn reveal(mut self) -> Self::Base {
-                self.publicize();
-                self.val
-            }
-            fn obscure(b: Self::Base) -> Self {
-                Self::from_public(b)
-            }
-        }
 
         impl<
                 F: for<'a> AddAssign<&'a F>
@@ -1102,23 +1085,6 @@ macro_rules! impl_mult_basics {
                 }
             }
         }
-        impl<
-                F: for<'a> MulAssign<&'a F>
-                    + ark_serialize::CanonicalSerialize
-                    + ark_serialize::CanonicalDeserialize
-                    + Clone
-                    + std::cmp::PartialEq,
-            > Reveal for $ty<F>
-        {
-            type Base = F;
-            fn reveal(mut self) -> Self::Base {
-                self.publicize();
-                self.val
-            }
-            fn obscure(b: Self::Base) -> Self {
-                Self::from_public(b)
-            }
-        }
 
         impl<
                 F: for<'a> MulAssign<&'a F>
@@ -1668,7 +1634,10 @@ macro_rules! shared_field {
                 todo!()
             }
             fn batch_product_in_place(selfs: &mut [Self], others: &[Self]) {
-                selfs.copy_from_slice(&channel::field_batch_mul(selfs.to_owned(), others.to_owned()));
+                selfs.copy_from_slice(&channel::field_batch_mul(
+                    selfs.to_owned(),
+                    others.to_owned(),
+                ));
             }
         }
     };
@@ -1862,10 +1831,12 @@ macro_rules! curve_impl {
             fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
                 assert!(bases.iter().all(|b| !b.shared));
                 let bigint_scalars = cfg_into_iter!(scalars)
-                    .map(|s| if s.shared || channel::am_first() {
-                      s.into_repr()
-                    } else {
-                      Self::ScalarField::from(0u64).into_repr()
+                    .map(|s| {
+                        if s.shared || channel::am_first() {
+                            s.into_repr()
+                        } else {
+                            Self::ScalarField::from(0u64).into_repr()
+                        }
                     })
                     .collect::<Vec<_>>();
                 let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
@@ -2077,7 +2048,7 @@ impl PairingEngine for MpcPairingEngine<Bls12_377> {
 
 // /// Vector-Commitable Field
 
-use mpc_trait::{MpcWire, Reveal};
+use mpc_trait::MpcWire;
 
 /// Vector-Commitable Field
 pub trait ComField: FftField + MpcWire {
@@ -2223,7 +2194,6 @@ impl BatchProd for MpcVal<ark_bls12_377::Fr> {
         channel::field_batch_mul(xs, ys)
     }
 }
-
 //macro_rules! mpc_debug {
 //    ($e:expr) => {
 //        debug!("{}: {}", stringify!($e), ($e).clone().publicize())

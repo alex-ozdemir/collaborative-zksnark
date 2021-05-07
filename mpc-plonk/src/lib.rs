@@ -124,11 +124,11 @@ where
             partial_products_in_place(&mut t.evals);
             t
         };
-        debug_assert_eq!(t_evals.evals[f.coeffs.len() - 1], F::one());
-        debug_assert_eq!(
-            t_evals.evals[f.coeffs.len() - 1] * t_evals.evals[0],
-            t_evals[0]
-        );
+//        debug_assert_eq!(t_evals.evals[f.coeffs.len() - 1], F::one());
+//        debug_assert_eq!(
+//            t_evals.evals[f.coeffs.len() - 1] * t_evals.evals[0],
+//            t_evals[0]
+//        );
         let t = t_evals.interpolate();
         let (t_cmt, t, t_rand) = self.commit("t", t.clone(), None, None).unwrap();
         let w = domain.element(1);
@@ -163,16 +163,16 @@ where
         // assert_eq!(q, qq);
         let (q_cmt, q, q_rand) = self.commit("q", q.clone(), None, None).unwrap();
         let k = domain.size();
-        debug_assert_eq!(t.evaluate(&domain.element(k - 1)), F::one());
-        for i in 0..k {
-            let r = domain.element(i);
-            debug_assert_eq!(t.evaluate(&(w * r)), t.evaluate(&r) * f.evaluate(&(w * r)));
-        }
+//        debug_assert_eq!(t.evaluate(&domain.element(k - 1)), F::one());
+//        for i in 0..k {
+//            let r = domain.element(i);
+//            debug_assert_eq!(t.evaluate(&(w * r)), t.evaluate(&r) * f.evaluate(&(w * r)));
+//        }
         let r = self.fs_rng.borrow_mut().gen::<F>();
-        debug_assert_eq!(
-            t.evaluate(&(w * r)) - t.evaluate(&r) * f.evaluate(&(w * r)),
-            domain.evaluate_vanishing_polynomial(r) * q.evaluate(&r)
-        );
+//        debug_assert_eq!(
+//            t.evaluate(&(w * r)) - t.evaluate(&r) * f.evaluate(&(w * r)),
+//            domain.evaluate_vanishing_polynomial(r) * q.evaluate(&r)
+//        );
         let t_wr_open = self.eval(&t, &t_rand, &t_cmt, w * r).unwrap();
         let t_r_open = self.eval(&t, &t_rand, &t_cmt, r).unwrap();
         let t_wk_open = self
@@ -180,11 +180,11 @@ where
             .unwrap();
         let f_wr_open = self.eval(&f, &f_rand, &f_cmt, w * r).unwrap();
         let q_r_open = self.eval(&q, &q_rand, &q_cmt, r).unwrap();
-        debug_assert_eq!(
-            t_wr_open.0 - t_r_open.0 * f_wr_open.0,
-            domain.evaluate_vanishing_polynomial(r) * q_r_open.0
-        );
-        debug_assert_eq!(t_wk_open.0, F::one());
+//        debug_assert_eq!(
+//            t_wr_open.0 - t_r_open.0 * f_wr_open.0,
+//            domain.evaluate_vanishing_polynomial(r) * q_r_open.0
+//        );
+//        debug_assert_eq!(t_wk_open.0, F::one());
         ProductProof {
             t_cmt: t_cmt.commitment,
             q_cmt: q_cmt.commitment,
@@ -240,10 +240,10 @@ where
             .unwrap();
         let l1_x_open = self.eval(&l1, &l1_rand, &l1_cmt, x).unwrap();
         let p_x_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
-        debug_assert_eq!(
-            (p_x_open.0 + y * x + z) * l1_x_open.0 - (p_x_open.0 + y * w_x_open.0 + z),
-            l2_q_x_open.0 * dom.evaluate_vanishing_polynomial(x)
-        );
+//        debug_assert_eq!(
+//            (p_x_open.0 + y * x + z) * l1_x_open.0 - (p_x_open.0 + y * w_x_open.0 + z),
+//            l2_q_x_open.0 * dom.evaluate_vanishing_polynomial(x)
+//        );
         WiringProof {
             l1_prod_pf,
             l2_q_x_open,
@@ -280,7 +280,7 @@ where
         let x = self.fs_rng.borrow_mut().gen::<F>();
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
-        debug_assert_eq!(p_open.0 - v.evaluate(&x), q_open.0 * z.evaluate(&x));
+        // debug_assert_eq!(p_open.0 - v.evaluate(&x), q_open.0 * z.evaluate(&x));
         PublicProof {
             q_open,
             q_cmt: q_cmt.commitment,
@@ -306,7 +306,7 @@ where
                 circ.domains.gates.vanishing_polynomial(),
             )))
             .unwrap();
-        debug_assert!(r.is_zero());
+        // debug_assert!(r.is_zero());
         let (q_cmt, q, q_rand) = self.commit("gates_q", q, None, None).unwrap();
         let x = self.fs_rng.borrow_mut().gen::<F>();
         let s_open = self
@@ -316,11 +316,11 @@ where
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_w_open = self.eval(p, p_rand, p_cmt, w * x).unwrap();
         let p_w2_open = self.eval(p, p_rand, p_cmt, w * w * x).unwrap();
-        assert_eq!(
-            s_open.0 * (p_open.0 + p_w_open.0) + (F::one() - s_open.0) * p_open.0 * p_w_open.0
-                - p_w2_open.0,
-            q_open.0 * circ.domains.gates.evaluate_vanishing_polynomial(x)
-        );
+//        debug_assert_eq!(
+//            s_open.0 * (p_open.0 + p_w_open.0) + (F::one() - s_open.0) * p_open.0 * p_w_open.0
+//                - p_w2_open.0,
+//            q_open.0 * circ.domains.gates.evaluate_vanishing_polynomial(x)
+//        );
         GateProof {
             q_cmt: q_cmt.commitment,
             s_open,

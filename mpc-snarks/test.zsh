@@ -108,6 +108,12 @@ $BIN --port 8000 --peer-host localhost --peer-port 8001 marlin --party 1 & ; pid
 
 wait $pid0 $pid1
 
+# plonk
+$BIN --port 8001 --peer-host localhost --peer-port 8000 plonk --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 plonk --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
 cargo build --bin proof
 
 BIN=./target/debug/proof

@@ -92,7 +92,7 @@ pub fn lift_commitment(c: ark_poly_commit::marlin_pc::Commitment<E>) -> ark_poly
 }
 
 // Lower an mpc-computed labelled commitment to a local one (by publicizing).
-fn lift_labeled_commitment(c: LabeledCommitment<ark_poly_commit::marlin_pc::Commitment<E>>) -> LabeledCommitment<ark_poly_commit::marlin_pc::Commitment<ME>> {
+pub fn lift_labeled_commitment(c: LabeledCommitment<ark_poly_commit::marlin_pc::Commitment<E>>) -> LabeledCommitment<ark_poly_commit::marlin_pc::Commitment<ME>> {
     LabeledCommitment::new(c.label().clone(), lift_commitment(c.commitment().clone()), c.degree_bound())
 }
 

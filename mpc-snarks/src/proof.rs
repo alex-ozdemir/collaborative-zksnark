@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
 use ark_ff::{Field, UniformRand};
 use ark_relations::{
   lc,
@@ -16,6 +18,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 mod groth;
 mod marlin;
 mod silly;
+mod reveal;
 use mpc_algebra::{channel, MpcPairingEngine, MpcVal};
 
 // Field
@@ -127,7 +130,7 @@ mod squarings {
 
   pub mod marlin {
     use super::*;
-    use crate::marlin::{lift_index_pk, pf_publicize};
+    use crate::reveal::marlin::{lift_index_pk, pf_publicize};
     use ark_marlin::Marlin;
     use ark_poly_commit::marlin::marlin_pc::MarlinKZG10;
     use ark_poly::univariate::DensePolynomial;
