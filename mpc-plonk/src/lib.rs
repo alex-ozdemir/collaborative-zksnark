@@ -13,6 +13,8 @@ pub mod relations;
 pub use relations::*;
 mod util;
 
+use log::debug;
+
 use blake2::Blake2s;
 
 use ark_ff::{FftField, Field, Zero};
@@ -25,7 +27,7 @@ use ark_poly::{
     Polynomial, UVPolynomial,
 };
 
-use ark_std::rand::RngCore;
+use ark_std::{start_timer, end_timer, rand::RngCore};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -98,13 +100,6 @@ impl<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Prover<'r
     }
 }
 
-/// Replace `[x1, x2, ... , xn]` with `[x1, x1*x2, ... , x1*x2*...*xn]`
-fn partial_products_in_place<F: Field>(xs: &mut [F]) {
-    for i in 1..xs.len() {
-        let last = xs[i - 1];
-        xs[i] *= &last;
-    }
-}
 
 #[allow(dead_code)]
 impl<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Prover<'r, F, PC>
@@ -119,9 +114,10 @@ where
         f_rand: &PC::Randomness,
         domain: D,
     ) -> ProductProof<PC::Commitment, (F, PC::Proof)> {
+        let timer = start_timer!(|| "prove_unit_product");
         let t_evals = {
             let mut t = f.evaluate_over_domain_by_ref(domain);
-            partial_products_in_place(&mut t.evals);
+            F::partial_products_in_place(&mut t.evals);
             t
         };
 //        debug_assert_eq!(t_evals.evals[f.coeffs.len() - 1], F::one());
@@ -180,6 +176,7 @@ where
             .unwrap();
         let f_wr_open = self.eval(&f, &f_rand, &f_cmt, w * r).unwrap();
         let q_r_open = self.eval(&q, &q_rand, &q_cmt, r).unwrap();
+        end_timer!(timer);
 //        debug_assert_eq!(
 //            t_wr_open.0 - t_r_open.0 * f_wr_open.0,
 //            domain.evaluate_vanishing_polynomial(r) * q_r_open.0
@@ -204,6 +201,7 @@ where
         p_rand: &PC::Randomness,
         dom: D,
     ) -> WiringProof<PC::Commitment, (F, PC::Proof)> {
+        let timer = start_timer!(|| "prove_wiring");
         let y = self.fs_rng.borrow_mut().gen::<F>();
         let z = self.fs_rng.borrow_mut().gen::<F>();
         let p_evals = p.evaluate_over_domain_by_ref(dom);
@@ -212,6 +210,7 @@ where
             DensePolynomial::from_coefficients_vec(vec![z, y]).evaluate_over_domain_by_ref(dom);
         let num_evals = &(&p_evals + &(&w_evals * &y)) + &z;
         let den_evals = &(&p_evals + &yx_z_evals);
+        //TODO: batch!
         let l1_evals = &num_evals / &den_evals;
         let l1 = l1_evals.clone().interpolate();
         let (l1_cmt, l1, l1_rand) = self.commit("l1", l1, None, None).unwrap();
@@ -244,6 +243,7 @@ where
 //            (p_x_open.0 + y * x + z) * l1_x_open.0 - (p_x_open.0 + y * w_x_open.0 + z),
 //            l2_q_x_open.0 * dom.evaluate_vanishing_polynomial(x)
 //        );
+        end_timer!(timer);
         WiringProof {
             l1_prod_pf,
             l2_q_x_open,
@@ -262,6 +262,7 @@ where
         p_rand: &PC::Randomness,
         circ: &relations::flat::CircuitLayout<F>,
     ) -> PublicProof<PC::Commitment, (F, PC::Proof)> {
+        let timer = start_timer!(|| "prove_public");
         let points: Vec<(F, F)> = circ
             .public_indices
             .iter()
@@ -281,6 +282,7 @@ where
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
         // debug_assert_eq!(p_open.0 - v.evaluate(&x), q_open.0 * z.evaluate(&x));
+        end_timer!(timer);
         PublicProof {
             q_open,
             q_cmt: q_cmt.commitment,
@@ -295,6 +297,7 @@ where
         p_rand: &PC::Randomness,
         circ: &relations::flat::CircuitLayout<F>,
     ) -> GateProof<PC::Commitment, (F, PC::Proof)> {
+        let timer= start_timer!(|| "prove_gates");
         let w = circ.domains.wires.group_gen;
         let pw = util::shift(p.polynomial().clone(), w);
         let pww = util::shift(p.polynomial().clone(), w * w);
@@ -321,6 +324,7 @@ where
 //                - p_w2_open.0,
 //            q_open.0 * circ.domains.gates.evaluate_vanishing_polynomial(x)
 //        );
+        end_timer!(timer);
         GateProof {
             q_cmt: q_cmt.commitment,
             s_open,
@@ -341,6 +345,7 @@ where
         p_c: &LabeledCommitment<PC::Commitment>,
         x: F,
     ) -> Result<(F, PC::Proof), Error<PC::Error>> {
+        debug!("eval: {}", p.label());
         let pf_p = PC::open(
             &self.pk.pc_ck,
             once(p),
@@ -372,6 +377,7 @@ where
         ),
         Error<PC::Error>,
     > {
+        debug!("commit: {}", label);
         let label_p = LabeledPolynomial::new(format!("{}", label), p, degree, hiding_bound);
         let (mut cs, mut rs) = PC::commit(
             &self.pk.pc_ck,

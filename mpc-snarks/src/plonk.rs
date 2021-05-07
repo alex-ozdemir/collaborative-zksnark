@@ -3,6 +3,7 @@ use ark_poly::{univariate::DensePolynomial};
 use ark_poly_commit::{marlin_pc::MarlinKZG10};
 use mpc_algebra::{MpcPairingEngine, MpcVal};
 use mpc_plonk::*;
+use ark_std::{start_timer, end_timer, test_rng};
 use std::collections::HashMap;
 
 type F = ark_bls12_377::Fr;
@@ -25,8 +26,8 @@ pub fn local_test_prove_and_verify(n_iters: usize) {
     let d = Domains::from_circuit(&c);
     let circ = CircuitLayout::from_circuit(&c, &d);
 
-    let setup_rng = &mut ark_std::test_rng();
-    let zk_rng = &mut ark_std::test_rng();
+    let setup_rng = &mut test_rng();
+    let zk_rng = &mut test_rng();
 
     let v_circ = {
         let mut t = circ.clone();
@@ -49,13 +50,13 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
     let d = Domains::from_circuit(&v_c);
     let v_circ = CircuitLayout::from_circuit(&v_c, &d);
     // setup
-    let setup_rng = &mut ark_std::test_rng();
+    let setup_rng = &mut test_rng();
     let srs = LocalPlonk::universal_setup(steps.next_power_of_two(), setup_rng);
     let (pk, vk) = LocalPlonk::circuit_setup(&srs, &v_circ);
     let mpc_pk = super::reveal::plonk::obs_pk(pk);
 
     // data circuit
-    let data_rng = &mut ark_std::test_rng();
+    let data_rng = &mut test_rng();
     let start = MF::rand(data_rng);
     let res = (0..steps).fold(start, |a, _| a * a);
     let public: HashMap<String, F> = vec![("out".to_owned(), res.publicize_unwrap())].into_iter().collect();
@@ -63,7 +64,9 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
     let d = Domains::from_circuit(&c);
     let circ = CircuitLayout::from_circuit(&c, &d);
 
-    let mpc_pf = MpcPlonk::prove(&mpc_pk, &circ, &mut ark_std::test_rng());
+    let t = start_timer!(|| "timed section");
+    let mpc_pf = MpcPlonk::prove(&mpc_pk, &circ, &mut test_rng());
     let pf = crate::reveal::plonk::pub_pf(mpc_pf);
+    end_timer!(t);
     LocalPlonk::verify(&vk, &v_circ, pf, &public);
 }

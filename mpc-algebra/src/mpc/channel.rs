@@ -7,7 +7,7 @@ use super::MpcVal;
 use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::{start_timer, end_timer};
+use ark_std::{start_timer, end_timer, cfg_iter_mut};
 
 use mpc_net;
 
@@ -75,7 +75,7 @@ impl FieldChannel {
         }
     }
 
-    fn field_triple<F: Field>(&self) -> Triple<F, F, F> {
+    fn field_triple<F: Field>(&mut self) -> Triple<F, F, F> {
         //TODO
         if self.base.talk_first {
             (
@@ -93,7 +93,7 @@ impl FieldChannel {
     }
 
     fn field_triples<F: Field>(
-        &self,
+        &mut self,
         n: usize,
     ) -> (Vec<MpcVal<F>>, Vec<MpcVal<F>>, Vec<MpcVal<F>>) {
         let mut a = Vec::new();
@@ -106,6 +106,16 @@ impl FieldChannel {
             c.push(z);
         }
         (a, b, c)
+    }
+
+    fn field_inverse_pairs<F: Field>(
+        &mut self,
+        n: usize,
+    ) -> (Vec<MpcVal<F>>, Vec<MpcVal<F>>) {
+        let (mut x, y, z) = self.field_triples(n);
+        let z = self.field_batch_publicize(z);
+        cfg_iter_mut!(x).zip(z).for_each(|(x, z)| x.val /= z.val);
+        (x, y)
     }
 
     fn field_inv<F: Field>(&mut self, mut a: MpcVal<F>) -> MpcVal<F> {
@@ -124,6 +134,31 @@ impl FieldChannel {
         } else {
             a.val.inverse_in_place();
             a
+        }
+    }
+
+    fn field_batch_inv<F: Field>(&mut self, mut as_: Vec<MpcVal<F>>) -> Vec<MpcVal<F>> {
+        debug!("field ^ -1");
+        let a_shared = as_[0].shared;
+        assert!(as_.iter().all(|a| a.shared == a_shared));
+        if a_shared {
+            // x * y = z
+            // TODO: check...
+            let (mut xs, _ys, _zs) = self.field_triples(as_.len());
+            // a * x
+            let axs = self.field_batch_mul(xs.clone(), as_);
+            let mut axs = self.field_batch_publicize(axs);
+            for (ax, x) in axs.iter_mut().zip(xs.iter_mut()) {
+                ax.val.inverse_in_place();
+                // a^-1 = (a * x)^-1 * x
+                x.val = x.val * ax.val;
+            }
+            xs
+        } else {
+            for a in &mut as_ {
+                a.val.inverse_in_place();
+            }
+            as_
         }
     }
 
@@ -198,6 +233,30 @@ impl FieldChannel {
         r
     }
 
+    fn field_partial_products<F: Field>(
+        &mut self,
+        x: Vec<MpcVal<F>>,
+    ) -> Vec<MpcVal<F>> {
+        let n = x.len();
+        let (m, m_inv) = self.field_inverse_pairs(n + 1);
+        let mx = self.field_batch_mul(m[..n].iter().cloned().collect(), x);
+        let mxm = self.field_batch_mul(mx, m_inv[1..].iter().cloned().collect());
+        let mut mxm_pub = self.field_batch_publicize(mxm);
+        for i in 1..mxm_pub.len() {
+            let last = mxm_pub[i - 1].val;
+            mxm_pub[i].val *= &last;
+        }
+        let m0 = vec![m[0]; n];
+        let mms = self.field_batch_mul(m0, m_inv[1..].iter().cloned().collect());
+        let mms_pub = self.field_batch_publicize(mms);
+        for i in 1..mxm_pub.len() {
+            mxm_pub[i].val /= mms_pub[i].val;
+        }
+        debug_assert!(mxm_pub.len() == n);
+        mxm_pub
+    }
+
+
     fn field_add<F: Field>(&mut self, mut a: MpcVal<F>, b: &MpcVal<F>) -> MpcVal<F> {
         match (a.shared, b.shared) {
             (true, true) | (false, false) => {
@@ -258,6 +317,8 @@ impl FieldChannel {
         }
         let bytes_per_elem = bytes_out.len() / a.len();
         let bytes_in = self.exchange_bytes(bytes_out);
+        assert_eq!(a.len() * bytes_per_elem, bytes_in.len());
+        //println!("Batch pub: {}, {} bytes", a.len(), bytes_out
         for (i, a) in a.iter_mut().enumerate() {
             a.shared = false;
             a.val +=
@@ -266,7 +327,7 @@ impl FieldChannel {
         a
     }
 
-    fn curve_scalar_triple<G: ProjectiveCurve>(&self) -> Triple<G, G::ScalarField, G> {
+    fn curve_scalar_triple<G: ProjectiveCurve>(&mut self) -> Triple<G, G::ScalarField, G> {
         let (fa, fb, fc) = self.field_triple();
         let mut ca = MpcVal::from_shared(G::prime_subgroup_generator());
         ca.val *= fa.val;
@@ -362,7 +423,7 @@ impl FieldChannel {
         MpcVal::from_public(other_val)
     }
 
-    fn pairing_triple<E: PairingEngine>(&self) -> Triple<E::G1Projective, E::G2Projective, E::Fqk> {
+    fn pairing_triple<E: PairingEngine>(&mut self) -> Triple<E::G1Projective, E::G2Projective, E::Fqk> {
         let (fa, fb, fc) = self.field_triple();
         let mut g1a = MpcVal::from_public(E::G1Projective::prime_subgroup_generator());
         g1a.val *= fa.val;
@@ -452,11 +513,27 @@ pub fn field_inv<F: Field>(a: MpcVal<F>) -> MpcVal<F> {
     get_ch!().field_inv(a)
 }
 
-/// Copute a field inverse over SS data
+/// Compute field inverses over SS data
+pub fn field_batch_inv<F: Field>(a: Vec<MpcVal<F>>) -> Vec<MpcVal<F>> {
+    get_ch!().field_batch_inv(a)
+}
+
+/// Compute field partial products over SS data
+pub fn field_partial_products<F: Field>(a: Vec<MpcVal<F>>) -> Vec<MpcVal<F>> {
+    get_ch!().field_partial_products(a)
+}
+
+/// Compute a field inverse over SS data
 pub fn field_div<F: Field>(a: MpcVal<F>, b: MpcVal<F>) -> MpcVal<F> {
     let ch = &mut *get_ch!();
     let b_inv = ch.field_inv(b);
     ch.field_mul(a, b_inv)
+}
+/// Compute field divisions over SS data
+pub fn field_batch_div<F: Field>(a: Vec<MpcVal<F>>, b: Vec<MpcVal<F>>) -> Vec<MpcVal<F>> {
+    let ch = &mut *get_ch!();
+    let b_inv = ch.field_batch_inv(b);
+    ch.field_batch_mul(a, b_inv)
 }
 
 /// Copute a field product over SS data

@@ -4,7 +4,7 @@ use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{FftField, Field, LegendreSymbol, One, PrimeField, SquareRootField, Zero};
 use ark_serialize::*;
 use ark_std::{cfg_into_iter, UniformRand};
-use log::{debug, warn};
+use log::warn;
 use rand::prelude::*;
 use sha2::Digest;
 use std::borrow::Cow;
@@ -1639,6 +1639,17 @@ macro_rules! shared_field {
                     others.to_owned(),
                 ));
             }
+            fn batch_division_in_place(selfs: &mut [Self], others: &[Self]) {
+                selfs.copy_from_slice(&channel::field_batch_div(
+                    selfs.to_owned(),
+                    others.to_owned(),
+                ));
+            }
+            fn partial_products_in_place(selfs: &mut [Self]) {
+                selfs.copy_from_slice(&channel::field_partial_products(
+                    selfs.to_owned(),
+                ));
+            }
         }
     };
 }
@@ -1878,10 +1889,6 @@ macro_rules! curve_impl {
                 self
             }
             fn add_assign_mixed(&mut self, o: &<Self as ProjectiveCurve>::Affine) {
-                debug!(
-                    "ProjectiveCurve::add_assign_mixed({}, {})",
-                    self.shared, o.shared
-                );
                 match (self.shared, o.shared) {
                     (true, true) | (false, false) => {
                         self.val.add_assign_mixed(&o.val);
@@ -2080,11 +2087,10 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
         let mut hashes: Vec<Vec<u8>> = vs
             .into_iter()
             .enumerate()
-            .map(|(i, v)| {
+            .map(|(_i, v)| {
                 let mut bytes_out = Vec::new();
                 v.val.serialize(&mut bytes_out).unwrap();
                 let o = sha2::Sha256::digest(&bytes_out[..]).as_slice().to_owned();
-                debug!("Hash {} {}: {:?}", vs.len(), i, o);
                 o
             })
             .collect();
@@ -2097,7 +2103,6 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
                 h.update(&hashes[2 * i]);
                 h.update(&hashes[2 * i + 1]);
                 new.push(h.finalize().as_slice().to_owned());
-                debug!("Hash {} {}: {:?}", hashes.len() / 2, i, new[new.len() - 1]);
             }
             tree.push(std::mem::replace(&mut hashes, new));
         }
@@ -2114,7 +2119,6 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
         let other_f = channel::exchange(self_f.clone());
         let mut siblings = Vec::new();
         for level in 0..tree.len() {
-            debug!("sib {}: {:?}", level, tree[level][i ^ 1]);
             siblings.push(tree[level][i ^ 1].clone());
             i /= 2;
         }
@@ -2147,15 +2151,9 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
         let mut hash1 = Vec::new();
         p.1.serialize(&mut hash1).unwrap();
         hash1 = sha2::Sha256::digest(&hash1).as_slice().to_owned();
-        debug!("Hash init0: {:?}", hash0);
-        debug!("Hash init1: {:?}", hash1);
-        debug!("i: {}", i);
         for (j, (sib0, sib1)) in p.2.into_iter().enumerate() {
             let mut h0 = sha2::Sha256::default();
             let mut h1 = sha2::Sha256::default();
-            debug!("Sib0: {}: {:?}", j, sib0);
-            debug!("Sib1: {}: {:?}", j, sib1);
-            debug!("Hash first: {}: {}", j, (i >> j) & 1 == 0);
             if (i >> j) & 1 == 0 {
                 h0.update(&hash0);
                 h0.update(&sib0);
@@ -2169,11 +2167,7 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
             }
             hash0 = h0.finalize().as_slice().to_owned();
             hash1 = h1.finalize().as_slice().to_owned();
-            debug!("Hash0: {}: {:?}", j, hash0);
-            debug!("Hash1: {}: {:?}", j, hash1);
         }
-        debug!("Comm0: {:?}", c.1);
-        debug!("Comm1: {:?}", c.0);
         &(hash1, hash0) == c
     }
 }
