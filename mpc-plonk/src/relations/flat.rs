@@ -109,6 +109,10 @@ impl<F: FftField> CircuitLayout<F> {
         }
     }
 
+    pub fn degree_bound(&self) -> usize {
+        self.domains.wires.size() * 2 - 1
+    }
+
     /// Check that no wire is in more than `d` connections
     ///
     /// Used in testing

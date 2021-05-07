@@ -8,15 +8,16 @@
 //! You should look at those notes for the notation used here.
 
 pub mod data_structures;
-use data_structures::*;
+pub use data_structures::*;
 pub mod relations;
+pub use relations::*;
 mod util;
 
 use blake2::Blake2s;
 
 use ark_ff::{FftField, Field, Zero};
 
-use ark_poly_commit::{LabeledCommitment, LabeledPolynomial, PolynomialCommitment, PCRandomness};
+use ark_poly_commit::{LabeledCommitment, LabeledPolynomial, PCRandomness, PolynomialCommitment};
 
 use ark_poly::{
     domain::EvaluationDomain,
@@ -26,61 +27,73 @@ use ark_poly::{
 
 use ark_std::rand::RngCore;
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::iter::once;
 use std::marker::PhantomData;
 use thiserror::Error;
 
 use mpc_trait::MpcWire;
-use util::FiatShamirRng;
+pub use util::FiatShamirRng;
 
 pub fn setup<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>>(
-    pc_ck: &PC::CommitterKey,
+    srs: &PC::UniversalParams,
     circ: &relations::flat::CircuitLayout<F>,
-    rng: &mut dyn RngCore,
-) -> PubParams<F, PC::Commitment> {
+) -> (
+    ProverKey<F, PC::Commitment, PC::CommitterKey>,
+    VerifierKey<PC::Commitment, PC::VerifierKey>,
+) {
+    let (ck, vk) = PC::trim(
+        &srs,
+        circ.degree_bound(),
+        0,
+        Some(&[circ.domains.wires.size() - 1]),
+    )
+    .unwrap();
     let w = LabeledPolynomial::new("w".into(), circ.w.clone(), None, None);
-    let (mut cs, rs) = PC::commit(pc_ck, once(&w), Some(rng)).unwrap();
+    let (mut cs, rs) = PC::commit(&ck, once(&w), None).unwrap();
     assert_eq!(cs.len(), 1);
     assert_eq!(rs.len(), 1);
     let w_cmt = cs.pop().unwrap();
     let s = LabeledPolynomial::new("s".into(), circ.s.clone(), None, None);
-    let (mut cs, rs) = PC::commit(pc_ck, once(&s), Some(rng)).unwrap();
+    let (mut cs, rs) = PC::commit(&ck, once(&s), None).unwrap();
     assert_eq!(cs.len(), 1);
     assert_eq!(rs.len(), 1);
     let s_cmt = cs.pop().unwrap();
-    PubParams {
-        w,
-        w_cmt,
-        s,
-        s_cmt,
-    }
+    (
+        ProverKey {
+            pc_ck: ck,
+            s_cmt: s_cmt.clone(),
+            w_cmt: w_cmt.clone(),
+            s,
+            w,
+        },
+        VerifierKey {
+            pc_vk: vk,
+            s_cmt,
+            w_cmt,
+        },
+    )
 }
 
 #[allow(dead_code)]
 pub struct Prover<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> {
-    _field: PhantomData<F>,
     _pc: PhantomData<PC>,
-    pc_vk: PC::VerifierKey,
-    pc_ck: PC::CommitterKey,
-    zk_rng: &'r mut dyn RngCore,
-    fs_rng: &'r mut FiatShamirRng<Blake2s>,
+    pk: &'r ProverKey<F, PC::Commitment, PC::CommitterKey>,
+    zk_rng: RefCell<&'r mut dyn RngCore>,
+    fs_rng: RefCell<FiatShamirRng<Blake2s>>,
 }
 
 impl<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Prover<'r, F, PC> {
     pub fn new(
-        pc_vk: PC::VerifierKey,
-        pc_ck: PC::CommitterKey,
-        fs_rng: &'r mut FiatShamirRng<Blake2s>,
+        pk: &'r ProverKey<F, PC::Commitment, PC::CommitterKey>,
         zk_rng: &'r mut dyn RngCore,
     ) -> Self {
         Self {
-            _field: PhantomData::default(),
             _pc: PhantomData::default(),
-            pc_vk,
-            pc_ck,
-            zk_rng,
-            fs_rng,
+            pk,
+            zk_rng: RefCell::new(zk_rng),
+            fs_rng: RefCell::new(FiatShamirRng::from_seed(&0u64)),
         }
     }
 }
@@ -100,7 +113,7 @@ where
     PC::Error: 'static,
 {
     fn prove_unit_product<D: EvaluationDomain<F>>(
-        &mut self,
+        &self,
         f: &LabeledPolynomial<F, DensePolynomial<F>>,
         f_cmt: &LabeledCommitment<PC::Commitment>,
         f_rand: &PC::Randomness,
@@ -155,7 +168,7 @@ where
             let r = domain.element(i);
             debug_assert_eq!(t.evaluate(&(w * r)), t.evaluate(&r) * f.evaluate(&(w * r)));
         }
-        let r = self.fs_rng.gen::<F>();
+        let r = self.fs_rng.borrow_mut().gen::<F>();
         debug_assert_eq!(
             t.evaluate(&(w * r)) - t.evaluate(&r) * f.evaluate(&(w * r)),
             domain.evaluate_vanishing_polynomial(r) * q.evaluate(&r)
@@ -185,17 +198,16 @@ where
 
     /// Prove that p(X) = p(w(X)) on the domain.
     fn prove_wiring<D: EvaluationDomain<F>>(
-        &mut self,
+        &self,
         p: &LabeledPolynomial<F, DensePolynomial<F>>,
         p_cmt: &LabeledCommitment<PC::Commitment>,
         p_rand: &PC::Randomness,
-        pp: &PubParams<F, PC::Commitment>,
         dom: D,
     ) -> WiringProof<PC::Commitment, (F, PC::Proof)> {
-        let y = self.fs_rng.gen::<F>();
-        let z = self.fs_rng.gen::<F>();
+        let y = self.fs_rng.borrow_mut().gen::<F>();
+        let z = self.fs_rng.borrow_mut().gen::<F>();
         let p_evals = p.evaluate_over_domain_by_ref(dom);
-        let w_evals = pp.w.evaluate_over_domain_by_ref(dom);
+        let w_evals = self.pk.w.evaluate_over_domain_by_ref(dom);
         let yx_z_evals =
             DensePolynomial::from_coefficients_vec(vec![z, y]).evaluate_over_domain_by_ref(dom);
         let num_evals = &(&p_evals + &(&w_evals * &y)) + &z;
@@ -221,9 +233,11 @@ where
         };
         let l2_q = DensePolynomial::from_coefficients_vec(l2_q_coeffs);
         let (l2_q_cmt, l2_q, l2_q_rand) = self.commit("l2_q", l2_q, None, None).unwrap();
-        let x = self.fs_rng.gen::<F>();
+        let x = self.fs_rng.borrow_mut().gen::<F>();
         let l2_q_x_open = self.eval(&l2_q, &l2_q_rand, &l2_q_cmt, x).unwrap();
-        let w_x_open = self.eval(&pp.w, &PC::Randomness::empty(), &pp.w_cmt, x).unwrap();
+        let w_x_open = self
+            .eval(&self.pk.w, &PC::Randomness::empty(), &self.pk.w_cmt, x)
+            .unwrap();
         let l1_x_open = self.eval(&l1, &l1_rand, &l1_cmt, x).unwrap();
         let p_x_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
         debug_assert_eq!(
@@ -242,7 +256,7 @@ where
     }
 
     fn prove_public(
-        &mut self,
+        &self,
         p: &LabeledPolynomial<F, DensePolynomial<F>>,
         p_cmt: &LabeledCommitment<PC::Commitment>,
         p_rand: &PC::Randomness,
@@ -263,7 +277,7 @@ where
             .divide_with_q_and_r(&DenseOrSparsePolynomial::DPolynomial(Cow::Borrowed(&z)))
             .unwrap();
         let (q_cmt, q, q_rand) = self.commit("pub_q", q, None, None).unwrap();
-        let x = self.fs_rng.gen::<F>();
+        let x = self.fs_rng.borrow_mut().gen::<F>();
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
         debug_assert_eq!(p_open.0 - v.evaluate(&x), q_open.0 * z.evaluate(&x));
@@ -275,12 +289,11 @@ where
     }
 
     fn prove_gates(
-        &mut self,
+        &self,
         p: &LabeledPolynomial<F, DensePolynomial<F>>,
         p_cmt: &LabeledCommitment<PC::Commitment>,
         p_rand: &PC::Randomness,
         circ: &relations::flat::CircuitLayout<F>,
-        pp: &PubParams<F, PC::Commitment>,
     ) -> GateProof<PC::Commitment, (F, PC::Proof)> {
         let w = circ.domains.wires.group_gen;
         let pw = util::shift(p.polynomial().clone(), w);
@@ -295,8 +308,10 @@ where
             .unwrap();
         debug_assert!(r.is_zero());
         let (q_cmt, q, q_rand) = self.commit("gates_q", q, None, None).unwrap();
-        let x = self.fs_rng.gen::<F>();
-        let s_open = self.eval(&pp.s, &PC::Randomness::empty(), &pp.s_cmt, x).unwrap();
+        let x = self.fs_rng.borrow_mut().gen::<F>();
+        let s_open = self
+            .eval(&self.pk.s, &PC::Randomness::empty(), &self.pk.s_cmt, x)
+            .unwrap();
         let p_open = self.eval(p, p_rand, p_cmt, x).unwrap();
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_w_open = self.eval(p, p_rand, p_cmt, w * x).unwrap();
@@ -320,20 +335,20 @@ where
     ///
     /// With respect to a commitment `p_c` under randomness `p_r`.
     fn eval(
-        &mut self,
+        &self,
         p: &LabeledPolynomial<F, DensePolynomial<F>>,
         p_r: &PC::Randomness,
         p_c: &LabeledCommitment<PC::Commitment>,
         x: F,
     ) -> Result<(F, PC::Proof), Error<PC::Error>> {
         let pf_p = PC::open(
-            &self.pc_ck,
+            &self.pk.pc_ck,
             once(p),
             once(p_c),
             &x,
             F::one(), // acceptable b/c this is just one commitment.
             once(p_r),
-            Some(self.zk_rng),
+            Some(&mut *self.zk_rng.borrow_mut()),
         )?;
         let mut y = p.polynomial().evaluate(&x);
         y.publicize();
@@ -344,7 +359,7 @@ where
     ///
     /// Produces a (commitment, labeled_poly, randomness) triple.
     fn commit(
-        &mut self,
+        &self,
         label: impl ark_std::fmt::Display,
         p: DensePolynomial<F>,
         degree: Option<usize>,
@@ -358,20 +373,24 @@ where
         Error<PC::Error>,
     > {
         let label_p = LabeledPolynomial::new(format!("{}", label), p, degree, hiding_bound);
-        let (mut cs, mut rs) = PC::commit(&self.pc_ck, once(&label_p), Some(self.zk_rng))?;
+        let (mut cs, mut rs) = PC::commit(
+            &self.pk.pc_ck,
+            once(&label_p),
+            Some(&mut *self.zk_rng.borrow_mut()),
+        )?;
         assert_eq!(cs.len(), 1);
         assert_eq!(rs.len(), 1);
         let mut c = cs.pop().unwrap();
         c.commitment.publicize();
         self.fs_rng
+            .borrow_mut()
             .absorb(&ark_ff::to_bytes![c].expect("failed serialization"));
         Ok((c, label_p, rs.pop().unwrap()))
     }
 
-    fn prove(
-        &mut self,
-        circ: relations::flat::CircuitLayout<F>,
-        pp: &PubParams<F, PC::Commitment>,
+    pub fn prove(
+        &self,
+        circ: &relations::flat::CircuitLayout<F>,
     ) -> Proof<F, PC::Commitment, PC::Proof> {
         assert!(circ.p.is_some());
         let n_gates = circ.domains.gates.size();
@@ -384,9 +403,9 @@ where
                 None,
             )
             .unwrap();
-        let public = self.prove_public(&p, &p_cmt, &p_rand, &circ);
-        let gates = self.prove_gates(&p, &p_cmt, &p_rand, &circ, pp);
-        let wiring = self.prove_wiring(&p, &p_cmt, &p_rand, pp, circ.domains.wires);
+        let public = self.prove_public(&p, &p_cmt, &p_rand, circ);
+        let gates = self.prove_gates(&p, &p_cmt, &p_rand, circ);
+        let wiring = self.prove_wiring(&p, &p_cmt, &p_rand, circ.domains.wires);
         Proof {
             p_cmt: p_cmt.commitment,
             wiring,
@@ -399,9 +418,8 @@ where
 pub struct Verifier<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> {
     _field: PhantomData<F>,
     _pc: PhantomData<PC>,
-    pc_vk: PC::VerifierKey,
-    fs_rng: &'r mut FiatShamirRng<Blake2s>,
-    rng: &'r mut dyn RngCore,
+    vk: &'r VerifierKey<PC::Commitment, PC::VerifierKey>,
+    fs_rng: RefCell<FiatShamirRng<Blake2s>>,
 }
 #[allow(dead_code)]
 impl<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Verifier<'r, F, PC>
@@ -409,8 +427,18 @@ where
     PC::Commitment: mpc_trait::MpcWire,
     PC::Error: 'static,
 {
+    pub fn new(
+        vk: &'r VerifierKey<PC::Commitment, PC::VerifierKey>,
+    ) -> Self {
+        Self {
+            _field: PhantomData::default(),
+            _pc: PhantomData::default(),
+            vk,
+            fs_rng: RefCell::new(FiatShamirRng::from_seed(&0u64)),
+        }
+    }
     fn verify_unit_product<D: EvaluationDomain<F>>(
-        &mut self,
+        &self,
         f_cmt: &LabeledCommitment<PC::Commitment>,
         pf: ProductProof<PC::Commitment, (F, PC::Proof)>,
         domain: D,
@@ -419,7 +447,7 @@ where
         let w = domain.element(1);
         let t_cmt = self.recv_commit("t", pf.t_cmt, None);
         let q_cmt = self.recv_commit("q", pf.q_cmt, None);
-        let r = self.fs_rng.gen::<F>();
+        let r = self.fs_rng.borrow_mut().gen::<F>();
         // Check commitments
         let f_wr = self.check(f_cmt, w * r, &pf.f_wr_open);
         let q_r = self.check(&q_cmt, r, &pf.q_r_open);
@@ -438,28 +466,29 @@ where
     ///
     /// Produces a (commitment, labeled_poly, randomness) triple.
     fn recv_commit(
-        &mut self,
+        &self,
         label: impl ark_std::fmt::Display,
         c: PC::Commitment,
         degree: Option<usize>,
     ) -> LabeledCommitment<PC::Commitment> {
         let label_c = LabeledCommitment::new(format!("{}", label), c, degree);
         self.fs_rng
+            .borrow_mut()
             .absorb(&ark_ff::to_bytes![label_c].expect("failed serialization"));
         label_c
     }
 
     #[track_caller]
-    fn check(&mut self, cmt: &LabeledCommitment<PC::Commitment>, x: F, open: &(F, PC::Proof)) -> F {
+    fn check(&self, cmt: &LabeledCommitment<PC::Commitment>, x: F, open: &(F, PC::Proof)) -> F {
         assert!(
             PC::check(
-                &self.pc_vk,
+                &self.vk.pc_vk,
                 once(cmt),
                 &x,
                 once(open.0),
                 &open.1,
                 F::one(), // Okay b/c a single commit
-                Some(self.rng),
+                None,
             )
             .unwrap(),
             "Verification failed: {} at {}",
@@ -469,31 +498,30 @@ where
         open.0
     }
 
-    fn verify(
-        &mut self,
-        circ: relations::flat::CircuitLayout<F>,
+    pub fn verify(
+        &self,
+        circ: &relations::flat::CircuitLayout<F>,
         pf: Proof<F, PC::Commitment, PC::Proof>,
         public: &HashMap<String, F>,
-        pp: &VerifierParams<PC::Commitment>,
     ) {
         assert!(circ.p.is_none());
         let n_gates = circ.domains.gates.size();
         let n_wires = n_gates * 3;
         let p = self.recv_commit("p", pf.p_cmt, Some(n_wires - 1));
         self.verify_public(&circ, &p, pf.public, public);
-        self.verify_gates(&p, &circ, pp, pf.gates);
-        self.verify_wiring(&p, pp, circ.domains.wires, pf.wiring);
+        self.verify_gates(&p, &circ, pf.gates);
+        self.verify_wiring(&p, circ.domains.wires, pf.wiring);
     }
 
     fn verify_public(
-        &mut self,
+        &self,
         circ: &relations::flat::CircuitLayout<F>,
         p_cmt: &LabeledCommitment<PC::Commitment>,
         pf: PublicProof<PC::Commitment, (F, PC::Proof)>,
         public: &HashMap<String, F>,
     ) {
         let q_cmt = self.recv_commit("pub_q", pf.q_cmt, None);
-        let x = self.fs_rng.gen::<F>();
+        let x = self.fs_rng.borrow_mut().gen::<F>();
         let p_val = self.check(p_cmt, x, &pf.p_open);
         let q_val = self.check(&q_cmt, x, &pf.q_open);
         let z = circ.vanishing_poly_on_inputs();
@@ -502,16 +530,15 @@ where
     }
 
     fn verify_gates(
-        &mut self,
+        &self,
         p_cmt: &LabeledCommitment<PC::Commitment>,
         circ: &relations::flat::CircuitLayout<F>,
-        pp: &VerifierParams<PC::Commitment>,
         pf: GateProof<PC::Commitment, (F, PC::Proof)>,
     ) {
         let q_cmt = self.recv_commit("gates_q", pf.q_cmt, None);
-        let x = self.fs_rng.gen::<F>();
+        let x = self.fs_rng.borrow_mut().gen::<F>();
         let w = circ.domains.wires.group_gen;
-        let s = self.check(&pp.s_cmt, x, &pf.s_open);
+        let s = self.check(&self.vk.s_cmt, x, &pf.s_open);
         let q = self.check(&q_cmt, x, &pf.q_open);
         let p = self.check(p_cmt, x, &pf.p_open);
         let pw = self.check(p_cmt, x * w, &pf.p_w_open);
@@ -522,43 +549,26 @@ where
         );
     }
     fn verify_wiring<D: EvaluationDomain<F>>(
-        &mut self,
+        &self,
         p_cmt: &LabeledCommitment<PC::Commitment>,
-        pp: &VerifierParams<PC::Commitment>,
         dom: D,
         pf: WiringProof<PC::Commitment, (F, PC::Proof)>,
     ) {
-        let y = self.fs_rng.gen::<F>();
-        let z = self.fs_rng.gen::<F>();
+        let y = self.fs_rng.borrow_mut().gen::<F>();
+        let z = self.fs_rng.borrow_mut().gen::<F>();
         let l1 = self.recv_commit("l1", pf.l1_cmt, None);
         self.verify_unit_product(&l1, pf.l1_prod_pf, dom);
         let l2_q = self.recv_commit("l2_q", pf.l2_q_cmt, None);
-        let x = self.fs_rng.gen::<F>();
+        let x = self.fs_rng.borrow_mut().gen::<F>();
 
         let l2_q_x = self.check(&l2_q, x, &pf.l2_q_x_open);
-        let w_x = self.check(&pp.w_cmt, x, &pf.w_x_open);
+        let w_x = self.check(&self.vk.w_cmt, x, &pf.w_x_open);
         let l1_x = self.check(&l1, x, &pf.l1_x_open);
         let p_x = self.check(&p_cmt, x, &pf.p_x_open);
         assert_eq!(
             (p_x + y * x + z) * l1_x - (p_x + y * w_x + z),
             l2_q_x * dom.evaluate_vanishing_polynomial(x)
         );
-    }
-}
-
-impl<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Verifier<'r, F, PC> {
-    pub fn new(
-        pc_vk: PC::VerifierKey,
-        fs_rng: &'r mut FiatShamirRng<Blake2s>,
-        rng: &'r mut dyn RngCore,
-    ) -> Self {
-        Self {
-            _field: PhantomData::default(),
-            _pc: PhantomData::default(),
-            pc_vk,
-            fs_rng,
-            rng,
-        }
     }
 }
 
@@ -576,47 +586,53 @@ pub enum Error<PCE: 'static + std::error::Error> {
 
 pub type Result<T, PCE> = std::result::Result<T, PCE>;
 
+pub struct Plonk<F: Field, PC: PolynomialCommitment<F, DensePolynomial<F>>>(PhantomData<(F, PC)>);
+
+impl<F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Plonk<F, PC>
+where
+    PC::Commitment: mpc_trait::MpcWire,
+    PC::Error: 'static,
+{
+    pub fn universal_setup<R: RngCore>(n_gates: usize, setup_rng: &mut R) -> PC::UniversalParams {
+        PC::setup(n_gates * 6 - 1, Some(1), setup_rng).unwrap()
+    }
+    pub fn circuit_setup(
+        srs: &PC::UniversalParams,
+        circ: &relations::flat::CircuitLayout<F>,
+    ) -> (
+        ProverKey<F, PC::Commitment, PC::CommitterKey>,
+        VerifierKey<PC::Commitment, PC::VerifierKey>,
+    ) {
+        setup::<F, PC>(srs, circ)
+    }
+    pub fn prove(
+        pk: &ProverKey<F, PC::Commitment, PC::CommitterKey>,
+        circ: &relations::flat::CircuitLayout<F>,
+        zk_rng: &mut dyn RngCore,
+    ) -> Proof<F, PC::Commitment, PC::Proof> {
+        let prv = Prover::<F, PC>::new(pk, zk_rng);
+        prv.prove(circ)
+    }
+    pub fn verify(
+        vk: &VerifierKey<PC::Commitment, PC::VerifierKey>,
+        circ: &relations::flat::CircuitLayout<F>,
+        pf: Proof<F, PC::Commitment, PC::Proof>,
+        public: &HashMap<String, F>,
+    ) {
+        let ver = Verifier::<F, PC>::new(vk);
+        ver.verify(circ, pf, public)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_poly::{domain::GeneralEvaluationDomain, UVPolynomial};
 
     type E = ark_bls12_377::Bls12_377;
     type F = ark_bls12_377::Fr;
     type P = DensePolynomial<F>;
     type PC = ark_poly_commit::marlin::marlin_pc::MarlinKZG10<E, P>;
-
-    #[test]
-    fn prod_test() {
-        let dom_size = 4;
-        let dom = GeneralEvaluationDomain::new(dom_size).unwrap();
-        assert_eq!(dom.size(), dom_size);
-        let rng = &mut ark_std::test_rng();
-        let srs = PC::setup(100, Some(1), rng).unwrap();
-        let (ck, vk) = PC::trim(&srs, 40, 10, Some(&[dom_size])).unwrap();
-        let fs_rng = &mut FiatShamirRng::from_seed(&0u64);
-        let zk_rng = &mut ark_std::test_rng();
-        let v_fs_rng = &mut FiatShamirRng::from_seed(&0u64);
-        let v_rng = &mut ark_std::test_rng();
-        for _i in 0..10 {
-            let mut prv: Prover<F, PC> = Prover::new(vk.clone(), ck.clone(), fs_rng, zk_rng);
-            let poly = {
-                let mut poly = P::rand(dom_size - 1, rng);
-                // Fix product to 1.
-                let prod: F = poly.coeffs.iter().product();
-                poly.coeffs[dom_size - 1] /= prod;
-                // treat our coeffs as evals, and get real coeffs
-                dom.ifft_in_place(&mut poly.coeffs);
-                poly
-            };
-            println!("{}", poly.degree());
-            let (c, p, r) = prv.commit("base", poly, Some(dom_size), None).unwrap();
-            let pf = prv.prove_unit_product(&p, &c, &r, dom);
-            let mut ver: Verifier<F, PC> = Verifier::new(vk.clone(), v_fs_rng, v_rng);
-            let c = ver.recv_commit("base", c.commitment, Some(dom_size));
-            ver.verify_unit_product(&c, pf, dom);
-        }
-    }
+    type Pl = Plonk<F, PC>;
 
     #[test]
     fn plonk_test() {
@@ -631,16 +647,7 @@ mod tests {
         let circ = CircuitLayout::from_circuit(&c, &d);
 
         let setup_rng = &mut ark_std::test_rng();
-        let deg_bound = circ.domains.wires.size() * 2 - 1;
-        let srs = PC::setup(deg_bound, Some(1), setup_rng).unwrap();
-        let (ck, vk) =
-            PC::trim(&srs, deg_bound, 0, Some(&[circ.domains.wires.size() - 1])).unwrap();
-
-        let fs_rng = &mut FiatShamirRng::from_seed(&0u64);
-        let setup_rng = &mut ark_std::test_rng();
         let zk_rng = &mut ark_std::test_rng();
-        let v_fs_rng = &mut FiatShamirRng::from_seed(&0u64);
-        let v_rng = &mut ark_std::test_rng();
 
         let v_circ = {
             let mut t = circ.clone();
@@ -648,11 +655,9 @@ mod tests {
             t
         };
 
-        let pp = setup::<F, PC>(&ck, &v_circ, setup_rng);
-        let mut prv: Prover<F, PC> = Prover::new(vk.clone(), ck.clone(), fs_rng, zk_rng);
-        let mut ver: Verifier<F, PC> = Verifier::new(vk.clone(), v_fs_rng, v_rng);
-        let pf = prv.prove(circ.clone(), &pp);
-        let vp = VerifierParams::from(&pp);
-        ver.verify(v_circ, pf, &public, &vp);
+        let srs = Pl::universal_setup(steps, setup_rng);
+        let (pk, vk) = Pl::circuit_setup(&srs, &v_circ);
+        let pf = Pl::prove(&pk, &circ, zk_rng);
+        Pl::verify(&vk, &v_circ, pf, &public);
     }
 }

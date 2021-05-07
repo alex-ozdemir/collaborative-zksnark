@@ -5,7 +5,6 @@ use ark_ff::Field;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::{LabeledCommitment, LabeledPolynomial, PCCommitment};
 use mpc_trait::{struct_mpc_wire_impl, struct_reveal_impl, MpcWire, Reveal};
-use std::convert::From;
 
 /// Check that S(X)*(P(X) + P(wX)) + (1-S(X))*P(X)*P(WX) - P(WWX) = Q(X)*Z(X)
 /// where Z vanishes on the gate domain, and Q is existential
@@ -93,26 +92,19 @@ pub struct Proof<F, C, O> {
 }
 
 #[derive(Clone)]
-pub struct PubParams<F: Field, C: PCCommitment> {
+pub struct ProverKey<F: Field, C: PCCommitment, PcCk> {
     pub w: LabeledPolynomial<F, DensePolynomial<F>>,
     pub w_cmt: LabeledCommitment<C>,
     pub s: LabeledPolynomial<F, DensePolynomial<F>>,
     pub s_cmt: LabeledCommitment<C>,
+    pub pc_ck: PcCk,
 }
 
 #[derive(Clone)]
-pub struct VerifierParams<C: PCCommitment> {
+pub struct VerifierKey<C: PCCommitment, PcVk> {
     pub w_cmt: LabeledCommitment<C>,
     pub s_cmt: LabeledCommitment<C>,
-}
-
-impl<'a, F: Field, C: PCCommitment> From<&'a PubParams<F, C>> for VerifierParams<C> {
-    fn from(other: &'a PubParams<F, C>) -> Self {
-        Self {
-            w_cmt: other.w_cmt.clone(),
-            s_cmt: other.s_cmt.clone(),
-        }
-    }
+    pub pc_vk: PcVk,
 }
 
 impl<C: MpcWire, O: MpcWire> MpcWire for GateProof<C, O> {
