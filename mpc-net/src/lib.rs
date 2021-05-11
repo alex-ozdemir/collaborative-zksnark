@@ -82,6 +82,7 @@ impl FieldChannel {
         });
         // disable nagle's alg
         self.stream.as_mut().unwrap().set_nodelay(true).unwrap();
+        self.stream.as_mut().unwrap().set_nonblocking(true).unwrap();
     }
     pub fn stream(&mut self) -> &mut TcpStream {
         self.stream
@@ -105,6 +106,46 @@ impl FieldChannel {
         s.read_exact(&mut bytes[..]).unwrap();
         self.bytes_recv += bytes.len() + len.len();
         bytes
+    }
+
+    pub fn exchange_bytes(&mut self, bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
+        let s = self.stream();
+        let n = bytes_out.len();
+        let mut bytes_in = vec![0u8; n];
+        let mut bytes_in_offset = 0;
+        let mut bytes_out_offset = 0;
+        while bytes_out_offset < n || bytes_in_offset < n {
+            if bytes_out_offset < n {
+                match s.write(&bytes_out[bytes_out_offset..]) {
+                    Ok(written) => {
+                        bytes_out_offset += written;
+                    }
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::WouldBlock {
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+            if bytes_in_offset < n {
+                match s.read(&mut bytes_in[bytes_in_offset..]) {
+                    Ok(read) => {
+                        bytes_in_offset += read;
+                    }
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::WouldBlock {
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+        }
+        self.exchanges += 1;
+        self.bytes_sent += n;
+        self.bytes_recv += n;
+        Ok(bytes_in)
     }
 
     pub fn stats(&self) -> ChannelStats {

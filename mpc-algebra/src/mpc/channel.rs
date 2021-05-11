@@ -48,32 +48,14 @@ impl FieldChannel {
         let mut bytes_out = Vec::new();
         f.serialize(&mut bytes_out).unwrap();
         debug!("Exchange serde: {}", bytes_out.len());
-        let bytes_in = if self.base.talk_first {
-            self.base.send_slice(&bytes_out[..]);
-            self.base.recv_vec()
-        } else {
-            let bytes_in = self.base.recv_vec();
-            self.base.send_slice(&bytes_out[..]);
-            bytes_in
-        };
+        let bytes_in = self.base.exchange_bytes(&bytes_out).unwrap();
         println!("Exchange {}: {}", self.base.exchanges, bytes_in.len());
-        self.base.exchanges += 1;
         debug!("Exchange serde: {:?}\nfor {:?}", bytes_out, bytes_in);
         F::deserialize(&bytes_in[..]).unwrap()
     }
 
     fn exchange_bytes(&mut self, f: Vec<u8>) -> Vec<u8> {
-        debug!("Exchange bytes: {}", f.len());
-        println!("Exchange bytes {}: {}", self.base.exchanges, f.len());
-        self.base.exchanges += 1;
-        if self.base.talk_first {
-            self.base.send_slice(&f[..]);
-            self.base.recv_vec()
-        } else {
-            let bytes_in = self.base.recv_vec();
-            self.base.send_slice(&f[..]);
-            bytes_in
-        }
+        self.base.exchange_bytes(&f).unwrap()
     }
 
     fn field_triple<F: Field>(&mut self) -> Triple<F, F, F> {
