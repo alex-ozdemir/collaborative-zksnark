@@ -234,8 +234,8 @@ mod squarings {
             let circ_no_data = plonk_squaring_circuit(RepeatedSquaringCircuit::without_data(n));
             let circ_no_data = CircuitLayout::from_circuit(&circ_no_data);
 
-            let a = MFr::rand(rng);
-            let circ_data = RepeatedSquaringCircuit::from_start(a, n);
+            let a = Fr::rand(rng);
+            let circ_data = mpc_squaring_circuit(a, n);
             let plonk_circ_data = plonk_squaring_circuit(circ_data.clone());
             let plonk_circ_data = CircuitLayout::from_circuit(&plonk_circ_data);
             let public_inputs =
