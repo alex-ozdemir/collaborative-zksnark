@@ -80,6 +80,8 @@ impl FieldChannel {
             let (stream, _addr) = listener.accept().unwrap();
             stream
         });
+        // disable nagle's alg
+        self.stream.as_mut().unwrap().set_nodelay(true).unwrap();
     }
     pub fn stream(&mut self) -> &mut TcpStream {
         self.stream
