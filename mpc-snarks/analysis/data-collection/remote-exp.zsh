@@ -7,10 +7,10 @@ party_n=$3
 infra=$4
 
 echo constraints,proof,infra,trial,time
-for trial in $(seq 1 1)
+for trial in $(seq 1 3)
 do
-    #for lsteps in $(seq 3 20)
-    for lsteps in $(seq 3 10)
+    for lsteps in $(seq 3 20)
+    #for lsteps in $(seq 3 10)
     do
         for proof in groth16 marlin plonk
         do
