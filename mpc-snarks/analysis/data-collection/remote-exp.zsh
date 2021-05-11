@@ -17,7 +17,7 @@ do
         for proof in groth16 marlin plonk
         do
             steps=$((2 ** $lsteps))
-            trial_time=$(./scripts/remote_bench.zsh $self_host $other_host $proof $steps)
+            trial_time=$(./scripts/remote_bench.zsh $self_host $other_host $party_n $proof $steps)
             trial_time=$(units -t $local_trial_time s)
             echo ${steps},${proof},$infra,$trial,${trial_time}
         done
