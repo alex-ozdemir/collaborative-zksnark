@@ -56,7 +56,7 @@ impl FieldChannel {
             self.base.send_slice(&bytes_out[..]);
             bytes_in
         };
-        println!("Exchange {}", bytes_in.len());
+        println!("Exchange {}: {}", self.base.exchanges, bytes_in.len());
         self.base.exchanges += 1;
         debug!("Exchange serde: {:?}\nfor {:?}", bytes_out, bytes_in);
         F::deserialize(&bytes_in[..]).unwrap()
@@ -64,6 +64,7 @@ impl FieldChannel {
 
     fn exchange_bytes(&mut self, f: Vec<u8>) -> Vec<u8> {
         debug!("Exchange bytes: {}", f.len());
+        println!("Exchange bytes {}: {}", self.base.exchanges, f.len());
         self.base.exchanges += 1;
         if self.base.talk_first {
             self.base.send_slice(&f[..]);
