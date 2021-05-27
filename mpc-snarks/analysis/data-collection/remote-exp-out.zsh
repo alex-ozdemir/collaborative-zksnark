@@ -14,7 +14,7 @@ for trial in $(seq 1 1)
 #for trial in $(seq 1 3)
 do
     #for lsteps in $(seq 3 20)
-    for lsteps in $(seq 3 4)
+    for lsteps in 3 5 7 9 10
     do
         for proof in groth16 marlin plonk
         do

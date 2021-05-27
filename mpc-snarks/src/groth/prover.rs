@@ -106,8 +106,8 @@ where
     let r_s_delta_g1 = pk
         .delta_g1
         .into_projective()
-        .mul(r.into_repr())
-        .mul(s.into_repr());
+        .scalar_mul(&r)
+        .scalar_mul(&s);
     debug!("r_s_delta_g1: {}", r_s_delta_g1);
 
     end_timer!(c_acc_time);
@@ -118,19 +118,19 @@ where
 
     // Compute A
     let a_acc_time = start_timer!(|| "Compute A");
-    let r_g1 = pk.delta_g1.mul(r);
+    let r_g1 = pk.delta_g1.scalar_mul(r);
     debug!("r_g1: {}", r_g1);
 
     let g_a = calculate_coeff(r_g1, &pk.a_query, pk.vk.alpha_g1, &assignment);
 
-    let s_g_a = g_a.mul(s.into_repr());
+    let s_g_a = g_a.scalar_mul(&s);
     debug!("s_g_a: {}", s_g_a);
     end_timer!(a_acc_time);
 
     // Compute B in G1 if needed
 //    let g1_b = if !r.is_zero() {
         let b_g1_acc_time = start_timer!(|| "Compute B in G1");
-        let s_g1 = pk.delta_g1.mul(s);
+        let s_g1 = pk.delta_g1.scalar_mul(s);
         let g1_b = calculate_coeff(s_g1, &pk.b_g1_query, pk.beta_g1, &assignment);
 
         end_timer!(b_g1_acc_time);
@@ -142,9 +142,9 @@ where
 
     // Compute B in G2
     let b_g2_acc_time = start_timer!(|| "Compute B in G2");
-    let s_g2 = pk.vk.delta_g2.mul(s);
+    let s_g2 = pk.vk.delta_g2.scalar_mul(s);
     let g2_b = calculate_coeff(s_g2, &pk.b_g2_query, pk.vk.beta_g2, &assignment);
-    let r_g1_b = g1_b.mul(r.into_repr());
+    let r_g1_b = g1_b.scalar_mul(&r);
     debug!("r_g1_b: {}", r_g1_b);
     drop(assignment);
 
@@ -193,9 +193,9 @@ where
     //   C' = C + r₂A
 
     // We can unwrap() this because r₁ is guaranteed to be nonzero
-    let new_a = proof.a.mul(r1.inverse().unwrap());
-    let new_b = proof.b.mul(r1) + &vk.delta_g2.mul(r1 * &r2);
-    let new_c = proof.c + proof.a.mul(r2).into_affine();
+    let new_a = proof.a.scalar_mul(r1.inverse().unwrap());
+    let new_b = proof.b.scalar_mul(r1) + &vk.delta_g2.scalar_mul(r1 * &r2);
+    let new_c = proof.c + proof.a.scalar_mul(r2).into_affine();
 
     Proof {
         a: new_a.into_affine(),

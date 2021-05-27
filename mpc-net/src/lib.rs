@@ -10,7 +10,6 @@ lazy_static! {
 }
 
 /// Macro for locking the FieldChannel singleton in the current scope.
-#[macro_use]
 macro_rules! get_ch {
     () => {
         CH.lock().expect("Poisoned FieldChannel")
@@ -119,9 +118,11 @@ impl FieldChannel {
                 match s.write(&bytes_out[bytes_out_offset..]) {
                     Ok(written) => {
                         bytes_out_offset += written;
+                        let _e = s.flush();
                     }
                     Err(e) => {
                         if e.kind() == std::io::ErrorKind::WouldBlock {
+                        } else if e.kind() == std::io::ErrorKind::Interrupted {
                         } else {
                             return Err(e);
                         }
@@ -135,6 +136,7 @@ impl FieldChannel {
                     }
                     Err(e) => {
                         if e.kind() == std::io::ErrorKind::WouldBlock {
+                        } else if e.kind() == std::io::ErrorKind::Interrupted {
                         } else {
                             return Err(e);
                         }

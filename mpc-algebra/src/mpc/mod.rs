@@ -1,6 +1,6 @@
 use ark_bls12_377::Bls12_377;
 use ark_ec::msm::VariableBaseMSM;
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ec::{group::Group, AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{FftField, Field, LegendreSymbol, One, PrimeField, SquareRootField, Zero};
 use ark_serialize::*;
 use ark_std::{cfg_into_iter, UniformRand};
@@ -1528,17 +1528,17 @@ macro_rules! wrap_lin_mul {
 wrap_mul!(MpcVal);
 wrap_lin_mul!(MpcMulVal);
 
-impl<G: ProjectiveCurve> MulAssign<MpcVal<G::ScalarField>> for MpcCurve<G> {
-    fn mul_assign(&mut self, other: MpcVal<G::ScalarField>) {
-        *self = channel::curve_mul((*self).into(), other).into();
-    }
-}
-
-impl<G: ProjectiveCurve> MulAssign<MpcVal<G::ScalarField>> for MpcCurve2<G> {
-    fn mul_assign(&mut self, other: MpcVal<G::ScalarField>) {
-        *self = channel::curve_mul((*self).into(), other.into()).into();
-    }
-}
+// impl<G: ProjectiveCurve> MulAssign<MpcVal<G::ScalarField>> for MpcCurve<G> {
+//     fn mul_assign(&mut self, other: MpcVal<G::ScalarField>) {
+//         *self = channel::curve_mul((*self).into(), other).into();
+//     }
+// }
+// 
+// impl<G: ProjectiveCurve> MulAssign<MpcVal<G::ScalarField>> for MpcCurve2<G> {
+//     fn mul_assign(&mut self, other: MpcVal<G::ScalarField>) {
+//         *self = channel::curve_mul((*self).into(), other.into()).into();
+//     }
+// }
 //impl<F: ark_serialize::ConstantSerializedSize> ark_serialize::ConstantSerializedSize for MpcVal<F> {
 //    const SERIALIZED_SIZE: usize = F::SERIALIZED_SIZE;
 //    const UNCOMPRESSED_SIZE: usize = F::UNCOMPRESSED_SIZE;
@@ -1806,6 +1806,25 @@ shared_mul_field!(ark_bls12_377::Fq12, ark_bls12_377::Fq);
 
 macro_rules! curve_impl {
     ($curve:path, $curve_proj:path, $base:path, $scalar:path, $cofactor:path, $curve_wrapper:ident) => {
+        impl MulAssign<MpcVal<$scalar>> for $curve_wrapper<$curve> {
+            fn mul_assign(&mut self, mut other: MpcVal<$scalar>) {
+                if self.shared {
+                    let proj: $curve_wrapper<$curve_proj> = self.clone().into();
+                    other.cast_to_shared();
+                    self.val = channel::curve_mul(proj.into(), other).val.into()
+                } else {
+                    self.val = AffineCurve::mul(&self.val, other.val).into();
+                }
+            }
+        }
+        impl Group for $curve_wrapper<$curve> {
+            type ScalarField = MpcVal<$scalar>;
+        }
+        impl MulAssign<MpcVal<$scalar>> for $curve_wrapper<$curve_proj> {
+            fn mul_assign(&mut self, other: MpcVal<$scalar>) {
+                *self = channel::curve_mul((*self).into(), other).into();
+            }
+        }
         impl AffineCurve for $curve_wrapper<$curve> {
             type ScalarField = MpcVal<$scalar>;
             const COFACTOR: &'static [u64] = $cofactor;
@@ -1830,7 +1849,7 @@ macro_rules! curve_impl {
                     channel::curve_mul(proj.into(), scalar).into()
                 } else {
                     let s = s.into();
-                    $curve_wrapper::from_shared(self.val.mul(s))
+                    $curve_wrapper::from_shared(AffineCurve::mul(&self.val, s))
                 }
             }
             fn mul_by_cofactor_to_projective(&self) -> <Self as AffineCurve>::Projective {
@@ -2107,7 +2126,7 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
             tree.push(std::mem::replace(&mut hashes, new));
         }
         let slf = hashes.pop().unwrap();
-        let other = channel::exchange_bytes(slf.clone());
+        let other = channel::exchange_bytes(&slf);
         if channel::am_first() {
             (tree, (other, slf))
         } else {
@@ -2123,10 +2142,10 @@ impl ComField for MpcVal<<Bls12_377 as PairingEngine>::Fr> {
             i /= 2;
         }
         assert_eq!(i / 2, 0);
-        let other = siblings
-            .clone()
-            .into_iter()
-            .map(|s| channel::exchange_bytes(s));
+        let other: Vec<_> = siblings
+            .iter()
+            .map(|s| channel::exchange_bytes(s))
+            .collect();
         let p = if channel::am_first() {
             siblings.into_iter().zip(other.into_iter()).collect()
         } else {

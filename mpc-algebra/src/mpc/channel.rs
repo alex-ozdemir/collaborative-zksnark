@@ -16,7 +16,6 @@ lazy_static! {
 }
 
 /// Macro for locking the FieldChannel singleton in the current scope.
-#[macro_use]
 macro_rules! get_ch {
     () => {
         CH.lock().expect("Poisoned FieldChannel")
@@ -54,7 +53,7 @@ impl FieldChannel {
         F::deserialize(&bytes_in[..]).unwrap()
     }
 
-    fn exchange_bytes(&mut self, f: Vec<u8>) -> Vec<u8> {
+    fn exchange_bytes(&mut self, f: &[u8]) -> Vec<u8> {
         self.base.exchange_bytes(&f).unwrap()
     }
 
@@ -299,7 +298,7 @@ impl FieldChannel {
             a.val.serialize(&mut bytes_out).unwrap();
         }
         let bytes_per_elem = bytes_out.len() / a.len();
-        let bytes_in = self.exchange_bytes(bytes_out);
+        let bytes_in = self.exchange_bytes(&bytes_out);
         assert_eq!(a.len() * bytes_per_elem, bytes_in.len());
         //println!("Batch pub: {}, {} bytes", a.len(), bytes_out
         for (i, a) in a.iter_mut().enumerate() {
@@ -469,7 +468,7 @@ pub fn exchange<F: CanonicalSerialize + CanonicalDeserialize>(f: F) -> F {
 }
 
 /// Exchange serializable element with the other party.
-pub fn exchange_bytes(f: Vec<u8>) -> Vec<u8> {
+pub fn exchange_bytes(f: &[u8]) -> Vec<u8> {
     get_ch!().exchange_bytes(f)
 }
 
