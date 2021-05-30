@@ -1,5 +1,27 @@
 #![macro_use]
 
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
+
+use crate::channel;
+
+use std::fmt::Display;
+
+#[track_caller]
+/// Checks that both sides of the channel have the same value.
+pub fn check_eq<T: CanonicalSerialize + CanonicalDeserialize + Clone + Eq + Display>(t: T) {
+    debug_assert!({
+        use log::debug;
+        let other = channel::exchange(t.clone());
+        if t == other {
+            debug!("Consistency check passed");
+            true
+        } else {
+            println!("\nConsistency check failed\n{}\nvs\n{}", t, other);
+            false
+        }
+    })
+}
+
 macro_rules! impl_basics_2 {
     ($share:ident, $bound:ident, $wrap:ident) => {
         impl<T: $bound, S: $share<T>> $wrap<T, S> {
@@ -33,14 +55,17 @@ macro_rules! impl_basics_2 {
         impl<T: $bound, S: $share<T>> Display for $wrap<T, S> {
             fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
                 match self {
-                    $wrap::Public(x) => write!(f, "{} (shared)", x),
-                    $wrap::Shared(x) => write!(f, "{} (public)", x),
+                    $wrap::Public(x) => write!(f, "{} (public)", x),
+                    $wrap::Shared(x) => write!(f, "{} (shared)", x),
                 }
             }
         }
         impl<T: $bound, S: $share<T>> ToBytes for $wrap<T, S> {
-            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
-                unimplemented!("write")
+            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+                match self {
+                    Self::Public(v) => v.write(writer),
+                    Self::Shared(_) => unimplemented!("write share: {}", self),
+                }
             }
         }
         impl<T: $bound, S: $share<T>> FromBytes for $wrap<T, S> {
@@ -49,13 +74,20 @@ macro_rules! impl_basics_2 {
             }
         }
         impl<T: $bound, S: $share<T>> CanonicalSerialize for $wrap<T, S> {
-            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-                unimplemented!("serialize")
+            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+                match self {
+                    Self::Public(v) => v.serialize(writer),
+                    Self::Shared(_) => unimplemented!("serialize share: {}", self),
+                }
             }
             fn serialized_size(&self) -> usize {
-                unimplemented!("serialized_size")
+                match self {
+                    Self::Public(v) => v.serialized_size(),
+                    Self::Shared(_) => unimplemented!("serialized_size share: {}", self),
+                }
             }
         }
+        // NB: CanonicalSerializeWithFlags is unimplemented for Group.
         impl<T: $bound, S: $share<T>> CanonicalSerializeWithFlags for $wrap<T, S> {
             fn serialize_with_flags<W: Write, F: Flags>(
                 &self,
@@ -134,7 +166,10 @@ macro_rules! impl_basics_2 {
             fn is_zero(&self) -> bool {
                 match self {
                     $wrap::Public(x) => x.is_zero(),
-                    $wrap::Shared(_x) => unimplemented!("is_zero"),
+                    $wrap::Shared(_x) => {
+                        debug!("Warning: is_zero on shared data. Returning false");
+                        false
+                    }
                 }
             }
         }

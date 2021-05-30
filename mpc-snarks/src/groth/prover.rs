@@ -1,7 +1,6 @@
 #![allow(dead_code)]
-use mpc_algebra::{BatchProd};
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{Field, PrimeField, UniformRand, Zero};
+use ark_ff::{Field, UniformRand, Zero};
 use super::r1cs_to_qap::R1CStoQAP;
 use ark_groth16::{Proof, ProvingKey, VerifyingKey};
 use ark_poly::GeneralEvaluationDomain;
@@ -31,7 +30,7 @@ pub fn create_random_proof<E, C, R>(
 ) -> R1CSResult<Proof<E>>
 where
     E: PairingEngine,
-    E::Fr: BatchProd,
+    //E::Fr: BatchProd,
     C: ConstraintSynthesizer<<E as PairingEngine>::Fr>,
     R: Rng,
 {
@@ -46,7 +45,7 @@ where
 pub fn create_proof_no_zk<E, C>(circuit: C, pk: &ProvingKey<E>) -> R1CSResult<Proof<E>>
 where
     E: PairingEngine,
-    E::Fr: BatchProd,
+    //E::Fr: BatchProd,
     C: ConstraintSynthesizer<<E as PairingEngine>::Fr>,
 {
     create_proof::<E, C>(
@@ -67,7 +66,7 @@ pub fn create_proof<E, C>(
 ) -> R1CSResult<Proof<E>>
 where
     E: PairingEngine,
-    E::Fr: BatchProd,
+    //E::Fr: BatchProd,
     C: ConstraintSynthesizer<<E as PairingEngine>::Fr>,
 {
     debug!("r: {}", r);

@@ -1,7 +1,6 @@
 use ark_ff::{One, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
 use ark_std::{cfg_iter, cfg_iter_mut, vec};
-use mpc_algebra::BatchProd;
 
 use ark_relations::r1cs::{ConstraintSystemRef, Result as R1CSResult, SynthesisError};
 use core::ops::{AddAssign, Deref};
@@ -45,7 +44,7 @@ pub struct R1CStoQAP;
 
 impl R1CStoQAP {
     #[inline]
-    pub fn witness_map<F: PrimeField + BatchProd, D: EvaluationDomain<F>>(
+    pub fn witness_map<F: PrimeField, D: EvaluationDomain<F>>(
         prover: ConstraintSystemRef<F>,
     ) -> R1CSResult<Vec<F>> {
         let matrices = prover.to_matrices().unwrap();
@@ -88,7 +87,8 @@ impl R1CStoQAP {
 
         domain.coset_fft_in_place(&mut a);
         domain.coset_fft_in_place(&mut b);
-        let mut ab = F::batch_product(a, b);
+        let mut ab = a.clone();
+        F::batch_product_in_place(&mut ab, &b);
 
         let mut c = vec![zero; domain_size];
         cfg_iter_mut!(c[..prover.num_constraints])

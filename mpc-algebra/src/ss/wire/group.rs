@@ -1,4 +1,5 @@
 use derivative::Derivative;
+use log::debug;
 use rand::Rng;
 use zeroize::Zeroize;
 
@@ -17,11 +18,11 @@ use std::iter::Sum;
 use std::marker::PhantomData;
 use std::ops::*;
 
-use crate::mpc::channel;
-use super::super::share::field::ScalarShare;
 use super::super::share::group::GroupShare;
 use super::super::share::BeaverSource;
 use super::field::MpcField;
+use crate::channel;
+use mpc_trait::Reveal;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcGroup<G: Group, S: GroupShare<G>> {
@@ -43,15 +44,15 @@ impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::ScalarShare, S>
 {
     fn triple(&mut self) -> (S, S::ScalarShare, S) {
         (
-            S::from_public(T::zero()),
-            <S::ScalarShare as ScalarShare<T::ScalarField>>::from_public(T::ScalarField::one()),
-            S::from_public(T::zero()),
+            S::from_add_shared(T::zero()),
+            <S::ScalarShare as Reveal>::from_add_shared(if channel::am_first() {T::ScalarField::one()} else {T::ScalarField::zero()}),
+            S::from_add_shared(T::zero()),
         )
     }
     fn inv_pair(&mut self) -> (S::ScalarShare, S::ScalarShare) {
         (
-            <S::ScalarShare as ScalarShare<T::ScalarField>>::from_public(T::ScalarField::one()),
-            <S::ScalarShare as ScalarShare<T::ScalarField>>::from_public(T::ScalarField::one()),
+            <S::ScalarShare as Reveal>::from_add_shared(if channel::am_first() {T::ScalarField::one()} else {T::ScalarField::zero()}),
+            <S::ScalarShare as Reveal>::from_add_shared(if channel::am_first() {T::ScalarField::one()} else {T::ScalarField::zero()}),
         )
     }
 }
@@ -63,31 +64,29 @@ impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
     fn publicize(&mut self) {
         match self {
             MpcGroup::Shared(s) => {
-                *self = MpcGroup::Public(s.open());
+                *self = MpcGroup::Public(s.reveal());
             }
             _ => {}
         }
         debug_assert!({
-            println!("Check publicize");
             let self_val = if let MpcGroup::Public(s) = self {
                 s.clone()
             } else {
                 unreachable!()
             };
-            let other_val = channel::exchange(self_val);
-            self_val == other_val
+            super::macros::check_eq(self_val);
+            true
         })
     }
     fn set_shared(&mut self, shared: bool) {
-        match self {
-            MpcGroup::Shared(s) => {
-                if !shared {
-                    *self = MpcGroup::Public(s.open());
+        if shared != self.is_shared() {
+            match self {
+                Self::Shared(s) => {
+                    let p = s.unwrap_as_public();
+                    *self = Self::Public(p);
                 }
-            }
-            MpcGroup::Public(s) => {
-                if shared {
-                    *self = MpcGroup::Shared(S::from_public(*s));
+                Self::Public(s) => {
+                    *self = Self::Shared(S::wrap_as_shared(*s));
                 }
             }
         }
@@ -100,14 +99,21 @@ impl<T: Group, S: GroupShare<T>> MpcWire for MpcGroup<T, S> {
     }
 }
 
-impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
-    pub fn open(mut self) -> T {
-        self.publicize();
-        if let Self::Public(s) = self {
-            s
-        } else {
-            unreachable!()
-        }
+impl<T: Group, S: GroupShare<T>> Reveal for MpcGroup<T, S> {
+    type Base = T;
+    fn reveal(self) -> Self::Base {
+        let result = match self {
+            Self::Shared(s) => s.reveal(),
+            Self::Public(s) => s,
+        };
+        super::macros::check_eq(result.clone());
+        result
+    }
+    fn from_public(b: Self::Base) -> Self {
+        Self::Public(b)
+    }
+    fn from_add_shared(b: Self::Base) -> Self {
+        Self::Shared(S::from_add_shared(b))
     }
 }
 

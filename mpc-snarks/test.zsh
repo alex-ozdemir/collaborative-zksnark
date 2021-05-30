@@ -15,11 +15,11 @@ $BIN --port 8000 --peer-host localhost --peer-port 8001 -d product 0 1 --party 1
 
 wait $pid0 $pid1
 
-$BIN --port 8001 --peer-host localhost --peer-port 8000 -d commit 1 0 --party 0 & ; pid0=$!
-$BIN --port 8000 --peer-host localhost --peer-port 8001 -d commit 0 1 --party 1 & ; pid1=$!
-
-wait $pid0 $pid1
-
+# $BIN --port 8001 --peer-host localhost --peer-port 8000 -d commit 1 0 --party 0 & ; pid0=$!
+# $BIN --port 8000 --peer-host localhost --peer-port 8001 -d commit 0 1 --party 1 & ; pid1=$!
+# 
+# wait $pid0 $pid1
+# 
 $BIN --port 8001 --peer-host localhost --peer-port 8000 -d merkle 1 2 3 4 --party 0 & ; pid0=$!
 $BIN --port 8000 --peer-host localhost --peer-port 8001 -d merkle 0 0 0 0 --party 1 & ; pid1=$!
 
@@ -102,15 +102,15 @@ $BIN --port 8000 --peer-host localhost --peer-port 8001 marlinpcbatch 3 2 0 0 1 
 
 wait $pid0 $pid1
 
-# groth16
-$BIN --port 8001 --peer-host localhost --peer-port 8000 marlin --party 0 & ; pid0=$!
-$BIN --port 8000 --peer-host localhost --peer-port 8001 marlin --party 1 & ; pid1=$!
-
-wait $pid0 $pid1
-
 # plonk
 $BIN --port 8001 --peer-host localhost --peer-port 8000 plonk --party 0 & ; pid0=$!
 $BIN --port 8000 --peer-host localhost --peer-port 8001 plonk --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+# marlin
+$BIN --port 8001 --peer-host localhost --peer-port 8000 marlin --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 marlin --party 1 & ; pid1=$!
 
 wait $pid0 $pid1
 

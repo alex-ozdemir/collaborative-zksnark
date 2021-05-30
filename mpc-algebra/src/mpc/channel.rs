@@ -48,7 +48,6 @@ impl FieldChannel {
         f.serialize(&mut bytes_out).unwrap();
         debug!("Exchange serde: {}", bytes_out.len());
         let bytes_in = self.base.exchange_bytes(&bytes_out).unwrap();
-        println!("Exchange {}: {}", self.base.exchanges, bytes_in.len());
         debug!("Exchange serde: {:?}\nfor {:?}", bytes_out, bytes_in);
         F::deserialize(&bytes_in[..]).unwrap()
     }

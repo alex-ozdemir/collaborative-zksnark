@@ -78,6 +78,14 @@ impl<F: FftField> CircuitLayout<F> {
                 wire_evals.evals[indices[i]] = wire_g_pows[indices[i_next]];
             }
         }
+            #[cfg(debug_assertions)]
+            {
+                println!("Plonk W evals:");
+                let mut p = wire_evals.clone();
+                for (i, e) in p.evals.iter_mut().enumerate() {
+                    println!("{}: {}", i, e);
+                }
+            }
 
         // Compute P polynomial if needed
         let p = c.values.as_ref().map(|vals| {
@@ -90,10 +98,28 @@ impl<F: FftField> CircuitLayout<F> {
                     p_evals.evals[*i] = vals[*var as usize];
                 }
             }
+            #[cfg(debug_assertions)]
+            {
+                println!("Plonk P evals:");
+                let mut p = p_evals.clone();
+                for (i, e) in p.evals.iter_mut().enumerate() {
+                    e.publicize();
+                    println!("{}: {}", i, e);
+                }
+            }
             p_evals.interpolate()
         });
+        let w = wire_evals.interpolate();
+            #[cfg(debug_assertions)]
+            {
+                println!("Plonk w coeffs:");
+                let mut p = w.clone();
+                for (i, e) in p.coeffs.iter_mut().enumerate() {
+                    println!("{}: {}", i, e);
+                }
+            }
         CircuitLayout {
-            w: wire_evals.interpolate(),
+            w,
             s: gate_selector_evals.interpolate(),
             domains: domains.clone(),
             p,

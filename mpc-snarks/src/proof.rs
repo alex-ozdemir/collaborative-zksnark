@@ -17,16 +17,16 @@ use std::net::{SocketAddr, ToSocketAddrs};
 
 mod groth;
 mod marlin;
-mod reveal;
 mod silly;
-use mpc_algebra::{channel, MpcPairingEngine, MpcVal};
+use mpc_algebra::{channel, ss::honest_but_curious::*};
+use mpc_trait::Reveal;
 
 // Field
 type Fr = ark_bls12_377::Fr;
 // Pairing (E)ngine
 type E = ark_bls12_377::Bls12_377;
 // MPC Field
-type MFr = MpcVal<Fr>;
+type MFr = MpcField<Fr>;
 // MPC pairing engine
 type ME = MpcPairingEngine<E>;
 
@@ -67,7 +67,7 @@ mod squarings {
     pub mod groth {
         use super::*;
         use crate::ark_groth16::{generate_random_parameters, prepare_verifying_key, verify_proof};
-        use crate::groth::{pf_publicize, pk_to_mpc, prover::create_random_proof};
+        use crate::groth::prover::create_random_proof;
 
         pub fn mpc(n: usize) {
             let rng = &mut test_rng();
@@ -76,17 +76,17 @@ mod squarings {
             let params = generate_random_parameters::<E, _, _>(circ_no_data, rng).unwrap();
 
             let pvk = prepare_verifying_key::<E>(&params.vk);
-            let mpc_params = pk_to_mpc(params);
+            let mpc_params = Reveal::from_public(params);
 
             let a = Fr::rand(rng);
             let computation_timer = start_timer!(|| "do the mpc (cheat)");
             let circ_data = mpc_squaring_circuit(a, n);
-            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().publicize_unwrap()];
+            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
             end_timer!(computation_timer);
             channel::reset_stats();
             let timer = start_timer!(|| TIMED_SECTION_LABEL);
             let mpc_proof = create_random_proof::<ME, _, _>(circ_data, &mpc_params, rng).unwrap();
-            let proof = pf_publicize(mpc_proof);
+            let proof = mpc_proof.reveal();
             end_timer!(timer);
 
             assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
@@ -132,8 +132,8 @@ mod squarings {
 
     pub mod marlin {
         use super::*;
-        use crate::reveal::marlin::{lift_index_pk, pf_publicize};
         use ark_marlin::Marlin;
+        use ark_marlin::*;
         use ark_poly::univariate::DensePolynomial;
         use ark_poly_commit::marlin::marlin_pc::MarlinKZG10;
 
@@ -165,18 +165,18 @@ mod squarings {
             let srs = LocalMarlin::universal_setup(n, n + 2, 3 * n, rng).unwrap();
 
             let (pk, vk) = LocalMarlin::index(&srs, circ_no_data).unwrap();
-            let mpc_pk = lift_index_pk(pk);
+            let mpc_pk = IndexProverKey::from_public(pk);
 
             let a = Fr::rand(rng);
             let computation_timer = start_timer!(|| "do the mpc (cheat)");
             let circ_data = mpc_squaring_circuit(a, n);
-            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().publicize_unwrap()];
+            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
             end_timer!(computation_timer);
 
             let timer = start_timer!(|| TIMED_SECTION_LABEL);
             let zk_rng = &mut test_rng();
             let mpc_proof = MpcMarlin::prove(&mpc_pk, circ_data, zk_rng).unwrap();
-            let proof = pf_publicize(mpc_proof);
+            let proof = mpc_proof.reveal();
             end_timer!(timer);
             assert!(LocalMarlin::verify(&vk, &public_inputs, &proof, rng).unwrap());
         }
@@ -189,6 +189,7 @@ mod squarings {
         use mpc_plonk::relations::flat::CircuitLayout;
         use mpc_plonk::relations::structured::PlonkCircuit;
         use mpc_plonk::*;
+        use mpc_trait::Reveal;
 
         fn plonk_squaring_circuit<F: Field>(c: RepeatedSquaringCircuit<F>) -> PlonkCircuit<F> {
             let n_gates = c.chain.len() as u32 - 1;
@@ -238,17 +239,19 @@ mod squarings {
             let circ_data = mpc_squaring_circuit(a, n);
             let plonk_circ_data = plonk_squaring_circuit(circ_data.clone());
             let plonk_circ_data = CircuitLayout::from_circuit(&plonk_circ_data);
-            let public_inputs =
-                std::iter::once(("out".to_owned(), circ_data.chain.last().unwrap().unwrap().publicize_unwrap()))
-                    .collect();
+            let public_inputs = std::iter::once((
+                "out".to_owned(),
+                circ_data.chain.last().unwrap().unwrap().reveal(),
+            ))
+            .collect();
             let setup_rng = &mut test_rng();
             let zk_rng = &mut test_rng();
             let srs = LocalPlonk::universal_setup(n.next_power_of_two(), setup_rng);
             let (pk, vk) = LocalPlonk::circuit_setup(&srs, &circ_no_data);
             let t = start_timer!(|| TIMED_SECTION_LABEL);
-            let mpc_pk = super::reveal::plonk::obs_pk(pk);
+            let mpc_pk = ProverKey::from_public(pk);
             let mpc_pf = MpcPlonk::prove(&mpc_pk, &plonk_circ_data, zk_rng);
-            let pf = crate::reveal::plonk::pub_pf(mpc_pf);
+            let pf = mpc_pf.reveal();
             end_timer!(t);
             LocalPlonk::verify(&vk, &circ_no_data, pf, &public_inputs);
         }
@@ -281,7 +284,7 @@ mod squarings {
         RepeatedSquaringCircuit {
             chain: my_shares
                 .into_iter()
-                .map(|s| Some(MpcVal::from_shared(s)))
+                .map(|s| Some(MpcField::from_add_shared(s)))
                 .collect(),
         }
     }

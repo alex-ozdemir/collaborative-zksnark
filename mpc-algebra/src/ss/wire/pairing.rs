@@ -27,6 +27,7 @@ use mpc_trait::MpcWire;
 use super::super::share::field::{ExtFieldShare, ScalarShare};
 use super::super::share::pairing::PairingShare;
 use super::super::share::BeaverSource;
+use mpc_trait::Reveal;
 use super::field::MpcField;
 use super::group::MpcGroup;
 
@@ -50,9 +51,9 @@ impl<E: PairingEngine, S: PairingShare<E>>
         let g1 = E::G1Projective::zero();
         let g2 = E::G2Projective::zero();
         (
-            MpcG1Projective::from_public(g1.clone()),
-            MpcG2Projective::from_public(g2.clone()),
-            MpcExtField::from_public(E::pairing(g1, g2)),
+            MpcG1Projective::from_add_shared(g1.clone()),
+            MpcG2Projective::from_add_shared(g2.clone()),
+            MpcExtField::from_add_shared(E::pairing(g1, g2)),
         )
     }
     fn inv_pair(&mut self) -> (MpcG2Projective<E, S>, MpcG2Projective<E, S>) {
@@ -87,14 +88,10 @@ pub struct MpcG1Projective<E: PairingEngine, PS: PairingShare<E>> {
 #[derive(Debug, Derivative)]
 #[derivative(
     Clone(bound = ""),
-    Copy(bound = ""),
-    Default(bound = ""),
-    PartialEq(bound = "E::G1Affine: PartialEq"),
-    Eq(bound = "E::G1Affine: Eq"),
-    Hash(bound = "E::G1Affine: Hash")
+    Default(bound = "E::G1Prepared: Default"),
 )]
-/// Currently a dummy structure. Never used!
 pub struct MpcG1Prep<E: PairingEngine, PS: PairingShare<E>> {
+    pub val: E::G1Prepared,
     pub _phants: PhantomData<(E, PS)>,
 }
 
@@ -121,19 +118,17 @@ pub struct MpcG2Affine<E: PairingEngine, PS: PairingShare<E>> {
 pub struct MpcG2Projective<E: PairingEngine, PS: PairingShare<E>> {
     pub val: MpcGroup<E::G2Projective, PS::G2ProjectiveShare>,
 }
+
 #[derive(Debug, Derivative)]
 #[derivative(
     Clone(bound = ""),
-    Copy(bound = ""),
-    Default(bound = ""),
-    PartialEq(bound = "E::G1Affine: PartialEq"),
-    Eq(bound = "E::G1Affine: Eq"),
-    Hash(bound = "E::G1Affine: Hash")
+    Default(bound = "E::G1Prepared: Default"),
 )]
-/// Currently a dummy structure. Never used!
 pub struct MpcG2Prep<E: PairingEngine, PS: PairingShare<E>> {
+    pub val: E::G2Prepared,
     pub _phants: PhantomData<(E, PS)>,
 }
+
 #[derive(Derivative)]
 #[derivative(
     Clone(bound = ""),
@@ -217,9 +212,9 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
             // x * y = z
             let (x, y, z) = source.triple();
             // x + a
-            let xa = (a + x).open();
+            let xa = (a + x).reveal();
             // y + b
-            let yb = (b + y).open();
+            let yb = (b + y).reveal();
             let xayb: MpcExtField<E::Fqk, PS::FqkShare> =
                 MpcExtField::wrap(MpcField::Public(E::pairing(xa, yb)));
             let xay: MpcExtField<E::Fqk, PS::FqkShare> = MpcExtField::wrap(MpcField::Shared(
@@ -236,7 +231,7 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
             ));
             z / xay / xyb * xayb
         } else {
-            MpcExtField::wrap(MpcField::Public(E::pairing(a.open(), b.open())))
+            MpcExtField::wrap(MpcField::Public(E::pairing(a.reveal(), b.reveal())))
         }
     }
 }
@@ -249,8 +244,8 @@ macro_rules! impl_pairing_mpc_wrapper {
             }
         }
         impl<E: $bound1, PS: $bound2<E>> ToBytes for $wrap<E, PS> {
-            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
-                unimplemented!("write")
+            fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+                self.val.write(writer)
             }
         }
         impl<E: $bound1, PS: $bound2<E>> FromBytes for $wrap<E, PS> {
@@ -259,24 +254,24 @@ macro_rules! impl_pairing_mpc_wrapper {
             }
         }
         impl<E: $bound1, PS: $bound2<E>> CanonicalSerialize for $wrap<E, PS> {
-            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
-                unimplemented!("serialize")
+            fn serialize<W: Write>(&self, writer: W) -> Result<(), SerializationError> {
+                self.val.serialize(writer)
             }
             fn serialized_size(&self) -> usize {
-                unimplemented!("serialized_size")
+                self.val.serialized_size()
             }
         }
         impl<E: $bound1, PS: $bound2<E>> CanonicalSerializeWithFlags for $wrap<E, PS> {
             fn serialize_with_flags<W: Write, F: Flags>(
                 &self,
-                _writer: W,
-                _flags: F,
+                writer: W,
+                flags: F,
             ) -> Result<(), SerializationError> {
-                unimplemented!("serialize_with_flags")
+                self.val.serialize_with_flags(writer, flags)
             }
 
             fn serialized_size_with_flags<F: Flags>(&self) -> usize {
-                unimplemented!("serialized_size_with_flags")
+                self.val.serialized_size_with_flags::<F>()
             }
         }
         impl<E: $bound1, PS: $bound2<E>> CanonicalDeserialize for $wrap<E, PS> {
@@ -416,9 +411,16 @@ macro_rules! impl_ext_field_wrapper {
                 iter.fold(Self::one(), |x, y| x.add((*y).clone()))
             }
         }
-        impl<E: Field, PS: ExtFieldShare<E>> $wrap<E, PS> {
-            pub fn open(&self) -> E {
-                self.val.open()
+        impl<E: Field, PS: ExtFieldShare<E>> Reveal for $wrap<E, PS> {
+            type Base = E;
+            fn reveal(self) -> E {
+                self.val.reveal()
+            }
+            fn from_public(t: E) -> Self {
+                Self::wrap($wrapped::from_public(t))
+            }
+            fn from_add_shared(t: E) -> Self {
+                Self::wrap($wrapped::from_add_shared(t))
             }
         }
         from_prim!(bool, Field, ExtFieldShare, $wrap);
@@ -535,8 +537,21 @@ macro_rules! impl_pairing_curve_wrapper {
             pub fn unwrap_as_public(self) -> E::$base {
                 self.val.unwrap_as_public()
             }
-            pub fn open(&self) -> E::$base {
-                self.val.open()
+        }
+        impl<E: $bound1, PS: $bound2<E>> Reveal for $wrap<E, PS> {
+            type Base = E::$base;
+            fn reveal(self) -> Self::Base {
+                self.val.reveal()
+            }
+            fn from_public(t: Self::Base) -> Self {
+                Self {
+                    val: $wrapped::from_public(t),
+                }
+            }
+            fn from_add_shared(t: Self::Base) -> Self {
+                Self {
+                    val: $wrapped::from_add_shared(t)
+                }
             }
         }
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
@@ -639,6 +654,22 @@ macro_rules! impl_aff_proj {
             }
         }
 
+        impl<E: PairingEngine, PS: PairingShare<E>> Reveal for $w_prep<E, PS> {
+            type Base = E::$prep;
+            fn reveal(self) -> E::$prep {
+                self.val
+            }
+            fn from_public(g: E::$prep) -> Self {
+                Self {
+                    val: g,
+                    _phants: PhantomData::default(),
+                }
+            }
+            fn from_add_shared(_g: E::$prep) -> Self {
+                panic!("Cannot add share a prepared curve")
+            }
+        }
+
         impl<E: PairingEngine, PS: PairingShare<E>> AffineCurve for $w_aff<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
             const COFACTOR: &'static [u64] = E::$aff::COFACTOR;
@@ -695,10 +726,6 @@ macro_rules! impl_aff_proj {
             }
             fn batch_normalization(_elems: &mut [Self]) {
                 //TODO: wrong?
-                // elems
-                //     .iter_mut()
-                //     .for_each(|e| E::$pro::batch_normalization(&mut [e.val]));
-                todo!("ProjectiveCurve::batch_normalization")
             }
             fn is_normalized(&self) -> bool {
                 todo!("ProjectiveCurve::is_normalized")

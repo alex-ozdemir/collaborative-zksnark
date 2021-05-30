@@ -2,14 +2,15 @@ use ark_ff::UniformRand;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_std::{end_timer, start_timer, test_rng};
-use mpc_algebra::{MpcPairingEngine, MpcVal};
+use mpc_algebra::ss::honest_but_curious::*;
 use mpc_plonk::*;
+use mpc_trait::Reveal;
 use std::collections::HashMap;
 
 type F = ark_bls12_377::Fr;
 type E = ark_bls12_377::Bls12_377;
 type ME = MpcPairingEngine<ark_bls12_377::Bls12_377>;
-type MF = MpcVal<F>;
+type MF = MpcField<F>;
 type PC = MarlinKZG10<E, DensePolynomial<F>>;
 type MpcMarlinKZG10 = MarlinKZG10<ME, DensePolynomial<MF>>;
 type LocalMarlinKZG10 = MarlinKZG10<E, DensePolynomial<F>>;
@@ -54,18 +55,18 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
 
     // data circuit
     let data_rng = &mut test_rng();
-    let start = MF::rand(data_rng);
+    let start = MF::from_add_shared(F::rand(data_rng));
     let res = (0..steps).fold(start, |a, _| a * a);
-    let public: HashMap<String, F> = vec![("out".to_owned(), res.publicize_unwrap())]
+    let public: HashMap<String, F> = vec![("out".to_owned(), res.reveal())]
         .into_iter()
         .collect();
     let c = PlonkCircuit::<MF>::new_squaring_circuit(steps, Some(start));
     let circ = CircuitLayout::from_circuit(&c);
 
     let t = start_timer!(|| "timed section");
-    let mpc_pk = super::reveal::plonk::obs_pk(pk);
+    let mpc_pk = ProverKey::from_public(pk);
     let mpc_pf = MpcPlonk::prove(&mpc_pk, &circ, &mut test_rng());
-    let pf = crate::reveal::plonk::pub_pf(mpc_pf);
+    let pf = mpc_pf.reveal();
     end_timer!(t);
     LocalPlonk::verify(&vk, &v_circ, pf, &public);
 }

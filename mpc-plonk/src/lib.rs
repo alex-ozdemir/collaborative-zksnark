@@ -11,6 +11,7 @@ pub mod data_structures;
 pub use data_structures::*;
 pub mod relations;
 pub use relations::*;
+pub mod reveal;
 mod util;
 
 use log::debug;
@@ -27,7 +28,7 @@ use ark_poly::{
     Polynomial, UVPolynomial,
 };
 
-use ark_std::{start_timer, end_timer, rand::RngCore};
+use ark_std::{end_timer, rand::RngCore, start_timer};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -100,7 +101,6 @@ impl<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Prover<'r
     }
 }
 
-
 #[allow(dead_code)]
 impl<'r, F: FftField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Prover<'r, F, PC>
 where
@@ -120,11 +120,11 @@ where
             F::partial_products_in_place(&mut t.evals);
             t
         };
-//        debug_assert_eq!(t_evals.evals[f.coeffs.len() - 1], F::one());
-//        debug_assert_eq!(
-//            t_evals.evals[f.coeffs.len() - 1] * t_evals.evals[0],
-//            t_evals[0]
-//        );
+        // debug_assert!(t_evals.evals[f.coeffs.len() - 1], F::one());
+        //        debug_assert_eq!(
+        //            t_evals.evals[f.coeffs.len() - 1] * t_evals.evals[0],
+        //            t_evals[0]
+        //        );
         let t = t_evals.interpolate();
         let (t_cmt, t, t_rand) = self.commit("t", t.clone(), None, None).unwrap();
         let w = domain.element(1);
@@ -159,16 +159,16 @@ where
         // assert_eq!(q, qq);
         let (q_cmt, q, q_rand) = self.commit("q", q.clone(), None, None).unwrap();
         let k = domain.size();
-//        debug_assert_eq!(t.evaluate(&domain.element(k - 1)), F::one());
-//        for i in 0..k {
-//            let r = domain.element(i);
-//            debug_assert_eq!(t.evaluate(&(w * r)), t.evaluate(&r) * f.evaluate(&(w * r)));
-//        }
+        //        debug_assert_eq!(t.evaluate(&domain.element(k - 1)), F::one());
+        //        for i in 0..k {
+        //            let r = domain.element(i);
+        //            debug_assert_eq!(t.evaluate(&(w * r)), t.evaluate(&r) * f.evaluate(&(w * r)));
+        //        }
         let r = self.fs_rng.borrow_mut().gen::<F>();
-//        debug_assert_eq!(
-//            t.evaluate(&(w * r)) - t.evaluate(&r) * f.evaluate(&(w * r)),
-//            domain.evaluate_vanishing_polynomial(r) * q.evaluate(&r)
-//        );
+        //        debug_assert_eq!(
+        //            t.evaluate(&(w * r)) - t.evaluate(&r) * f.evaluate(&(w * r)),
+        //            domain.evaluate_vanishing_polynomial(r) * q.evaluate(&r)
+        //        );
         let t_wr_open = self.eval(&t, &t_rand, &t_cmt, w * r).unwrap();
         let t_r_open = self.eval(&t, &t_rand, &t_cmt, r).unwrap();
         let t_wk_open = self
@@ -177,11 +177,11 @@ where
         let f_wr_open = self.eval(&f, &f_rand, &f_cmt, w * r).unwrap();
         let q_r_open = self.eval(&q, &q_rand, &q_cmt, r).unwrap();
         end_timer!(timer);
-//        debug_assert_eq!(
-//            t_wr_open.0 - t_r_open.0 * f_wr_open.0,
-//            domain.evaluate_vanishing_polynomial(r) * q_r_open.0
-//        );
-//        debug_assert_eq!(t_wk_open.0, F::one());
+        //        debug_assert_eq!(
+        //            t_wr_open.0 - t_r_open.0 * f_wr_open.0,
+        //            domain.evaluate_vanishing_polynomial(r) * q_r_open.0
+        //        );
+        //        debug_assert_eq!(t_wk_open.0, F::one());
         ProductProof {
             t_cmt: t_cmt.commitment,
             q_cmt: q_cmt.commitment,
@@ -239,10 +239,10 @@ where
             .unwrap();
         let l1_x_open = self.eval(&l1, &l1_rand, &l1_cmt, x).unwrap();
         let p_x_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
-//        debug_assert_eq!(
-//            (p_x_open.0 + y * x + z) * l1_x_open.0 - (p_x_open.0 + y * w_x_open.0 + z),
-//            l2_q_x_open.0 * dom.evaluate_vanishing_polynomial(x)
-//        );
+        //        debug_assert_eq!(
+        //            (p_x_open.0 + y * x + z) * l1_x_open.0 - (p_x_open.0 + y * w_x_open.0 + z),
+        //            l2_q_x_open.0 * dom.evaluate_vanishing_polynomial(x)
+        //        );
         end_timer!(timer);
         WiringProof {
             l1_prod_pf,
@@ -281,7 +281,7 @@ where
         let x = self.fs_rng.borrow_mut().gen::<F>();
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_open = self.eval(&p, &p_rand, &p_cmt, x).unwrap();
-        // debug_assert_eq!(p_open.0 - v.evaluate(&x), q_open.0 * z.evaluate(&x));
+        //debug_assert!( p_open.0 - v.evaluate(&x), q_open.0 * z.evaluate(&x));
         end_timer!(timer);
         PublicProof {
             q_open,
@@ -297,7 +297,7 @@ where
         p_rand: &PC::Randomness,
         circ: &relations::flat::CircuitLayout<F>,
     ) -> GateProof<PC::Commitment, (F, PC::Proof)> {
-        let timer= start_timer!(|| "prove_gates");
+        let timer = start_timer!(|| "prove_gates");
         let w = circ.domains.wires.group_gen;
         let pw = util::shift(p.polynomial().clone(), w);
         let pww = util::shift(p.polynomial().clone(), w * w);
@@ -319,11 +319,11 @@ where
         let q_open = self.eval(&q, &q_rand, &q_cmt, x).unwrap();
         let p_w_open = self.eval(p, p_rand, p_cmt, w * x).unwrap();
         let p_w2_open = self.eval(p, p_rand, p_cmt, w * w * x).unwrap();
-//        debug_assert_eq!(
-//            s_open.0 * (p_open.0 + p_w_open.0) + (F::one() - s_open.0) * p_open.0 * p_w_open.0
-//                - p_w2_open.0,
-//            q_open.0 * circ.domains.gates.evaluate_vanishing_polynomial(x)
-//        );
+        //        debug_assert_eq!(
+        //            s_open.0 * (p_open.0 + p_w_open.0) + (F::one() - s_open.0) * p_open.0 * p_w_open.0
+        //                - p_w2_open.0,
+        //            q_open.0 * circ.domains.gates.evaluate_vanishing_polynomial(x)
+        //        );
         end_timer!(timer);
         GateProof {
             q_cmt: q_cmt.commitment,
@@ -345,7 +345,6 @@ where
         p_c: &LabeledCommitment<PC::Commitment>,
         x: F,
     ) -> Result<(F, PC::Proof), Error<PC::Error>> {
-        debug!("eval: {}", p.label());
         let pf_p = PC::open(
             &self.pk.pc_ck,
             once(p),
@@ -433,9 +432,7 @@ where
     PC::Commitment: mpc_trait::MpcWire,
     PC::Error: 'static,
 {
-    pub fn new(
-        vk: &'r VerifierKey<PC::Commitment, PC::VerifierKey>,
-    ) -> Self {
+    pub fn new(vk: &'r VerifierKey<PC::Commitment, PC::VerifierKey>) -> Self {
         Self {
             _field: PhantomData::default(),
             _pc: PhantomData::default(),
@@ -461,10 +458,9 @@ where
         let t_wr = self.check(&t_cmt, w * r, &pf.t_wr_open);
         let t_wk = self.check(&t_cmt, domain.element(k - 1), &pf.t_wk_open);
         // Check partial product
-        assert_eq!(
-            t_wr - t_r * f_wr,
-            domain.evaluate_vanishing_polynomial(r) * q_r
-        );
+        let l = t_wr - t_r * f_wr;
+        let r = domain.evaluate_vanishing_polynomial(r) * q_r;
+        assert_eq!(l, r, "Partial product failure: \n{}\nnot equal to\n{}", l, r);
         // Check total product is 1
         assert_eq!(t_wk, F::one());
     }

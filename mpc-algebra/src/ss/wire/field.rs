@@ -1,4 +1,5 @@
 use derivative::Derivative;
+use log::debug;
 use rand::Rng;
 use zeroize::Zeroize;
 
@@ -19,7 +20,8 @@ use std::ops::*;
 
 use super::super::share::field::ScalarShare;
 use super::super::share::BeaverSource;
-use crate::mpc::channel;
+use crate::channel;
+use mpc_trait::Reveal;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: ScalarShare<F>> {
@@ -39,13 +41,16 @@ pub struct DummyScalarTripleSource<T, S> {
 impl<T: Field, S: ScalarShare<T>> BeaverSource<S, S, S> for DummyScalarTripleSource<T, S> {
     fn triple(&mut self) -> (S, S, S) {
         (
-            S::from_public(T::one()),
-            S::from_public(T::one()),
-            S::from_public(T::one()),
+            S::from_add_shared(if channel::am_first() {T::one()} else {T::zero()}),
+            S::from_add_shared(if channel::am_first() {T::one()} else {T::zero()}),
+            S::from_add_shared(if channel::am_first() {T::one()} else {T::zero()}),
         )
     }
     fn inv_pair(&mut self) -> (S, S) {
-        (S::from_public(T::one()), S::from_public(T::one()))
+        (
+            S::from_add_shared(if channel::am_first() {T::one()} else {T::zero()}),
+            S::from_add_shared(if channel::am_first() {T::one()} else {T::zero()}),
+        )
     }
 }
 
@@ -149,25 +154,24 @@ impl<T: Field, S: ScalarShare<T>> MpcWire for MpcField<T, S> {
             _ => {}
         }
         debug_assert!({
-            println!("Check publicize");
             let self_val = if let MpcField::Public(s) = self {
                 s.clone()
             } else {
                 unreachable!()
             };
-            let other_val = channel::exchange(self_val);
-            self_val == other_val
+            super::macros::check_eq(self_val.clone());
+            true
         })
     }
     fn set_shared(&mut self, shared: bool) {
         if shared != self.is_shared() {
             match self {
-                MpcField::Shared(s) => {
+                Self::Shared(s) => {
                     let p = s.unwrap_as_public();
-                    *self = MpcField::Public(p);
+                    *self = Self::Public(p);
                 }
-                MpcField::Public(s) => {
-                    *self = MpcField::Shared(S::wrap_as_shared(*s));
+                Self::Public(s) => {
+                    *self = Self::Shared(S::wrap_as_shared(*s));
                 }
             }
         }
@@ -180,14 +184,21 @@ impl<T: Field, S: ScalarShare<T>> MpcWire for MpcField<T, S> {
     }
 }
 
-impl<T: Field, S: ScalarShare<T>> MpcField<T, S> {
-    pub fn open(mut self) -> T {
-        self.publicize();
-        if let MpcField::Public(s) = self {
-            s
-        } else {
-            unreachable!()
-        }
+impl<T: Field, S: ScalarShare<T>> Reveal for MpcField<T, S> {
+    type Base = T;
+    fn reveal(self) -> Self::Base {
+        let result = match self {
+            Self::Shared(s) => s.reveal(),
+            Self::Public(s) => s,
+        };
+        super::macros::check_eq(result.clone());
+        result
+    }
+    fn from_public(b: Self::Base) -> Self {
+        MpcField::Public(b)
+    }
+    fn from_add_shared(b: Self::Base) -> Self {
+        MpcField::Shared(S::from_add_shared(b))
     }
 }
 

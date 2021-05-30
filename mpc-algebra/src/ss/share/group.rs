@@ -10,6 +10,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 use super::BeaverSource;
+use mpc_trait::Reveal;
 use super::field::ScalarShare;
 
 /// Secret sharing scheme which support affine functions of secrets.
@@ -30,12 +31,13 @@ pub trait GroupShare<G: Group>:
     + ToBytes
     + FromBytes
     + 'static
+    + Reveal<Base = G>
 {
     type ScalarShare: ScalarShare<G::ScalarField>;
 
-    fn open(&self) -> G;
-
-    fn from_public(f: G) -> Self;
+    fn open(&self) -> G {
+        <Self as Reveal>::reveal(*self)
+    }
 
     fn unwrap_as_public(self) -> G;
 
@@ -81,7 +83,20 @@ pub trait GroupShare<G: Group>:
             .sub(Self::scale_pub_group(sx.clone(), &y))
             .sub(x.scale_pub_scalar(&oy));
         sx *= oy;
-        out.shift(&sx)
+        let result = out.shift(&sx);
+        #[cfg(debug_assertions)]
+        {
+            let a = s.reveal();
+            let b = o.reveal();
+            let mut acp = a.clone();
+            acp *= b;
+            let r = result.reveal();
+            if acp != r {
+                println!("Bad multiplication!.\n{}\n*\n{}\n=\n{}", a, b, r);
+                panic!("Bad multiplication");
+            }
+        }
+        result
     }
 }
 

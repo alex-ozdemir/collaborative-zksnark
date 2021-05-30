@@ -11,7 +11,7 @@ use std::borrow::Cow;
 use std::ops::*;
 
 pub mod channel;
-pub mod poly;
+//pub mod poly;
 pub mod silly;
 
 // const N_PARTIES: u32 = 2;
@@ -1894,7 +1894,7 @@ macro_rules! curve_impl {
                 Self::from_public(<$curve_proj as ProjectiveCurve>::prime_subgroup_generator())
             }
             fn batch_normalization(elems: &mut [Self]) {
-                //TODO: wrong?
+                //TODO: actually a no-op!
                 elems
                     .iter_mut()
                     .for_each(|e| <$curve_proj>::batch_normalization(&mut [e.val]));

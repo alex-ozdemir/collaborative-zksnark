@@ -22,14 +22,17 @@ use super::field::{ExtFieldShare, ScalarShare};
 use super::group::GroupShare;
 use super::pairing::PairingShare;
 use super::BeaverSource;
+use mpc_trait::Reveal;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AdditiveScalarShare<T> {
     val: T,
 }
 
-impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
-    fn open(&self) -> F {
+impl<F: Field> Reveal for AdditiveScalarShare<F> {
+    type Base = F;
+
+    fn reveal(self) -> F {
         let other_val = channel::exchange(self.val.clone());
         self.val + other_val
     }
@@ -38,6 +41,13 @@ impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
             val: if channel::am_first() { f } else { F::one() },
         }
     }
+    fn from_add_shared(f: F) -> Self {
+        Self {
+            val: f,
+        }
+    }
+}
+impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
     fn unwrap_as_public(self) -> F {
         self.val
     }
@@ -78,18 +88,27 @@ pub struct AdditiveGroupShare<T> {
     val: T,
 }
 
-impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
-    type ScalarShare = AdditiveScalarShare<G::ScalarField>;
-    fn open(&self) -> G {
+impl<G: Group> Reveal for AdditiveGroupShare<G> {
+    type Base = G;
+
+    fn reveal(self) -> G {
         let other_val = channel::exchange(self.val.clone());
         self.val + other_val
     }
-
     fn from_public(f: G) -> Self {
         Self {
             val: if channel::am_first() { f } else { G::zero() },
         }
     }
+    fn from_add_shared(f: G) -> Self {
+        Self {
+            val: f,
+        }
+    }
+}
+
+impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
+    type ScalarShare = AdditiveScalarShare<G::ScalarField>;
 
     fn unwrap_as_public(self) -> G {
         self.val
@@ -220,8 +239,10 @@ pub struct MulScalarShare<T> {
     val: T,
 }
 
-impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
-    fn open(&self) -> F {
+impl<F: Field> Reveal for MulScalarShare<F> {
+    type Base = F;
+
+    fn reveal(self) -> F {
         let other_val = channel::exchange(self.val.clone());
         self.val * other_val
     }
@@ -230,6 +251,14 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
             val: if channel::am_first() { f } else { F::one() },
         }
     }
+    fn from_add_shared(f: F) -> Self {
+        Self {
+            val: f,
+        }
+    }
+}
+
+impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
     fn unwrap_as_public(self) -> F {
         self.val
     }

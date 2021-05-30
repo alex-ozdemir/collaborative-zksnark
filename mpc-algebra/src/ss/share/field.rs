@@ -10,6 +10,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 use super::BeaverSource;
+use mpc_trait::Reveal;
 
 pub trait ScalarShare<F: Field>:
     Clone
@@ -29,10 +30,11 @@ pub trait ScalarShare<F: Field>:
     + ToBytes
     + FromBytes
     + 'static
+    + Reveal<Base = F>
 {
-    fn open(&self) -> F;
-
-    fn from_public(f: F) -> Self;
+    fn open(&self) -> F {
+        <Self as Reveal>::reveal(*self)
+    }
 
     fn unwrap_as_public(self) -> F;
 
@@ -63,6 +65,7 @@ pub trait ScalarShare<F: Field>:
 
     fn mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
         let (x, y, z) = source.triple();
+        //println!("Triple:\n *{}\n *{}\n *{}", x, y, z);
         let s = self;
         let o = other;
         // output: z - open(s + x)y - open(o + y)x + open(s + x)open(o + y)
@@ -70,7 +73,18 @@ pub trait ScalarShare<F: Field>:
         //         so
         let sx = s.add(&x).open();
         let oy = o.add(&y).open();
-        z.sub(y.scale(&sx)).sub(x.scale(&oy)).shift(&(sx * oy))
+        let result = z.sub(y.scale(&sx)).sub(x.scale(&oy)).shift(&(sx * oy));
+        #[cfg(debug_assertions)]
+        {
+            let a = s.reveal();
+            let b = o.reveal();
+            let r = result.reveal();
+            if a * b != r {
+                println!("Bad multiplication!.\n{}\n*\n{}\n=\n{}", a, b, r);
+                panic!("Bad multiplication");
+            }
+        }
+        result
     }
 
     fn batch_mul<S: BeaverSource<Self, Self, Self>>(
