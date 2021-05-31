@@ -4,6 +4,8 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Mutex;
 
+use ark_std::{start_timer, end_timer};
+
 #[macro_use]
 lazy_static! {
     pub static ref CH: Mutex<FieldChannel> = Mutex::new(FieldChannel::default());
@@ -114,6 +116,7 @@ impl FieldChannel {
 
     #[inline]
     pub fn exchange_bytes(&mut self, bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
+        let timer = start_timer!(|| format!("Exchanging {}", bytes_out.len()));
         let s = self.stream();
         let n = bytes_out.len();
         let mut bytes_in = vec![0u8; n];
@@ -153,6 +156,7 @@ impl FieldChannel {
         self.exchanges += 1;
         self.bytes_sent += n;
         self.bytes_recv += n;
+        end_timer!(timer);
         Ok(bytes_in)
     }
 

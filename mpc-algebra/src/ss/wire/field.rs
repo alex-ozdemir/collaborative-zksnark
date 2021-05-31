@@ -282,6 +282,55 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
     fn frobenius_map(&mut self, _: usize) {
         unimplemented!("frobenius_map")
     }
+
+    fn batch_product_in_place(selfs: &mut [Self], others: &[Self]) {
+        let selfs_shared = selfs[0].is_shared();
+        let others_shared = others[0].is_shared();
+        assert!(selfs.iter().all(|s| s.is_shared() == selfs_shared), "Selfs heterogenously shared!");
+        assert!(others.iter().all(|s| s.is_shared() == others_shared), "others heterogenously shared!");
+        if selfs_shared && others_shared {
+            let sshares = selfs.iter().map(|s| match s {
+                Self::Shared(s) => s.clone(),
+                Self::Public(_) => unreachable!(),
+            }).collect();
+            let oshares = others.iter().map(|s| match s {
+                Self::Shared(s) => s.clone(),
+                Self::Public(_) => unreachable!(),
+            }).collect();
+            let nshares = S::batch_mul(sshares, oshares, &mut DummyScalarTripleSource::default());
+            for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
+                *self_ = Self::Shared(new);
+            }
+        } else {
+            for (a, b) in ark_std::cfg_iter_mut!(selfs).zip(others.iter()) {
+              *a *= b;
+            }
+        }
+    }
+    fn batch_division_in_place(selfs: &mut [Self], others: &[Self]) {
+        let selfs_shared = selfs[0].is_shared();
+        let others_shared = others[0].is_shared();
+        assert!(selfs.iter().all(|s| s.is_shared() == selfs_shared), "Selfs heterogenously shared!");
+        assert!(others.iter().all(|s| s.is_shared() == others_shared), "others heterogenously shared!");
+        if selfs_shared && others_shared {
+            let sshares = selfs.iter().map(|s| match s {
+                Self::Shared(s) => s.clone(),
+                Self::Public(_) => unreachable!(),
+            }).collect();
+            let oshares = others.iter().map(|s| match s {
+                Self::Shared(s) => s.clone(),
+                Self::Public(_) => unreachable!(),
+            }).collect();
+            let nshares = S::batch_div(sshares, oshares, &mut DummyScalarTripleSource::default());
+            for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
+                *self_ = Self::Shared(new);
+            }
+        } else {
+            for (a, b) in ark_std::cfg_iter_mut!(selfs).zip(others.iter()) {
+              *a *= b;
+            }
+        }
+    }
 }
 
 impl<F: PrimeField, S: ScalarShare<F>> FftField for MpcField<F, S> {
