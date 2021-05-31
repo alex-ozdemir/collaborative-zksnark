@@ -1,0 +1,36 @@
+[package]
+name = "ark-test-curves"
+version = "0.2.0"
+authors = [ "arkworks contributors" ]
+description = "A library for testing ark-poly"
+include = ["Cargo.toml", "src", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+publish = false
+
+[dependencies]
+ark-std = { path = "../../utils", default-features = false }
+ark-ff = { version = "^0.2.0", path = "../ff", default-features = false }
+ark-ec = { version = "^0.2.0", path = "../ec", default-features = false }
+
+[dev-dependencies]
+ark-serialize = { version = "^0.2.0", path = "../serialize", default-features = false }
+ark-algebra-test-templates = { version = "^0.2.0", path = "../test-templates", default-features = false }
+
+[features]
+default = ["bls12_381_curve", "mnt4_753_curve"]
+
+asm = [ "ark-ff/asm" ]
+
+parallel = [ "ark-ff/parallel", "ark-ec/parallel", "ark-std/parallel" ]
+
+bls12_381_scalar_field = []
+bls12_381_curve = [ "bls12_381_scalar_field" ]
+
+mnt4_753_scalar_field = []
+mnt4_753_base_field = []
+mnt4_753_curve = [ "mnt4_753_scalar_field", "mnt4_753_base_field" ]
+
+bn384_small_two_adicity_scalar_field = []
+bn384_small_two_adicity_base_field = []
+bn384_small_two_adicity_curve = [ "bn384_small_two_adicity_scalar_field", "bn384_small_two_adicity_base_field" ]

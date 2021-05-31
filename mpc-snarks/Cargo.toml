@@ -13,7 +13,7 @@ ark-ec = { path = "../algebra/ec", version = "0.2.0", default-features = false }
 ark-poly = { path = "../algebra/poly", version = "0.2.0", default-features = false }
 ark-relations = { path = "../snark/relations", version = "0.2.0", default-features = false }
 ark-serialize = { path = "../algebra/serialize", version = "0.2.0", default-features = false, features = [ "derive" ] }
-ark-std = { version = "0.2.0", default-features = false, features = [ "print-trace" ] }
+ark-std = { path = "../utils", default-features = false, features = [ "print-trace" ] }
 ark-groth16 = { path = "../groth16", version = "0.2.0", default-features = false, features = [ "std" ] }
 ark-marlin = { path = "../marlin", version = "0.2.0", default-features = false, features = [ "std" ] }
 ark-poly-commit = { path = "../poly-commit", version = "0.2.0", default-features = false, features = [ "std" ] }

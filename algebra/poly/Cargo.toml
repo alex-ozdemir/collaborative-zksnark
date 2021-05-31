@@ -1,0 +1,31 @@
+[package]
+name = "ark-poly"
+version = "0.2.0"
+authors = [ "arkworks contributors" ]
+description = "A library for efficient polynomial arithmetic via FFTs over finite fields"
+homepage = "https://arkworks.rs"
+repository = "https://github.com/arkworks-rs/algebra"
+documentation = "https://docs.rs/ark-poly/"
+keywords = ["cryptography", "finite-fields", "fft", "polynomials"]
+categories = ["cryptography"]
+include = ["Cargo.toml", "src", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+
+[dependencies]
+ark-ff = { version = "^0.2.0", path = "../ff", default-features = false }
+ark-serialize = { version = "^0.2.0", path = "../serialize", default-features = false, features = ["derive"] }
+ark-std = { path = "../../utils", default-features = false }
+rayon = { version = "1", optional = true }
+derivative = { version = "2", default-features = false, features = [ "use_core" ] }
+hashbrown = { version = "0.11.1"}
+mpc-trait = { path = "../../mpc-trait" }
+mpc-algebra = { path = "../../mpc-algebra" }
+
+[dev-dependencies]
+ark-test-curves = { path = "../test-curves", default-features = false, features = [ "bls12_381_curve", "bn384_small_two_adicity_curve"] }
+
+[features]
+default = []
+std = [ "ark-std/std", "ark-ff/std" ]
+parallel = [ "std", "ark-ff/parallel", "rayon", "ark-std/parallel" ]
