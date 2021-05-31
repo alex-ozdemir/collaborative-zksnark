@@ -78,7 +78,6 @@ type Fr = ark_bls12_377::Fr;
 type E = ark_bls12_377::Bls12_377;
 type ME = MpcPairingEngine<ark_bls12_377::Bls12_377>;
 type MFr = MpcField<Fr>;
-type PC = MarlinKZG10<E, DensePolynomial<Fr>>;
 type MpcMarlinKZG10 = MarlinKZG10<ME, DensePolynomial<MFr>>;
 type LocalMarlinKZG10 = MarlinKZG10<E, DensePolynomial<Fr>>;
 type LocalMarlin = Marlin<Fr, LocalMarlinKZG10, Blake2s>;

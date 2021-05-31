@@ -1,24 +1,22 @@
-#![allow(dead_code)]
 #![feature(trait_alias)]
 //! Mostly just for testing
 use log::debug;
 
 use ark_bls12_377::Fr;
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve, group::Group};
+use ark_ec::{group::Group, AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::Field;
 use ark_poly::domain::radix2::Radix2EvaluationDomain;
-use ark_poly::{EvaluationDomain, Polynomial, UVPolynomial};
 use ark_poly::univariate::DensePolynomial;
-use ark_poly_commit::PolynomialCommitment;
+use ark_poly::{EvaluationDomain, Polynomial, UVPolynomial};
 use ark_poly_commit::marlin_pc;
+use ark_poly_commit::PolynomialCommitment;
 use ark_serialize::CanonicalSerialize;
 use ark_std::rand::SeedableRng;
 use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 
-//use mpc_algebra::{channel, ComField, MpcCurve, MpcCurve2, MpcPairingEngine, MpcField};
-use mpc_algebra::{channel, ss::honest_but_curious::*};
 use mpc_algebra::ss::com::ComField;
+use mpc_algebra::ss::honest_but_curious::*;
 use mpc_trait::{MpcWire, Reveal};
 
 use clap::arg_enum;
@@ -127,15 +125,17 @@ impl Opt {
             | Computation::KzgZk
             | Computation::KzgZkBatch
             | Computation::MarlinPc
-            | Computation::MarlinPcBatch
-            => ComputationDomain::BlsPairing,
+            | Computation::MarlinPcBatch => ComputationDomain::BlsPairing,
             Computation::PolyEval => ComputationDomain::PolyField,
             _ => ComputationDomain::Field,
         }
     }
 }
 
-fn pairing_engine_test<E: PairingEngine>(a: E::Fr, b: E::Fr) -> (E::Fr, E::G1Projective, E::G2Projective, E::Fqk) {
+fn pairing_engine_test<E: PairingEngine>(
+    a: E::Fr,
+    b: E::Fr,
+) -> (E::Fr, E::G1Projective, E::G2Projective, E::Fqk) {
     let p = a * b * b * E::Fr::from(5u8) + b + E::Fr::from(1u8);
     let g12a = E::G1Affine::prime_subgroup_generator().scalar_mul(a * E::Fr::from(2u8));
     let g1bb = E::G1Affine::prime_subgroup_generator().scalar_mul(b * b);
@@ -185,7 +185,10 @@ impl Computation {
     fn run_bls(&self, inputs: Vec<MFr>) -> Vec<MFr> {
         let outputs: Vec<MFr> = match self {
             Computation::Groth16 => {
-                groth::mpc_test_prove_and_verify::<ark_bls12_377::Bls12_377, mpc_algebra::ss::AdditivePairingShare<ark_bls12_377::Bls12_377>>(1);
+                groth::mpc_test_prove_and_verify::<
+                    ark_bls12_377::Bls12_377,
+                    mpc_algebra::ss::AdditivePairingShare<ark_bls12_377::Bls12_377>,
+                >(1);
                 vec![]
             }
             Computation::Marlin => {
@@ -210,11 +213,8 @@ impl Computation {
                 let srs = MarlinPc::setup(10, Some(1), rng).unwrap();
                 let (ck, vk) = MarlinPc::trim(&srs, 2, 1, Some(&[2])).unwrap();
                 let mpc_ck = <MarlinMPc as PolynomialCommitment<MFr, DensePolynomial<MFr>>>::CommitterKey::from_public(ck);
-                let (mpc_commits, mpc_rands) = MarlinMPc::commit(
-                    &mpc_ck,
-                    &polys,
-                    Some(rng),
-                ).unwrap();
+                let (mpc_commits, mpc_rands) =
+                    MarlinMPc::commit(&mpc_ck, &polys, Some(rng)).unwrap();
                 let commits = mpc_commits.clone().reveal();
                 //let srs = mpc_algebra::poly::pc::MpcPolyCommit::setup(10, Some(1), rng).unwrap();
                 //let (ck, vk) =
@@ -253,21 +253,28 @@ impl Computation {
                 assert_eq!(inputs.len(), 6);
                 let poly = MP::from_coefficients_slice(&inputs[0..3]);
                 let poly2 = MP::from_coefficients_slice(&inputs[3..6]);
-                let polys = vec![ark_poly_commit::LabeledPolynomial::new("1".to_owned(), poly, Some(2), Some(1)),
-                ark_poly_commit::LabeledPolynomial::new("2".to_owned(), poly2, Some(2), Some(1))];
+                let polys = vec![
+                    ark_poly_commit::LabeledPolynomial::new("1".to_owned(), poly, Some(2), Some(1)),
+                    ark_poly_commit::LabeledPolynomial::new(
+                        "2".to_owned(),
+                        poly2,
+                        Some(2),
+                        Some(1),
+                    ),
+                ];
                 let rng = &mut ark_std::test_rng();
                 let srs = MarlinPc::setup(10, Some(1), rng).unwrap();
                 let (ck, vk) = MarlinPc::trim(&srs, 2, 1, Some(&[2])).unwrap();
                 let mpc_ck = <MarlinMPc as PolynomialCommitment<MFr, DensePolynomial<MFr>>>::CommitterKey::from_public(ck);
-                let (mpc_commits, mpc_rands) = MarlinMPc::commit(
-                    &mpc_ck,
-                    &polys,
-                    Some(rng),
-                ).unwrap();
+                let (mpc_commits, mpc_rands) =
+                    MarlinMPc::commit(&mpc_ck, &polys, Some(rng)).unwrap();
                 let commits = mpc_commits.clone().reveal();
                 let x = MFr::from(2u32);
                 let chal = MFr::from(4u32);
-                let values: Vec<Fr> = polys.iter().map(|p| p.polynomial().evaluate(&x).reveal()).collect();
+                let values: Vec<Fr> = polys
+                    .iter()
+                    .map(|p| p.polynomial().evaluate(&x).reveal())
+                    .collect();
                 let mpc_pf = MarlinMPc::open(
                     &mpc_ck,
                     &polys,
@@ -423,7 +430,8 @@ impl Computation {
                 let mpc_pf =
                     ark_poly_commit::kzg10::KZG10::open(&mpc_powers, &poly, mpc_x, &rand).unwrap();
                 let mpc_pf2 =
-                    ark_poly_commit::kzg10::KZG10::open(&mpc_powers, &poly2, mpc_x2, &rand2).unwrap();
+                    ark_poly_commit::kzg10::KZG10::open(&mpc_powers, &poly2, mpc_x2, &rand2)
+                        .unwrap();
                 let y = poly.evaluate(&mpc_x).reveal();
                 let y2 = poly2.evaluate(&mpc_x2).reveal();
                 let x = mpc_x.reveal();
@@ -443,14 +451,16 @@ impl Computation {
                 let result = ark_poly_commit::kzg10::KZG10::<
                     ark_bls12_377::Bls12_377,
                     ark_poly::univariate::DensePolynomial<ark_bls12_377::Fr>,
-                >::batch_check(&vk, &[commit, commit2], &[x, x2], &[y, y2], &[pf, pf2], rng)
+                >::batch_check(
+                    &vk, &[commit, commit2], &[x, x2], &[y, y2], &[pf, pf2], rng
+                )
                 .unwrap();
                 assert_eq!(result, true);
                 vec![]
             }
             c => unimplemented!("Cannot run_bls {:?}", c),
         };
-        println!("Stats: {:#?}", channel::stats());
+        println!("Stats: {:#?}", mpc_net::stats());
         drop(inputs);
         println!("Outputs:");
         for (i, v) in outputs.iter().enumerate() {
@@ -760,9 +770,7 @@ impl Computation {
 type E = ark_bls12_377::Bls12_377;
 type ME = MpcPairingEngine<E>;
 type MFr = MpcField<Fr>;
-type G1 = ark_bls12_377::G1Projective;
 type MG1 = MpcG1Projective<E>;
-type G2 = ark_bls12_377::G2Projective;
 type MG2 = MpcG2Projective<E>;
 type P = ark_poly::univariate::DensePolynomial<Fr>;
 type MP = ark_poly::univariate::DensePolynomial<MFr>;
@@ -793,7 +801,7 @@ fn main() -> () {
         .filter(SocketAddr::is_ipv4)
         .next()
         .unwrap();
-    channel::init(self_addr, peer_addr, opt.party == 0);
+    mpc_net::init(self_addr, peer_addr, opt.party == 0);
     debug!("Start");
     let inputs = opt
         .args
@@ -856,7 +864,7 @@ fn main() -> () {
             }
         }
     }
-    debug!("Stats: {:#?}", channel::stats());
-    channel::deinit();
+    debug!("Stats: {:#?}", mpc_net::stats());
+    mpc_net::deinit();
     debug!("Done");
 }

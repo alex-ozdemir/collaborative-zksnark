@@ -83,7 +83,7 @@ mod squarings {
             let circ_data = mpc_squaring_circuit(a, n);
             let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
             end_timer!(computation_timer);
-            channel::reset_stats();
+            mpc_net::reset_stats();
             let timer = start_timer!(|| TIMED_SECTION_LABEL);
             let mpc_proof = create_random_proof::<ME, _, _>(circ_data, &mpc_params, rng).unwrap();
             let proof = mpc_proof.reveal();
@@ -272,14 +272,14 @@ mod squarings {
             .collect();
         let second_shares: Vec<Fr> = randomness.into_iter().map(|r| -r).collect();
 
-        let my_shares = if channel::am_first() {
-            channel::exchange(second_shares);
+        let my_shares = if mpc_net::am_first() {
+            channel::exchange(&second_shares);
             first_shares
         } else {
             let zeros: Vec<Fr> = std::iter::repeat_with(|| Fr::from(0u64))
                 .take(squarings + 1)
                 .collect();
-            channel::exchange(zeros.clone())
+            channel::exchange(&zeros)
         };
         RepeatedSquaringCircuit {
             chain: my_shares
@@ -355,11 +355,11 @@ impl PartyInfo {
             .filter(SocketAddr::is_ipv4)
             .next()
             .unwrap();
-        channel::init(self_addr, peer_addr, self.party == 0);
+        mpc_net::init(self_addr, peer_addr, self.party == 0);
     }
     fn teardown(&self) {
-        debug!("Stats: {:#?}", channel::stats());
-        channel::deinit();
+        debug!("Stats: {:#?}", mpc_net::stats());
+        mpc_net::deinit();
     }
 }
 
@@ -464,5 +464,5 @@ fn main() {
     env_logger::init();
     opt.field
         .run(opt.computation, opt.proof_system, opt.computation_size);
-    println!("Exchange stats: {:#?}", channel::stats());
+    println!("Exchange stats: {:#?}", mpc_net::stats());
 }

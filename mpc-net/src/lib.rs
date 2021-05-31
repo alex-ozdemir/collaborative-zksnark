@@ -28,6 +28,7 @@ pub struct FieldChannel {
 }
 
 impl std::default::Default for FieldChannel {
+    #[inline]
     fn default() -> Self {
         Self {
             stream: None,
@@ -42,6 +43,7 @@ impl std::default::Default for FieldChannel {
 }
 
 impl FieldChannel {
+    #[inline]
     pub fn connect<A1: ToSocketAddrs, A2: ToSocketAddrs>(
         &mut self,
         self_addr: A1,
@@ -83,12 +85,14 @@ impl FieldChannel {
         self.stream.as_mut().unwrap().set_nodelay(true).unwrap();
         self.stream.as_mut().unwrap().set_nonblocking(true).unwrap();
     }
+    #[inline]
     pub fn stream(&mut self) -> &mut TcpStream {
         self.stream
             .as_mut()
             .expect("Unitialized FieldChannel. Did you forget init(..)?")
     }
 
+    #[inline]
     pub fn send_slice(&mut self, v: &[u8]) {
         let s = self.stream();
         let bytes = (v.len() as u64).to_ne_bytes();
@@ -97,6 +101,7 @@ impl FieldChannel {
         self.bytes_sent += bytes.len() + v.len();
     }
 
+    #[inline]
     pub fn recv_vec(&mut self) -> Vec<u8> {
         let s = self.stream();
         let mut len = [0u8; 8];
@@ -107,6 +112,7 @@ impl FieldChannel {
         bytes
     }
 
+    #[inline]
     pub fn exchange_bytes(&mut self, bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
         let s = self.stream();
         let n = bytes_out.len();
@@ -150,6 +156,7 @@ impl FieldChannel {
         Ok(bytes_in)
     }
 
+    #[inline]
     pub fn stats(&self) -> ChannelStats {
         ChannelStats {
             bytes_recv: self.bytes_recv,
@@ -158,6 +165,7 @@ impl FieldChannel {
         }
     }
 
+    #[inline]
     pub fn reset_stats(&mut self) {
         self.bytes_recv = 0;
         self.bytes_sent = 0;
@@ -165,6 +173,7 @@ impl FieldChannel {
     }
 }
 
+#[inline]
 /// Initialize the MPC
 pub fn init<A1: ToSocketAddrs, A2: ToSocketAddrs>(self_: A1, peer: A2, talk_first: bool) {
     let mut ch = get_ch!();
@@ -175,6 +184,7 @@ pub fn init<A1: ToSocketAddrs, A2: ToSocketAddrs>(self_: A1, peer: A2, talk_firs
     ch.connect(self_, peer, talk_first);
 }
 
+#[inline]
 pub fn deinit() {
     CH.lock().expect("Poisoned FieldChannel").stream = None;
 }
@@ -186,10 +196,23 @@ pub struct ChannelStats {
     pub exchanges: usize,
 }
 
+#[inline]
+pub fn exchange_bytes(bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
+    CH.lock().expect("Poisoned FieldChannel").exchange_bytes(bytes_out)
+}
+
+#[inline]
 pub fn stats() -> ChannelStats {
     CH.lock().expect("Poisoned FieldChannel").stats()
 }
 
+#[inline]
 pub fn reset_stats() {
     CH.lock().expect("Poisoned FieldChannel").reset_stats()
+}
+
+/// Are you the first party in the MPC?
+#[inline]
+pub fn am_first() -> bool {
+    get_ch!().talk_first
 }

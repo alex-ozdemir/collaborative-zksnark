@@ -4,10 +4,11 @@ set -e
 cargo build --release --bin proof
 
 echo constraints,proof,infra,trial,time
-for trial in $(seq 1 3)
+for trial in $(seq 1 1)
+#for trial in $(seq 1 3)
 do
-    for lsteps in $(seq 3 20)
-    #for lsteps in $(seq 3 12)
+    #for lsteps in $(seq 3 20)
+    for lsteps in $(seq 3 12)
     do
         for proof in groth16 marlin plonk
         do

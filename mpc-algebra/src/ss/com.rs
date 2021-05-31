@@ -6,7 +6,8 @@ use ark_ff::prelude::*;
 use ark_ff::FftField;
 use mpc_trait::MpcWire;
 
-use crate::mpc::channel;
+use crate::channel;
+use mpc_net;
 use crate::ss::wire::field::MpcField;
 use crate::ss::share::field::ScalarShare;
 
@@ -57,16 +58,16 @@ impl<Fr: PrimeField, S: ScalarShare<Fr>>  ComField for MpcField<Fr, S> {
             tree.push(std::mem::replace(&mut hashes, new));
         }
         let slf = hashes.pop().unwrap();
-        let other = channel::exchange_bytes(&slf);
-        if channel::am_first() {
+        let other = mpc_net::exchange_bytes(&slf).unwrap();
+        if mpc_net::am_first() {
             (tree, (other, slf))
         } else {
             (tree, (slf, other))
         }
     }
     fn open_at(inputs: &[Self], tree: &Self::Key, mut i: usize) -> (Self, Self::OpeningProof) {
-        let self_f = inputs[i].unwrap_as_public().clone();
-        let other_f = channel::exchange(self_f.clone());
+        let self_f = inputs[i].unwrap_as_public();
+        let other_f = channel::exchange(&self_f);
         let mut siblings = Vec::new();
         for level in 0..tree.len() {
             siblings.push(tree[level][i ^ 1].clone());
@@ -75,16 +76,16 @@ impl<Fr: PrimeField, S: ScalarShare<Fr>>  ComField for MpcField<Fr, S> {
         assert_eq!(i / 2, 0);
         let other: Vec<_> = siblings
             .iter()
-            .map(|s| channel::exchange_bytes(s))
+            .map(|s| mpc_net::exchange_bytes(s).unwrap())
             .collect();
-        let p = if channel::am_first() {
+        let p = if mpc_net::am_first() {
             siblings.into_iter().zip(other.into_iter()).collect()
         } else {
             other.into_iter().zip(siblings.into_iter()).collect()
         };
         (
             MpcField::from_public(self_f + other_f),
-            if channel::am_first() {
+            if mpc_net::am_first() {
                 (self_f, other_f, p)
             } else {
                 (other_f, self_f, p)

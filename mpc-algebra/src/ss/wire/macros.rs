@@ -1,6 +1,6 @@
 #![macro_use]
 
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use crate::channel;
 
@@ -11,7 +11,7 @@ use std::fmt::Display;
 pub fn check_eq<T: CanonicalSerialize + CanonicalDeserialize + Clone + Eq + Display>(t: T) {
     debug_assert!({
         use log::debug;
-        let other = channel::exchange(t.clone());
+        let other = channel::exchange(&t);
         if t == other {
             debug!("Consistency check passed");
             true
@@ -25,6 +25,7 @@ pub fn check_eq<T: CanonicalSerialize + CanonicalDeserialize + Clone + Eq + Disp
 macro_rules! impl_basics_2 {
     ($share:ident, $bound:ident, $wrap:ident) => {
         impl<T: $bound, S: $share<T>> $wrap<T, S> {
+            #[inline]
             pub fn new(t: T, shared: bool) -> Self {
                 if shared {
                     Self::Shared(S::from_public(t))
@@ -32,15 +33,18 @@ macro_rules! impl_basics_2 {
                     Self::Public(t)
                 }
             }
+            #[inline]
             pub fn from_public(t: T) -> Self {
                 Self::new(t, false)
             }
+            #[inline]
             pub fn unwrap_as_public(self) -> T {
                 match self {
                     Self::Shared(s) => s.unwrap_as_public(),
                     Self::Public(s) => s,
                 }
             }
+            #[inline]
             pub fn map<TT: $bound, SS: $share<TT>, FT: Fn(T) -> TT, FS: Fn(S) -> SS>(
                 self,
                 ft: FT,
@@ -120,6 +124,7 @@ macro_rules! impl_basics_2 {
         }
         impl<T: $bound, S: $share<T>> Add for $wrap<T, S> {
             type Output = Self;
+            #[inline]
             fn add(self, other: Self) -> Self::Output {
                 match (self, other) {
                     ($wrap::Public(x), $wrap::Public(y)) => $wrap::Public(x + y),
@@ -130,17 +135,20 @@ macro_rules! impl_basics_2 {
             }
         }
         impl<T: $bound, S: $share<T>> Sum for $wrap<T, S> {
+            #[inline]
             fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
                 iter.fold(Self::zero(), Add::add)
             }
         }
         impl<'a, T: $bound, S: $share<T> + 'a> Sum<&'a $wrap<T, S>> for $wrap<T, S> {
+            #[inline]
             fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
                 iter.fold(Self::zero(), |x, y| x.add(y.clone()))
             }
         }
         impl<T: $bound, S: $share<T>> Neg for $wrap<T, S> {
             type Output = Self;
+            #[inline]
             fn neg(self) -> Self::Output {
                 match self {
                     $wrap::Public(x) => $wrap::Public(-x),
@@ -150,6 +158,7 @@ macro_rules! impl_basics_2 {
         }
         impl<T: $bound, S: $share<T>> Sub for $wrap<T, S> {
             type Output = Self;
+            #[inline]
             fn sub(self, other: Self) -> Self::Output {
                 match (self, other) {
                     ($wrap::Public(x), $wrap::Public(y)) => $wrap::Public(x - y),
@@ -160,9 +169,11 @@ macro_rules! impl_basics_2 {
             }
         }
         impl<T: $bound, S: $share<T>> Zero for $wrap<T, S> {
+            #[inline]
             fn zero() -> Self {
                 $wrap::Public(T::zero())
             }
+            #[inline]
             fn is_zero(&self) -> bool {
                 match self {
                     $wrap::Public(x) => x.is_zero(),
@@ -174,6 +185,7 @@ macro_rules! impl_basics_2 {
             }
         }
         impl<T: $bound, S: $share<T>> Zeroize for $wrap<T, S> {
+            #[inline]
             fn zeroize(&mut self) {
                 *self = $wrap::Public(T::zero());
             }
@@ -190,16 +202,19 @@ macro_rules! impl_ref_ops {
     ($op:ident, $assop:ident, $opfn:ident, $assopfn:ident, $bound:ident, $share:ident, $wrap:ident) => {
         impl<'a, T: $bound, S: $share<T>> $op<&'a $wrap<T, S>> for $wrap<T, S> {
             type Output = Self;
+            #[inline]
             fn $opfn(self, other: &$wrap<T, S>) -> Self::Output {
                 self.$opfn(other.clone())
             }
         }
         impl<T: $bound, S: $share<T>> $assop<$wrap<T, S>> for $wrap<T, S> {
+            #[inline]
             fn $assopfn(&mut self, other: $wrap<T, S>) {
                 *self = self.clone().$opfn(other.clone());
             }
         }
         impl<'a, T: $bound, S: $share<T>> $assop<&'a $wrap<T, S>> for $wrap<T, S> {
+            #[inline]
             fn $assopfn(&mut self, other: &$wrap<T, S>) {
                 *self = self.clone().$opfn(other.clone());
             }
@@ -210,10 +225,10 @@ macro_rules! impl_ref_ops {
 macro_rules! from_prim {
     ($t:ty, $bound:ident, $share:ident, $wrap:ident) => {
         impl<T: $bound, S: $share<T>> std::convert::From<$t> for $wrap<T, S> {
+            #[inline]
             fn from(t: $t) -> Self {
                 $wrap::from_public(T::from(t))
             }
         }
     };
 }
-

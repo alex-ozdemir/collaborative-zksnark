@@ -21,15 +21,15 @@ use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use zeroize::Zeroize;
 
-use crate::mpc::channel;
+use mpc_net;
 use mpc_trait::MpcWire;
 
 use super::super::share::field::{ExtFieldShare, ScalarShare};
 use super::super::share::pairing::PairingShare;
 use super::super::share::BeaverSource;
-use mpc_trait::Reveal;
 use super::field::MpcField;
 use super::group::MpcGroup;
+use mpc_trait::Reveal;
 
 #[derive(Derivative)]
 #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
@@ -41,6 +41,7 @@ impl<E: PairingEngine, S: PairingShare<E>>
     BeaverSource<MpcG1Projective<E, S>, MpcG2Projective<E, S>, MpcExtField<E::Fqk, S::FqkShare>>
     for DummyPairingTripleSource<E, S>
 {
+    #[inline]
     fn triple(
         &mut self,
     ) -> (
@@ -56,6 +57,7 @@ impl<E: PairingEngine, S: PairingShare<E>>
             MpcExtField::from_add_shared(E::pairing(g1, g2)),
         )
     }
+    #[inline]
     fn inv_pair(&mut self) -> (MpcG2Projective<E, S>, MpcG2Projective<E, S>) {
         unimplemented!("No inverses from Pairing triple source")
     }
@@ -86,10 +88,7 @@ pub struct MpcG1Projective<E: PairingEngine, PS: PairingShare<E>> {
 }
 
 #[derive(Debug, Derivative)]
-#[derivative(
-    Clone(bound = ""),
-    Default(bound = "E::G1Prepared: Default"),
-)]
+#[derivative(Clone(bound = ""), Default(bound = "E::G1Prepared: Default"))]
 pub struct MpcG1Prep<E: PairingEngine, PS: PairingShare<E>> {
     pub val: E::G1Prepared,
     pub _phants: PhantomData<(E, PS)>,
@@ -120,10 +119,7 @@ pub struct MpcG2Projective<E: PairingEngine, PS: PairingShare<E>> {
 }
 
 #[derive(Debug, Derivative)]
-#[derivative(
-    Clone(bound = ""),
-    Default(bound = "E::G1Prepared: Default"),
-)]
+#[derivative(Clone(bound = ""), Default(bound = "E::G1Prepared: Default"))]
 pub struct MpcG2Prep<E: PairingEngine, PS: PairingShare<E>> {
     pub val: E::G2Prepared,
     pub _phants: PhantomData<(E, PS)>,
@@ -295,6 +291,7 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
         impl<E: $bound1, PS: $bound2<E>> Add for $wrap<E, PS> {
             type Output = Self;
+            #[inline]
             fn add(self, other: Self) -> Self::Output {
                 Self {
                     val: self.val + other.val,
@@ -303,12 +300,14 @@ macro_rules! impl_pairing_mpc_wrapper {
         }
         impl<E: $bound1, PS: $bound2<E>> Neg for $wrap<E, PS> {
             type Output = Self;
+            #[inline]
             fn neg(self) -> Self::Output {
                 Self { val: -self.val }
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Sub for $wrap<E, PS> {
             type Output = Self;
+            #[inline]
             fn sub(self, other: Self) -> Self::Output {
                 Self {
                     val: self.val - other.val,
@@ -316,42 +315,51 @@ macro_rules! impl_pairing_mpc_wrapper {
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Zero for $wrap<E, PS> {
+            #[inline]
             fn zero() -> Self {
                 Self {
                     val: $wrapped::zero(),
                 }
             }
+            #[inline]
             fn is_zero(&self) -> bool {
                 self.val.is_zero()
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Sum for $wrap<E, PS> {
+            #[inline]
             fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
                 iter.fold(Self::zero(), Add::add)
             }
         }
         impl<'a, E: $bound1, PS: $bound2<E>> Sum<&'a $wrap<E, PS>> for $wrap<E, PS> {
+            #[inline]
             fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
                 iter.fold(Self::zero(), |x, y| x.add((*y).clone()))
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Zeroize for $wrap<E, PS> {
+            #[inline]
             fn zeroize(&mut self) {
                 self.val.zeroize();
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Default for $wrap<E, PS> {
+            #[inline]
             fn default() -> Self {
                 Self::zero()
             }
         }
         impl<E: $bound1, PS: $bound2<E>> MpcWire for $wrap<E, PS> {
+            #[inline]
             fn publicize(&mut self) {
                 self.val.publicize();
             }
+            #[inline]
             fn set_shared(&mut self, shared: bool) {
                 self.val.set_shared(shared);
             }
+            #[inline]
             fn is_shared(&self) -> bool {
                 self.val.is_shared()
             }
@@ -363,15 +371,19 @@ macro_rules! impl_pairing_mpc_wrapper {
 macro_rules! impl_ext_field_wrapper {
     ($wrapped:ident, $wrap:ident) => {
         impl<E: Field, PS: ExtFieldShare<E>> $wrap<E, PS> {
+            #[inline]
             pub fn wrap(val: $wrapped<E, PS::Ext>) -> Self {
                 Self { val }
             }
+            #[inline]
             pub fn new(t: E, shared: bool) -> Self {
                 Self::wrap($wrapped::new(t, shared))
             }
+            #[inline]
             pub fn from_public(t: E) -> Self {
                 Self::wrap($wrapped::from_public(t))
             }
+            #[inline]
             pub fn unwrap_as_public(self) -> E {
                 self.val.unwrap_as_public()
             }
@@ -379,12 +391,14 @@ macro_rules! impl_ext_field_wrapper {
         impl_pairing_mpc_wrapper!($wrapped, Field, ExtFieldShare, BasePrimeField, Ext, $wrap);
         impl<E: Field, PS: ExtFieldShare<E>> Mul for $wrap<E, PS> {
             type Output = Self;
+            #[inline]
             fn mul(self, other: Self) -> Self::Output {
                 Self::wrap(self.val.mul(other.val))
             }
         }
         impl<E: Field, PS: ExtFieldShare<E>> Div for $wrap<E, PS> {
             type Output = Self;
+            #[inline]
             fn div(self, other: Self) -> Self::Output {
                 Self::wrap(self.val.div(other.val))
             }
@@ -392,33 +406,40 @@ macro_rules! impl_ext_field_wrapper {
         impl_ref_ops!(Mul, MulAssign, mul, mul_assign, Field, ExtFieldShare, $wrap);
         impl_ref_ops!(Div, DivAssign, div, div_assign, Field, ExtFieldShare, $wrap);
         impl<E: Field, PS: ExtFieldShare<E>> One for $wrap<E, PS> {
+            #[inline]
             fn one() -> Self {
                 Self {
                     val: $wrapped::one(),
                 }
             }
+            #[inline]
             fn is_one(&self) -> bool {
                 self.val.is_one()
             }
         }
         impl<E: Field, PS: ExtFieldShare<E>> Product for $wrap<E, PS> {
+            #[inline]
             fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
                 iter.fold(Self::one(), Add::add)
             }
         }
         impl<'a, E: Field, PS: ExtFieldShare<E>> Product<&'a $wrap<E, PS>> for $wrap<E, PS> {
+            #[inline]
             fn product<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
                 iter.fold(Self::one(), |x, y| x.add((*y).clone()))
             }
         }
         impl<E: Field, PS: ExtFieldShare<E>> Reveal for $wrap<E, PS> {
             type Base = E;
+            #[inline]
             fn reveal(self) -> E {
                 self.val.reveal()
             }
+            #[inline]
             fn from_public(t: E) -> Self {
                 Self::wrap($wrapped::from_public(t))
             }
+            #[inline]
             fn from_add_shared(t: E) -> Self {
                 Self::wrap($wrapped::from_add_shared(t))
             }
@@ -443,9 +464,11 @@ macro_rules! impl_ext_field_wrapper {
                 let base_values = b.iter().map(|e| e.unwrap_as_public()).collect::<Vec<_>>();
                 F::from_base_prime_field_elems(&base_values).map(|val| Self::new(val, shared))
             }
+            #[inline]
             fn double(&self) -> Self {
                 Self::wrap(self.val * $wrapped::from_public(F::from(2u8)))
             }
+            #[inline]
             fn double_in_place(&mut self) -> &mut Self {
                 self.val *= $wrapped::from_public(F::from(2u8));
                 self
@@ -453,16 +476,20 @@ macro_rules! impl_ext_field_wrapper {
             fn from_random_bytes_with_flags<Fl: Flags>(b: &[u8]) -> Option<(Self, Fl)> {
                 F::from_random_bytes_with_flags(b).map(|(val, f)| (Self::new(val, true), f))
             }
+            #[inline]
             fn square(&self) -> Self {
                 self.clone() * self
             }
+            #[inline]
             fn square_in_place(&mut self) -> &mut Self {
                 *self *= self.clone();
                 self
             }
+            #[inline]
             fn inverse(&self) -> Option<Self> {
                 self.val.inv().map(Self::wrap)
             }
+            #[inline]
             fn inverse_in_place(&mut self) -> Option<&mut Self> {
                 self.val.inv().map(|i| {
                     self.val = i;
@@ -476,12 +503,15 @@ macro_rules! impl_ext_field_wrapper {
 
         impl<F: FftField, S: ExtFieldShare<F>> FftField for $wrap<F, S> {
             type FftParams = F::FftParams;
+            #[inline]
             fn two_adic_root_of_unity() -> Self {
                 Self::from_public(F::two_adic_root_of_unity())
             }
+            #[inline]
             fn large_subgroup_root_of_unity() -> Option<Self> {
                 F::large_subgroup_root_of_unity().map(Self::from_public)
             }
+            #[inline]
             fn multiplicative_generator() -> Self {
                 Self::from_public(F::multiplicative_generator())
             }
@@ -524,39 +554,46 @@ macro_rules! impl_ext_field_wrapper {
 macro_rules! impl_pairing_curve_wrapper {
     ($wrapped:ident, $bound1:ident, $bound2:ident, $base:ident, $share:ident, $wrap:ident) => {
         impl<E: $bound1, PS: $bound2<E>> $wrap<E, PS> {
+            #[inline]
             pub fn new(t: E::$base, shared: bool) -> Self {
                 Self {
                     val: $wrapped::new(t, shared),
                 }
             }
+            #[inline]
             pub fn from_public(t: E::$base) -> Self {
                 Self {
                     val: $wrapped::from_public(t),
                 }
             }
+            #[inline]
             pub fn unwrap_as_public(self) -> E::$base {
                 self.val.unwrap_as_public()
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Reveal for $wrap<E, PS> {
             type Base = E::$base;
+            #[inline]
             fn reveal(self) -> Self::Base {
                 self.val.reveal()
             }
+            #[inline]
             fn from_public(t: Self::Base) -> Self {
                 Self {
                     val: $wrapped::from_public(t),
                 }
             }
+            #[inline]
             fn from_add_shared(t: Self::Base) -> Self {
                 Self {
-                    val: $wrapped::from_add_shared(t)
+                    val: $wrapped::from_add_shared(t),
                 }
             }
         }
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
         impl<E: $bound1, PS: $bound2<E>> Mul<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
             type Output = Self;
+            #[inline]
             fn mul(self, other: MpcField<E::Fr, PS::FrShare>) -> Self::Output {
                 Self {
                     val: self.val.mul(other),
@@ -567,6 +604,7 @@ macro_rules! impl_pairing_curve_wrapper {
             for $wrap<E, PS>
         {
             type Output = Self;
+            #[inline]
             fn mul(self, other: &'a MpcField<E::Fr, PS::FrShare>) -> Self::Output {
                 Self {
                     val: self.val.mul(other),
@@ -574,6 +612,7 @@ macro_rules! impl_pairing_curve_wrapper {
             }
         }
         impl<E: $bound1, PS: $bound2<E>> MulAssign<MpcField<E::Fr, PS::FrShare>> for $wrap<E, PS> {
+            #[inline]
             fn mul_assign(&mut self, other: MpcField<E::Fr, PS::FrShare>) {
                 self.val.mul_assign(other);
             }
@@ -581,6 +620,7 @@ macro_rules! impl_pairing_curve_wrapper {
         impl<'a, E: $bound1, PS: $bound2<E>> MulAssign<&'a MpcField<E::Fr, PS::FrShare>>
             for $wrap<E, PS>
         {
+            #[inline]
             fn mul_assign(&mut self, other: &'a MpcField<E::Fr, PS::FrShare>) {
                 self.val.mul_assign(other);
             }
@@ -628,6 +668,7 @@ macro_rules! impl_aff_proj {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
         }
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_pro<E, PS>> for $w_aff<E, PS> {
+            #[inline]
             fn from(o: $w_pro<E, PS>) -> Self {
                 Self {
                     val: o.val.map(|s| s.into(), PS::$pro_to_aff),
@@ -635,6 +676,7 @@ macro_rules! impl_aff_proj {
             }
         }
         impl<E: PairingEngine, PS: PairingShare<E>> From<$w_aff<E, PS>> for $w_pro<E, PS> {
+            #[inline]
             fn from(o: $w_aff<E, PS>) -> Self {
                 Self {
                     val: o.val.map(|s| s.into(), PS::$aff_to_pro),
@@ -656,15 +698,18 @@ macro_rules! impl_aff_proj {
 
         impl<E: PairingEngine, PS: PairingShare<E>> Reveal for $w_prep<E, PS> {
             type Base = E::$prep;
+            #[inline]
             fn reveal(self) -> E::$prep {
                 self.val
             }
+            #[inline]
             fn from_public(g: E::$prep) -> Self {
                 Self {
                     val: g,
                     _phants: PhantomData::default(),
                 }
             }
+            #[inline]
             fn from_add_shared(_g: E::$prep) -> Self {
                 panic!("Cannot add share a prepared curve")
             }
@@ -675,12 +720,14 @@ macro_rules! impl_aff_proj {
             const COFACTOR: &'static [u64] = E::$aff::COFACTOR;
             type BaseField = $w_base<E::$base, PS::$base_share>;
             type Projective = $w_pro<E, PS>;
+            #[inline]
             fn prime_subgroup_generator() -> Self {
                 Self::from_public(E::$aff::prime_subgroup_generator())
             }
             fn from_random_bytes(_: &[u8]) -> Option<Self> {
                 todo!("AffineCurve::from_random_bytes")
             }
+            #[inline]
             fn mul<S: Into<<Self::ScalarField as PrimeField>::BigInt>>(
                 &self,
                 s: S,
@@ -703,7 +750,7 @@ macro_rules! impl_aff_proj {
                 assert!(bases.iter().all(|b| !b.is_shared()));
                 let bigint_scalars = cfg_into_iter!(scalars)
                     .map(|s| {
-                        if s.is_shared() || channel::am_first() {
+                        if s.is_shared() || mpc_net::am_first() {
                             s.into_repr()
                         } else {
                             Self::ScalarField::from(0u64).into_repr()
@@ -721,6 +768,7 @@ macro_rules! impl_aff_proj {
             const COFACTOR: &'static [u64] = E::$aff::COFACTOR;
             type BaseField = $w_base<E::$base, PS::$base_share>;
             type Affine = $w_aff<E, PS>;
+            #[inline]
             fn prime_subgroup_generator() -> Self {
                 Self::from_public(E::$pro::prime_subgroup_generator())
             }

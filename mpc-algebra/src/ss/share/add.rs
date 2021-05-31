@@ -10,13 +10,14 @@ use ark_serialize::{
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 
-use std::io::{self, Read, Write};
 use std::cmp::Ord;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
+use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
-use crate::mpc::channel;
+use crate::channel;
+use mpc_net;
 
 use super::field::{ExtFieldShare, ScalarShare};
 use super::group::GroupShare;
@@ -33,18 +34,16 @@ impl<F: Field> Reveal for AdditiveScalarShare<F> {
     type Base = F;
 
     fn reveal(self) -> F {
-        let other_val = channel::exchange(self.val.clone());
+        let other_val = channel::exchange(&self.val);
         self.val + other_val
     }
     fn from_public(f: F) -> Self {
         Self {
-            val: if channel::am_first() { f } else { F::one() },
+            val: if mpc_net::am_first() { f } else { F::one() },
         }
     }
     fn from_add_shared(f: F) -> Self {
-        Self {
-            val: f,
-        }
+        Self { val: f }
     }
 }
 impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
@@ -58,7 +57,7 @@ impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let mut self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
-        let other_val = channel::exchange(self_vec.clone());
+        let other_val = channel::exchange(&self_vec);
         for (s, o) in self_vec.iter_mut().zip(other_val.iter()) {
             *s += o;
         }
@@ -76,7 +75,7 @@ impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
     }
 
     fn shift(mut self, other: &F) -> Self {
-        if channel::am_first() {
+        if mpc_net::am_first() {
             self.val += other;
         }
         self
@@ -92,18 +91,16 @@ impl<G: Group> Reveal for AdditiveGroupShare<G> {
     type Base = G;
 
     fn reveal(self) -> G {
-        let other_val = channel::exchange(self.val.clone());
+        let other_val = channel::exchange(&self.val);
         self.val + other_val
     }
     fn from_public(f: G) -> Self {
         Self {
-            val: if channel::am_first() { f } else { G::zero() },
+            val: if mpc_net::am_first() { f } else { G::zero() },
         }
     }
     fn from_add_shared(f: G) -> Self {
-        Self {
-            val: f,
-        }
+        Self { val: f }
     }
 }
 
@@ -120,7 +117,7 @@ impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
         let mut self_vec: Vec<G> = selfs.into_iter().map(|s| s.val).collect();
-        let other_val = channel::exchange(self_vec.clone());
+        let other_val = channel::exchange(&self_vec);
         for (s, o) in self_vec.iter_mut().zip(other_val.iter()) {
             *s += o;
         }
@@ -143,7 +140,7 @@ impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
     }
 
     fn shift(mut self, other: &G) -> Self {
-        if channel::am_first() {
+        if mpc_net::am_first() {
             self.val += other;
         }
         self
@@ -243,18 +240,16 @@ impl<F: Field> Reveal for MulScalarShare<F> {
     type Base = F;
 
     fn reveal(self) -> F {
-        let other_val = channel::exchange(self.val.clone());
+        let other_val = channel::exchange(&self.val);
         self.val * other_val
     }
     fn from_public(f: F) -> Self {
         Self {
-            val: if channel::am_first() { f } else { F::one() },
+            val: if mpc_net::am_first() { f } else { F::one() },
         }
     }
     fn from_add_shared(f: F) -> Self {
-        Self {
-            val: f,
-        }
+        Self { val: f }
     }
 }
 
@@ -269,7 +264,7 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let mut self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
-        let other_val = channel::exchange(self_vec.clone());
+        let other_val = channel::exchange(&self_vec);
         for (s, o) in self_vec.iter_mut().zip(other_val.iter()) {
             *s *= o;
         }
@@ -281,7 +276,7 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
     }
 
     fn scale(mut self, other: &F) -> Self {
-        if channel::am_first() {
+        if mpc_net::am_first() {
             self.val *= other;
         }
         self
@@ -292,7 +287,9 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
     }
 
     fn mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S) -> Self {
-        Self { val: self.val * other.val }
+        Self {
+            val: self.val * other.val,
+        }
     }
 
     fn batch_mul<S: BeaverSource<Self, Self, Self>>(

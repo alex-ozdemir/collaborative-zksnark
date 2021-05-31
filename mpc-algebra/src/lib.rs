@@ -1,5 +1,3 @@
-mod mpc;
-pub use mpc::*;
-
+pub mod channel;
 pub mod ss;
 
