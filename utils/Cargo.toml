@@ -1,6 +1,6 @@
 [package]
 name = "ark-std"
-version = "0.2.1-alpha.0"
+version = "0.2.0"
 authors = [ "arkworks contributors" ]
 description = "A library for no_std compatibility"
 homepage = "https://arkworks.rs"
@@ -13,8 +13,12 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [dependencies]
-rand = { version = "0.8", default-features = false, features = ["std_rng"] }
+rand = { version = "0.7", default-features = false }
+# rand = { version = "0.8", default-features = false, features = ["std_rng"] }
+rand_xorshift = "0.2"
+# rand_xorshift = "0.3"
 rayon = { version = "1", optional = true }
+
 colored = { version = "2", optional = true }
 
 
