@@ -116,7 +116,7 @@ impl FieldChannel {
 
     #[inline]
     pub fn exchange_bytes(&mut self, bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
-        //let timer = start_timer!(|| format!("Exchanging {}", bytes_out.len()));
+        let timer = start_timer!(|| format!("Exchanging {}", bytes_out.len()));
         let s = self.stream();
         let n = bytes_out.len();
         let mut bytes_in = vec![0u8; n];
@@ -156,7 +156,7 @@ impl FieldChannel {
         self.exchanges += 1;
         self.bytes_sent += n;
         self.bytes_recv += n;
-        //end_timer!(timer);
+        end_timer!(timer);
         Ok(bytes_in)
     }
 

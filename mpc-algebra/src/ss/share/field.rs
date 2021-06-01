@@ -166,51 +166,22 @@ pub trait ScalarShare<F: Field>:
     fn partial_products<S: BeaverSource<Self, Self, Self>>(x: Vec<Self>, src: &mut S) -> Vec<Self> {
         let n = x.len();
         let (m, m_inv): (Vec<Self>, Vec<Self>) = (0..(n + 1)).map(|_| src.inv_pair()).unzip();
-        debug_reveal("m", &m);
-        debug_reveal("m", &m_inv);
         let mx = Self::batch_mul(m[..n].iter().cloned().collect(), x, src);
         let mxm = Self::batch_mul(mx, m_inv[1..].iter().cloned().collect(), src);
-        debug_reveal("mxm", &mxm);
         let mut mxm_pub = Self::batch_open(mxm);
         for i in 1..mxm_pub.len() {
             let last = mxm_pub[i - 1];
             mxm_pub[i] *= &last;
         }
-        debug_list("mxm_pub", &mxm_pub);
         let m0 = vec![m[0]; n];
         let mms = Self::batch_mul(m0, m_inv[1..].iter().cloned().collect(), src);
-        debug_reveal("mms", &mms);
         let mut mms_inv = Self::batch_inv(mms, src);
-        debug_reveal("mms_inv", &mms_inv);
         //let mms_pub = Self::batch_open(mms);
         for i in 0..mxm_pub.len() {
             mms_inv[i].scale(&mxm_pub[i]);
         }
-        debug_reveal("mms_inv_scale", &mms_inv);
         debug_assert!(mxm_pub.len() == n);
         mms_inv
-    }
-}
-
-fn debug_reveal<R: Reveal + Clone + Display>(t: &str, r: &[R])
-where
-    R::Base: Display,
-{
-    #[cfg(debug_assertions)]
-    {
-        debug_list(t, &r);
-        let rs: Vec<_> = r.iter().map(|r| r.clone().reveal()).collect();
-        debug_list(t, &rs);
-    }
-}
-fn debug_list<R: Display>(t: &str, r: &[R])
-{
-    #[cfg(debug_assertions)]
-    {
-        println!("{}:", t);
-        for (i, r) in r.iter().enumerate() {
-            println!("{}: {}", i, r);
-        }
     }
 }
 
