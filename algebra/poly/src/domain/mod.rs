@@ -36,15 +36,17 @@ pub trait EvaluationDomain<F: FftField>:
 
     /// Sample an element that is *not* in the domain.
     fn sample_element_outside_domain<R: Rng>(&self, rng: &mut R, public_rng: bool) -> F {
-        let mut t = F::rand(rng);
-        if public_rng {
-            t.cast_to_public();
-        }
+        let mut t = if public_rng {
+            F::pub_rand(rng)
+        } else {
+            F::rand(rng)
+        };
         while self.evaluate_vanishing_polynomial(t).is_zero() {
-            t = F::rand(rng);
-            if public_rng {
-                t.cast_to_public();
-            }
+            t = if public_rng {
+                F::pub_rand(rng)
+            } else {
+                F::rand(rng)
+            };
         }
         t
     }

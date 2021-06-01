@@ -75,11 +75,7 @@ impl<F: Field> DensePolynomial<F> {
     /// Cast all coefficients to public
     pub fn cast_visibility(&mut self, shared: bool) {
         for c in &mut self.coeffs {
-            if shared {
-                c.cast_to_shared();
-            } else {
-                c.cast_to_public();
-            }
+            c.set_shared(shared);
         }
     }
 

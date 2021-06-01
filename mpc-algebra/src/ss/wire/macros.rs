@@ -122,6 +122,11 @@ macro_rules! impl_basics_2 {
                 Self::Shared(<S as UniformRand>::rand(rng))
             }
         }
+        impl<T: $bound, S: $share<T>> PubUniformRand for $wrap<T, S> {
+            fn pub_rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+                Self::Public(<T as PubUniformRand>::pub_rand(rng))
+            }
+        }
         //impl<T: $bound, S: $share<T>> Add for $wrap<T, S> {
         //    type Output = Self;
         //    #[inline]

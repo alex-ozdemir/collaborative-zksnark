@@ -17,7 +17,7 @@ use crate::group::Group;
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
     fields::{Field, PrimeField, SquareRootField},
-    UniformRand,
+    UniformRand, PubUniformRand,
 };
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{
@@ -136,6 +136,7 @@ pub trait ProjectiveCurve:
     + Debug
     + Display
     + UniformRand
+    + PubUniformRand
     + Zeroize
     + Zero
     + Neg<Output = Self>

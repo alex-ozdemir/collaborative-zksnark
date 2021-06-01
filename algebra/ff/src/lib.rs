@@ -31,6 +31,7 @@ pub mod group;
 mod test_field;
 
 pub use ark_std::UniformRand;
+pub use ark_std::PubUniformRand;
 
 mod rand;
 #[allow(deprecated)]
@@ -49,6 +50,7 @@ pub mod prelude {
     pub use crate::fields::{Field, FpParameters, PrimeField, SquareRootField};
 
     pub use ark_std::UniformRand;
+    pub use ark_std::PubUniformRand;
 
     pub use num_traits::{One, Zero};
 }

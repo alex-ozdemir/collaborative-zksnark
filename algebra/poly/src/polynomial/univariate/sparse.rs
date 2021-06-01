@@ -218,11 +218,7 @@ impl<F: Field> SparsePolynomial<F> {
     /// Cast all coefficients to public
     pub fn cast_visibility(&mut self, shared: bool) {
         for c in &mut self.coeffs {
-            if shared {
-                c.1.cast_to_shared();
-            } else {
-                c.1.cast_to_public();
-            }
+            c.1.set_shared(shared);
         }
     }
 

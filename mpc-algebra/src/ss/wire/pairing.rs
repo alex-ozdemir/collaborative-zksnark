@@ -289,6 +289,13 @@ macro_rules! impl_pairing_mpc_wrapper {
                 }
             }
         }
+        impl<E: $bound1, PS: $bound2<E>> PubUniformRand for $wrap<E, PS> {
+            fn pub_rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+                Self {
+                    val: $wrapped::pub_rand(rng),
+                }
+            }
+        }
         impl<'a, E: $bound1, PS: $bound2<E>> AddAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
             #[inline]
             fn add_assign(&mut self, other: &Self) {

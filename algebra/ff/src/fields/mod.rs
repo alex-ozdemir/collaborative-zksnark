@@ -3,6 +3,7 @@ use crate::{
     bytes::{FromBytes, ToBytes},
     fields::utils::k_adicity,
     UniformRand,
+    PubUniformRand,
 };
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
@@ -86,6 +87,7 @@ pub trait Field:
     + Ord
     + Neg<Output = Self>
     + UniformRand
+    + PubUniformRand
     + Zeroize
     + Sized
     + Hash

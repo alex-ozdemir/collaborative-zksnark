@@ -9,6 +9,7 @@ use ark_ff::{
     bytes::{FromBytes, ToBytes},
     fields::PrimeField,
     UniformRand,
+    PubUniformRand,
 };
 use ark_serialize::{
     CanonicalSerialize,
@@ -30,6 +31,7 @@ pub trait Group:
     + Hash
     + Neg<Output = Self>
     + UniformRand
+    + PubUniformRand
     + Zero
     + Add<Self, Output = Self>
     + Sub<Self, Output = Self>

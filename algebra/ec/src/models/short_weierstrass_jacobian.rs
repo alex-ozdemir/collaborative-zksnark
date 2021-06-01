@@ -14,6 +14,7 @@ use ark_ff::{
     bytes::{FromBytes, ToBytes},
     fields::{BitIteratorBE, Field, PrimeField, SquareRootField},
     ToConstraintField, UniformRand,
+    PubUniformRand,
 };
 
 use crate::{models::SWModelParameters as Parameters, AffineCurve, ProjectiveCurve};
@@ -296,6 +297,8 @@ impl<P: Parameters> Distribution<GroupAffine<P>> for Standard {
     }
 }
 
+impl<P: Parameters> PubUniformRand for GroupAffine<P> {}
+
 mod group_impl {
     use super::*;
     use crate::group::Group;
@@ -384,6 +387,7 @@ impl<P: Parameters> Distribution<GroupProjective<P>> for Standard {
         }
     }
 }
+impl<P: Parameters> PubUniformRand for GroupProjective<P> {}
 
 impl<P: Parameters> ToBytes for GroupProjective<P> {
     #[inline]

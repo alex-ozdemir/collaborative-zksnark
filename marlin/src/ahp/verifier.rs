@@ -60,12 +60,9 @@ impl<F: PrimeField> AHPForR1CS<F> {
         // Cast all RNG output to public, since this is a verifier RNG
         let mut alpha = domain_h.sample_element_outside_domain(rng, true);
         alpha.cast_to_public();
-        let mut eta_a = F::rand(rng);
-        eta_a.cast_to_public();
-        let mut eta_b = F::rand(rng);
-        eta_b.cast_to_public();
-        let mut eta_c = F::rand(rng);
-        eta_c.cast_to_public();
+        let eta_a = F::pub_rand(rng);
+        let eta_b = F::pub_rand(rng);
+        let eta_c = F::pub_rand(rng);
         println!("Sampled ..");
 
         let msg = VerifierFirstMsg {

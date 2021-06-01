@@ -1,13 +1,11 @@
 ///! Extra algebra utils
-use ark_ff::{FftField, FromBytes, ToBytes, UniformRand};
+use ark_ff::{FftField, FromBytes, ToBytes, PubUniformRand};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly::UVPolynomial;
 use ark_std::marker::PhantomData;
 use ark_std::rand::{RngCore, SeedableRng};
 use digest::{generic_array::GenericArray, Digest};
 use rand_chacha::ChaChaRng;
-
-use mpc_trait::MpcWire;
 
 /// Computes f(a*X) from a and f(X)
 pub fn shift<F: FftField>(mut f: DensePolynomial<F>, a: F) -> DensePolynomial<F> {
@@ -42,16 +40,6 @@ pub fn interpolate<F: FftField>(points: &[(F, F)]) -> DensePolynomial<F> {
     let p = scaled_lagrange_basis.pop().unwrap();
     scaled_lagrange_basis.into_iter().fold(p, |a, b| a + b)
 }
-
-pub trait PubUniformRand: UniformRand + MpcWire {
-    fn pub_rand<R: RngCore>(rng: &mut R) -> Self {
-        let mut this = Self::rand(rng);
-        this.cast_to_public();
-        this
-    }
-}
-
-impl<T: UniformRand + MpcWire> PubUniformRand for T {}
 
 /// A `SeedableRng` that refreshes its seed by hashing together the previous seed
 /// and the new seed material.
