@@ -146,6 +146,7 @@ pub trait Reveal {
     fn reveal(self) -> Self::Base;
     fn from_add_shared(b: Self::Base) -> Self;
     fn from_public(b: Self::Base) -> Self;
+    //fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base>;
 }
 
 impl Reveal for usize {
@@ -154,6 +155,10 @@ impl Reveal for usize {
     fn reveal(self) -> Self::Base {
         self
     }
+
+//    fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base> {
+//        Ok(self)
+//    }
 
     fn from_add_shared(b: Self::Base) -> Self {
         b
@@ -175,6 +180,11 @@ impl<T: Reveal> Reveal for PhantomData<T> {
         PhantomData::default()
     }
 
+//    fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base> {
+//        Ok(PhantomData::default())
+//    }
+
+
     fn from_public(_b: Self::Base) -> Self {
         PhantomData::default()
     }
@@ -191,6 +201,35 @@ impl<T: Reveal> Reveal for Vec<T> {
             .map(|x| <T as Reveal>::from_public(x))
             .collect()
     }
+//    fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base> {
+//        let mut out = Vec::new();
+//        let mut shared = None;
+//        for s in self {
+//            match s.as_public_or_add_share() {
+//                Ok(l) => {
+//                    if shared == Some(true) {
+//                        panic!("Heterogenous share")
+//                    } else {
+//                        shared = Some(false);
+//                        out.push(l);
+//                    }
+//                }
+//                Err(l) => {
+//                    if shared == Some(false) {
+//                        panic!("Heterogenous share")
+//                    } else {
+//                        shared = Some(true);
+//                        out.push(l);
+//                    }
+//                }
+//            }
+//        }
+//        match shared {
+//            Some(true) => Err(out),
+//            Some(false) => Ok(out),
+//            None => Ok(Vec::new()),
+//        }
+//    }
     fn from_add_shared(other: Self::Base) -> Self {
         other
             .into_iter()
@@ -218,6 +257,12 @@ where K::Base: Ord
             .map(|x| Reveal::from_add_shared(x))
             .collect()
     }
+//    fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base> {
+//        let v: Vec<_> = self.into_iter().collect();
+//        v.as_public_or_add_share()
+//            .map(|s| s.into_iter().collect())
+//            .map_err(|s| s.into_iter().collect())
+//    }
 }
 
 impl<T: Reveal> Reveal for Option<T> {
@@ -231,6 +276,12 @@ impl<T: Reveal> Reveal for Option<T> {
     fn from_add_shared(other: Self::Base) -> Self {
         other.map(|x| <T as Reveal>::from_add_shared(x))
     }
+//    fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base> {
+//        match self {
+//            Some(s) => s.as_public_or_add_share().map(Some).map_err(Some),
+//            None => Ok(None),
+//        }
+//    }
 }
 
 impl<T: Reveal + Clone> Reveal for Rc<T> where T::Base: Clone {
@@ -244,6 +295,9 @@ impl<T: Reveal + Clone> Reveal for Rc<T> where T::Base: Clone {
     fn from_add_shared(other: Self::Base) -> Self {
         Rc::new(Reveal::from_add_shared((*other).clone()))
     }
+//    fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base> {
+//        (*self).clone().as_public_or_add_share().map(Rc::new).map_err(Rc::new)
+//    }
 }
 
 
@@ -264,6 +318,14 @@ impl<A: Reveal, B: Reveal> Reveal for (A, B) {
             <B as Reveal>::from_add_shared(other.1),
         )
     }
+//    fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base> {
+//        match (self.0.as_public_or_add_share(), self.1.as_public_or_add_share()) {
+//            (Ok(a), Ok(b)) => Ok((a, b)),
+//            (Err(a), Err(b)) => Err((a, b)),
+//            _ => panic!("heterogenous"),
+//        }
+//    }
+
 }
 
 #[macro_export]

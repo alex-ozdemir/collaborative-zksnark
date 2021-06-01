@@ -20,8 +20,8 @@ use std::ops::*;
 
 use super::super::share::field::ScalarShare;
 use super::super::share::BeaverSource;
-use mpc_trait::Reveal;
 use mpc_net;
+use mpc_trait::Reveal;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: ScalarShare<F>> {
@@ -42,16 +42,36 @@ impl<T: Field, S: ScalarShare<T>> BeaverSource<S, S, S> for DummyScalarTripleSou
     #[inline]
     fn triple(&mut self) -> (S, S, S) {
         (
-            S::from_add_shared(if mpc_net::am_first() {T::one()} else {T::zero()}),
-            S::from_add_shared(if mpc_net::am_first() {T::one()} else {T::zero()}),
-            S::from_add_shared(if mpc_net::am_first() {T::one()} else {T::zero()}),
+            S::from_add_shared(if mpc_net::am_first() {
+                T::one()
+            } else {
+                T::zero()
+            }),
+            S::from_add_shared(if mpc_net::am_first() {
+                T::one()
+            } else {
+                T::zero()
+            }),
+            S::from_add_shared(if mpc_net::am_first() {
+                T::one()
+            } else {
+                T::zero()
+            }),
         )
     }
     #[inline]
     fn inv_pair(&mut self) -> (S, S) {
         (
-            S::from_add_shared(if mpc_net::am_first() {T::one()} else {T::zero()}),
-            S::from_add_shared(if mpc_net::am_first() {T::one()} else {T::zero()}),
+            S::from_add_shared(if mpc_net::am_first() {
+                T::one()
+            } else {
+                T::zero()
+            }),
+            S::from_add_shared(if mpc_net::am_first() {
+                T::one()
+            } else {
+                T::zero()
+            }),
         )
     }
 }
@@ -67,17 +87,31 @@ impl<T: Field, S: ScalarShare<T>> MpcField<T, S> {
         }
     }
 }
-impl<T: Field, S: ScalarShare<T>> Mul for MpcField<T, S> {
-    type Output = Self;
+impl<'a, T: Field, S: ScalarShare<T>> MulAssign<&'a MpcField<T, S>> for MpcField<T, S> {
     #[inline]
-    fn mul(self, other: Self) -> Self::Output {
-        match (self, other) {
-            (MpcField::Public(x), MpcField::Public(y)) => MpcField::Public(x.mul(y)),
-            (MpcField::Public(x), MpcField::Shared(y)) => MpcField::Shared(y.scale(&x)),
-            (MpcField::Shared(x), MpcField::Public(y)) => MpcField::Shared(x.scale(&y)),
-            (MpcField::Shared(x), MpcField::Shared(y)) => {
-                MpcField::Shared(x.mul(y, &mut DummyScalarTripleSource::default()))
-            }
+    fn mul_assign(&mut self, other: &Self) {
+        match self {
+            // for some reason, a two-stage match (rather than a tuple match) avoids moving
+            // self
+            MpcField::Public(x) => match other {
+                MpcField::Public(y) => {
+                    *x *= y;
+                }
+                MpcField::Shared(y) => {
+                    let mut t = *y;
+                    t.scale(x);
+                    *self = MpcField::Shared(t);
+                }
+            },
+            MpcField::Shared(x) => match other {
+                MpcField::Public(y) => {
+                    x.scale(y);
+                }
+                MpcField::Shared(y) => {
+                    let t = x.mul(*y, &mut DummyScalarTripleSource::default());
+                    *self = MpcField::Shared(t);
+                }
+            },
         }
     }
 }
@@ -100,18 +134,31 @@ impl<'a, T: Field, S: ScalarShare<T> + 'a> Product<&'a MpcField<T, S>> for MpcFi
     }
 }
 
-impl<T: Field, S: ScalarShare<T>> Div for MpcField<T, S> {
-    type Output = Self;
+impl<'a, T: Field, S: ScalarShare<T>> DivAssign<&'a MpcField<T, S>> for MpcField<T, S> {
     #[inline]
-    fn div(self, other: Self) -> Self::Output {
-        let src = &mut DummyScalarTripleSource::default();
-        match (self, other) {
-            (MpcField::Public(x), MpcField::Public(y)) => MpcField::Public(x.div(y)),
-            (MpcField::Public(x), MpcField::Shared(y)) => MpcField::Shared(y.inv(src).scale(&x)),
-            (MpcField::Shared(x), MpcField::Public(y)) => {
-                MpcField::Shared(x.scale(&y.inverse().unwrap()))
-            }
-            (MpcField::Shared(x), MpcField::Shared(y)) => MpcField::Shared(x.div(y, src)),
+    fn div_assign(&mut self, other: &Self) {
+        match self {
+            // for some reason, a two-stage match (rather than a tuple match) avoids moving
+            // self
+            MpcField::Public(x) => match other {
+                MpcField::Public(y) => {
+                    *x /= y;
+                }
+                MpcField::Shared(y) => {
+                    let mut t = y.inv(&mut DummyScalarTripleSource::default());
+                    t.scale(&x);
+                    *self = MpcField::Shared(t);
+                }
+            },
+            MpcField::Shared(x) => match other {
+                MpcField::Public(y) => {
+                    x.scale(&y.inverse().unwrap());
+                }
+                MpcField::Shared(y) => {
+                    let src = &mut DummyScalarTripleSource::default();
+                    *x = x.div(*y, src);
+                }
+            },
         }
     }
 }
@@ -286,48 +333,98 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
     fn batch_product_in_place(selfs: &mut [Self], others: &[Self]) {
         let selfs_shared = selfs[0].is_shared();
         let others_shared = others[0].is_shared();
-        assert!(selfs.iter().all(|s| s.is_shared() == selfs_shared), "Selfs heterogenously shared!");
-        assert!(others.iter().all(|s| s.is_shared() == others_shared), "others heterogenously shared!");
+        assert!(
+            selfs.iter().all(|s| s.is_shared() == selfs_shared),
+            "Selfs heterogenously shared!"
+        );
+        assert!(
+            others.iter().all(|s| s.is_shared() == others_shared),
+            "others heterogenously shared!"
+        );
         if selfs_shared && others_shared {
-            let sshares = selfs.iter().map(|s| match s {
-                Self::Shared(s) => s.clone(),
-                Self::Public(_) => unreachable!(),
-            }).collect();
-            let oshares = others.iter().map(|s| match s {
-                Self::Shared(s) => s.clone(),
-                Self::Public(_) => unreachable!(),
-            }).collect();
+            let sshares = selfs
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
+            let oshares = others
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
             let nshares = S::batch_mul(sshares, oshares, &mut DummyScalarTripleSource::default());
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
         } else {
             for (a, b) in ark_std::cfg_iter_mut!(selfs).zip(others.iter()) {
-              *a *= b;
+                *a *= b;
             }
         }
     }
     fn batch_division_in_place(selfs: &mut [Self], others: &[Self]) {
         let selfs_shared = selfs[0].is_shared();
         let others_shared = others[0].is_shared();
-        assert!(selfs.iter().all(|s| s.is_shared() == selfs_shared), "Selfs heterogenously shared!");
-        assert!(others.iter().all(|s| s.is_shared() == others_shared), "others heterogenously shared!");
+        assert!(
+            selfs.iter().all(|s| s.is_shared() == selfs_shared),
+            "Selfs heterogenously shared!"
+        );
+        assert!(
+            others.iter().all(|s| s.is_shared() == others_shared),
+            "others heterogenously shared!"
+        );
         if selfs_shared && others_shared {
-            let sshares = selfs.iter().map(|s| match s {
-                Self::Shared(s) => s.clone(),
-                Self::Public(_) => unreachable!(),
-            }).collect();
-            let oshares = others.iter().map(|s| match s {
-                Self::Shared(s) => s.clone(),
-                Self::Public(_) => unreachable!(),
-            }).collect();
+            let sshares = selfs
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
+            let oshares = others
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
             let nshares = S::batch_div(sshares, oshares, &mut DummyScalarTripleSource::default());
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
         } else {
             for (a, b) in ark_std::cfg_iter_mut!(selfs).zip(others.iter()) {
-              *a *= b;
+                *a *= b;
+            }
+        }
+    }
+    fn partial_products_in_place(selfs: &mut [Self]) {
+        let selfs_shared = selfs[0].is_shared();
+        assert!(
+            selfs.iter().all(|s| s.is_shared() == selfs_shared),
+            "Selfs heterogenously shared!"
+        );
+        if selfs_shared {
+            let sshares = selfs
+                .iter()
+                .map(|s| match s {
+                    Self::Shared(s) => s.clone(),
+                    Self::Public(_) => unreachable!(),
+                })
+                .collect();
+            for (self_, new) in selfs.iter_mut().zip(
+                S::partial_products(sshares, &mut DummyScalarTripleSource::default()).into_iter(),
+            ) {
+                *self_ = Self::Shared(new);
+            }
+        } else {
+            for i in 1..selfs.len() {
+                let last = selfs[i - 1];
+                selfs[i] *= &last;
             }
         }
     }

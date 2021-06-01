@@ -48,32 +48,42 @@ pub trait ScalarShare<F: Field>:
         selfs.into_iter().map(|s| s.open()).collect()
     }
 
+    fn add(&mut self, other: &Self) -> &mut Self;
 
-    fn add(self, other: &Self) -> Self;
-
-    fn scale(self, scalar: &F) -> Self;
-
-    fn shift(self, other: &F) -> Self;
-
-    fn sub(&self, other: Self) -> Self {
-        other.neg().add(self)
+    fn sub(&mut self, other: &Self) -> &mut Self {
+        let mut t = other.clone();
+        t.neg();
+        t.add(&self);
+        *self = t;
+        self
     }
 
-    fn neg(self) -> Self {
-        self.scale(&-F::one())
+    fn neg(&mut self) -> &mut Self {
+        self.scale(&-<F as ark_ff::One>::one())
     }
+
+    fn shift(&mut self, other: &F) -> &mut Self;
+
+    fn scale(&mut self, other: &F) -> &mut Self;
 
     fn mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, source: &mut S) -> Self {
-        let (x, y, z) = source.triple();
+        let (mut x, mut y, z) = source.triple();
         //println!("Triple:\n *{}\n *{}\n *{}", x, y, z);
         let s = self;
         let o = other;
         // output: z - open(s + x)y - open(o + y)x + open(s + x)open(o + y)
         //         xy - sy - xy - ox - yx + so + sy + xo + xy
         //         so
-        let sx = s.add(&x).open();
-        let oy = o.add(&y).open();
-        let result = z.sub(y.scale(&sx)).sub(x.scale(&oy)).shift(&(sx * oy));
+        let sx = {
+            let mut t = s;
+            t.add(&x).open()
+        };
+        let oy = {
+            let mut t = o;
+            t.add(&y).open()
+        };
+        let mut result = z;
+        result.sub(y.scale(&sx)).sub(x.scale(&oy)).shift(&(sx * oy));
         #[cfg(debug_assertions)]
         {
             let a = s.reveal();
@@ -98,24 +108,31 @@ pub trait ScalarShare<F: Field>:
         // output: z - open(s + x)y - open(o + y)x + open(s + x)open(o + y)
         //         xy - sy - xy - ox - yx + so + sy + xo + xy
         //         so
-        let sxs = Self::batch_open(ss.into_iter().zip(xs.iter()).map(|(s, x)| s.add(x)));
-        let oys = Self::batch_open(os.into_iter().zip(ys.iter()).map(|(o, y)| o.add(y)));
+        let sxs = Self::batch_open(ss.into_iter().zip(xs.iter()).map(|(mut s, x)| {
+            s.add(x);
+            s
+        }));
+        let oys = Self::batch_open(os.into_iter().zip(ys.iter()).map(|(mut o, y)| {
+            o.add(y);
+            o
+        }));
         zs.into_iter()
             .zip(ys.into_iter())
             .zip(xs.into_iter())
             .enumerate()
-            .map(|(i, ((z, y), x))| {
+            .map(|(i, ((mut z, mut y), mut x))| {
                 z.sub(y.scale(&sxs[i]))
                     .sub(x.scale(&oys[i]))
-                    .shift(&(sxs[i] * oys[i]))
+                    .shift(&(sxs[i] * oys[i]));
+                z
             })
             .collect()
     }
 
     fn inv<S: BeaverSource<Self, Self, Self>>(self, source: &mut S) -> Self {
-        let (x, y) = source.inv_pair();
+        let (x, mut y) = source.inv_pair();
         let xa = x.mul(self, source).open().inverse().unwrap();
-        y.scale(&xa)
+        *y.scale(&xa)
     }
 
     fn batch_inv<S: BeaverSource<Self, Self, Self>>(xs: Vec<Self>, source: &mut S) -> Vec<Self> {
@@ -126,7 +143,10 @@ pub trait ScalarShare<F: Field>:
                     .into_iter()
                     .map(|i| i.inverse().unwrap()),
             )
-            .map(|(c, i)| c.scale(&i))
+            .map(|(mut c, i)| {
+                c.scale(&i);
+                c
+            })
             .collect()
     }
 
@@ -142,6 +162,56 @@ pub trait ScalarShare<F: Field>:
     ) -> Vec<Self> {
         Self::batch_mul(xs, Self::batch_inv(ys, source), source)
     }
+
+    fn partial_products<S: BeaverSource<Self, Self, Self>>(x: Vec<Self>, src: &mut S) -> Vec<Self> {
+        let n = x.len();
+        let (m, m_inv): (Vec<Self>, Vec<Self>) = (0..(n + 1)).map(|_| src.inv_pair()).unzip();
+        debug_reveal("m", &m);
+        debug_reveal("m", &m_inv);
+        let mx = Self::batch_mul(m[..n].iter().cloned().collect(), x, src);
+        let mxm = Self::batch_mul(mx, m_inv[1..].iter().cloned().collect(), src);
+        debug_reveal("mxm", &mxm);
+        let mut mxm_pub = Self::batch_open(mxm);
+        for i in 1..mxm_pub.len() {
+            let last = mxm_pub[i - 1];
+            mxm_pub[i] *= &last;
+        }
+        debug_list("mxm_pub", &mxm_pub);
+        let m0 = vec![m[0]; n];
+        let mms = Self::batch_mul(m0, m_inv[1..].iter().cloned().collect(), src);
+        debug_reveal("mms", &mms);
+        let mut mms_inv = Self::batch_inv(mms, src);
+        debug_reveal("mms_inv", &mms_inv);
+        //let mms_pub = Self::batch_open(mms);
+        for i in 0..mxm_pub.len() {
+            mms_inv[i].scale(&mxm_pub[i]);
+        }
+        debug_reveal("mms_inv_scale", &mms_inv);
+        debug_assert!(mxm_pub.len() == n);
+        mms_inv
+    }
+}
+
+fn debug_reveal<R: Reveal + Clone + Display>(t: &str, r: &[R])
+where
+    R::Base: Display,
+{
+    #[cfg(debug_assertions)]
+    {
+        debug_list(t, &r);
+        let rs: Vec<_> = r.iter().map(|r| r.clone().reveal()).collect();
+        debug_list(t, &rs);
+    }
+}
+fn debug_list<R: Display>(t: &str, r: &[R])
+{
+    #[cfg(debug_assertions)]
+    {
+        println!("{}:", t);
+        for (i, r) in r.iter().enumerate() {
+            println!("{}: {}", i, r);
+        }
+    }
 }
 
 pub trait ExtFieldShare<F: Field>:
@@ -150,4 +220,3 @@ pub trait ExtFieldShare<F: Field>:
     type Base: ScalarShare<F::BasePrimeField>;
     type Ext: ScalarShare<F>;
 }
-

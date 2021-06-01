@@ -122,15 +122,42 @@ macro_rules! impl_basics_2 {
                 Self::Shared(<S as UniformRand>::rand(rng))
             }
         }
-        impl<T: $bound, S: $share<T>> Add for $wrap<T, S> {
-            type Output = Self;
+        //impl<T: $bound, S: $share<T>> Add for $wrap<T, S> {
+        //    type Output = Self;
+        //    #[inline]
+        //    fn add(self, other: Self) -> Self::Output {
+        //        match (self, other) {
+        //            ($wrap::Public(x), $wrap::Public(y)) => $wrap::Public(x + y),
+        //            ($wrap::Shared(x), $wrap::Public(y)) => $wrap::Shared(x.shift(&y)),
+        //            ($wrap::Public(x), $wrap::Shared(y)) => $wrap::Shared(y.shift(&x)),
+        //            ($wrap::Shared(x), $wrap::Shared(y)) => $wrap::Shared(x.add(&y)),
+        //        }
+        //    }
+        //}
+        impl<'a, T: $bound, S: $share<T>> AddAssign<&'a $wrap<T, S>> for $wrap<T, S> {
             #[inline]
-            fn add(self, other: Self) -> Self::Output {
-                match (self, other) {
-                    ($wrap::Public(x), $wrap::Public(y)) => $wrap::Public(x + y),
-                    ($wrap::Shared(x), $wrap::Public(y)) => $wrap::Shared(x.shift(&y)),
-                    ($wrap::Public(x), $wrap::Shared(y)) => $wrap::Shared(y.shift(&x)),
-                    ($wrap::Shared(x), $wrap::Shared(y)) => $wrap::Shared(x.add(&y)),
+            fn add_assign(&mut self, other: &Self) {
+                match self {
+                    // for some reason, a two-stage match (rather than a tuple match) avoids moving
+                    // self
+                    $wrap::Public(x) => match other {
+                        $wrap::Public(y) => {
+                            *x += y;
+                        }
+                        $wrap::Shared(y) => {
+                            let mut tt = *y;
+                            tt.shift(x);
+                            *self = $wrap::Shared(tt);
+                        }
+                    },
+                    $wrap::Shared(x) => match other {
+                        $wrap::Public(y) => {
+                            x.shift(y);
+                        }
+                        $wrap::Shared(y) => {
+                            x.add(y);
+                        }
+                    },
                 }
             }
         }
@@ -152,19 +179,37 @@ macro_rules! impl_basics_2 {
             fn neg(self) -> Self::Output {
                 match self {
                     $wrap::Public(x) => $wrap::Public(-x),
-                    $wrap::Shared(x) => $wrap::Shared(x.neg()),
+                    $wrap::Shared(mut x) => $wrap::Shared({
+                        x.neg();
+                        x
+                    }),
                 }
             }
         }
-        impl<T: $bound, S: $share<T>> Sub for $wrap<T, S> {
-            type Output = Self;
+        impl<'a, T: $bound, S: $share<T>> SubAssign<&'a $wrap<T, S>> for $wrap<T, S> {
             #[inline]
-            fn sub(self, other: Self) -> Self::Output {
-                match (self, other) {
-                    ($wrap::Public(x), $wrap::Public(y)) => $wrap::Public(x - y),
-                    ($wrap::Shared(x), $wrap::Public(y)) => $wrap::Shared(x.shift(&-y)),
-                    ($wrap::Public(x), $wrap::Shared(y)) => $wrap::Shared(y.neg().shift(&x)),
-                    ($wrap::Shared(x), $wrap::Shared(y)) => $wrap::Shared(x.sub(y)),
+            fn sub_assign(&mut self, other: &Self) {
+                match self {
+                    // for some reason, a two-stage match (rather than a tuple match) avoids moving
+                    // self
+                    $wrap::Public(x) => match other {
+                        $wrap::Public(y) => {
+                            *x -= y;
+                        }
+                        $wrap::Shared(y) => {
+                            let mut t = *y;
+                            t.neg().shift(&x);
+                            *self = $wrap::Shared(t);
+                        }
+                    },
+                    $wrap::Shared(x) => match other {
+                        $wrap::Public(y) => {
+                            x.shift(&-*y);
+                        }
+                        $wrap::Shared(y) => {
+                            x.sub(y);
+                        }
+                    },
                 }
             }
         }
@@ -200,25 +245,34 @@ macro_rules! impl_basics_2 {
 
 macro_rules! impl_ref_ops {
     ($op:ident, $assop:ident, $opfn:ident, $assopfn:ident, $bound:ident, $share:ident, $wrap:ident) => {
+        impl<T: $bound, S: $share<T>> $op<$wrap<T, S>> for $wrap<T, S> {
+            type Output = Self;
+            #[inline]
+            fn $opfn(mut self, other: $wrap<T, S>) -> Self::Output {
+                self.$assopfn(&other);
+                self
+            }
+        }
         impl<'a, T: $bound, S: $share<T>> $op<&'a $wrap<T, S>> for $wrap<T, S> {
             type Output = Self;
             #[inline]
-            fn $opfn(self, other: &$wrap<T, S>) -> Self::Output {
-                self.$opfn(other.clone())
+            fn $opfn(mut self, other: &$wrap<T, S>) -> Self::Output {
+                self.$assopfn(other);
+                self
             }
         }
         impl<T: $bound, S: $share<T>> $assop<$wrap<T, S>> for $wrap<T, S> {
             #[inline]
             fn $assopfn(&mut self, other: $wrap<T, S>) {
-                *self = self.clone().$opfn(other.clone());
+                self.$assopfn(&other);
             }
         }
-        impl<'a, T: $bound, S: $share<T>> $assop<&'a $wrap<T, S>> for $wrap<T, S> {
-            #[inline]
-            fn $assopfn(&mut self, other: &$wrap<T, S>) {
-                *self = self.clone().$opfn(other.clone());
-            }
-        }
+        // impl<'a, T: $bound, S: $share<T>> $assop<&'a $wrap<T, S>> for $wrap<T, S> {
+        //     #[inline]
+        //     fn $assopfn(&mut self, other: &$wrap<T, S>) {
+        //         *self = self.clone().$opfn(other.clone());
+        //     }
+        // }
     };
 }
 

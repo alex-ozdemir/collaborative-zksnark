@@ -8,7 +8,7 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
-use ark_std::cfg_into_iter;
+use ark_std::{cfg_into_iter,start_timer, end_timer};
 use ark_std::io::{self, Read, Write};
 use core::ops::*;
 use derivative::Derivative;
@@ -289,13 +289,10 @@ macro_rules! impl_pairing_mpc_wrapper {
                 }
             }
         }
-        impl<E: $bound1, PS: $bound2<E>> Add for $wrap<E, PS> {
-            type Output = Self;
+        impl<'a, E: $bound1, PS: $bound2<E>> AddAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
             #[inline]
-            fn add(self, other: Self) -> Self::Output {
-                Self {
-                    val: self.val + other.val,
-                }
+            fn add_assign(&mut self, other: &Self) {
+                self.val += &other.val;
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Neg for $wrap<E, PS> {
@@ -305,13 +302,10 @@ macro_rules! impl_pairing_mpc_wrapper {
                 Self { val: -self.val }
             }
         }
-        impl<E: $bound1, PS: $bound2<E>> Sub for $wrap<E, PS> {
-            type Output = Self;
+        impl<'a, E: $bound1, PS: $bound2<E>> SubAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
             #[inline]
-            fn sub(self, other: Self) -> Self::Output {
-                Self {
-                    val: self.val - other.val,
-                }
+            fn sub_assign(&mut self, other: &Self) {
+                self.val -= &other.val;
             }
         }
         impl<E: $bound1, PS: $bound2<E>> Zero for $wrap<E, PS> {
@@ -389,18 +383,16 @@ macro_rules! impl_ext_field_wrapper {
             }
         }
         impl_pairing_mpc_wrapper!($wrapped, Field, ExtFieldShare, BasePrimeField, Ext, $wrap);
-        impl<E: Field, PS: ExtFieldShare<E>> Mul for $wrap<E, PS> {
-            type Output = Self;
+        impl<'a, E: Field, PS: ExtFieldShare<E>> MulAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
             #[inline]
-            fn mul(self, other: Self) -> Self::Output {
-                Self::wrap(self.val.mul(other.val))
+            fn mul_assign(&mut self, other: &Self) {
+                self.val *= &other.val;
             }
         }
-        impl<E: Field, PS: ExtFieldShare<E>> Div for $wrap<E, PS> {
-            type Output = Self;
+        impl<'a, E: Field, PS: ExtFieldShare<E>> DivAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
             #[inline]
-            fn div(self, other: Self) -> Self::Output {
-                Self::wrap(self.val.div(other.val))
+            fn div_assign(&mut self, other: &Self) {
+                self.val /= &other.val;
             }
         }
         impl_ref_ops!(Mul, MulAssign, mul, mul_assign, Field, ExtFieldShare, $wrap);
@@ -757,7 +749,9 @@ macro_rules! impl_aff_proj {
                         }
                     })
                     .collect::<Vec<_>>();
+                let t = start_timer!(|| "MSM inner");
                 let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
+                end_timer!(t);
                 // This is shared because the big intergers are representations of a shared value.
                 product.cast_to_shared();
                 product
@@ -783,8 +777,29 @@ macro_rules! impl_aff_proj {
                 self
             }
             fn add_assign_mixed(&mut self, o: &<Self as ProjectiveCurve>::Affine) {
-                let o: Self = o.clone().into();
-                *self += o;
+                let self_s = self.val.is_shared();
+                let o_s = o.val.is_shared();
+                match (self_s, o_s) {
+                    (true, true) | (false, false) => {
+                        let mut s = self.val.unwrap_as_public_or_add_shared();
+                        let t = o.val.unwrap_as_public_or_add_shared();
+                        s.add_assign_mixed(&t);
+                        self.val = if self_s { Reveal::from_add_shared(s) } else { Reveal::from_public(s) };
+                    }
+                    (true, false) => {
+                        if mpc_net::am_first() {
+                            let mut s = self.val.unwrap_as_public_or_add_shared();
+                            let t = o.val.unwrap_as_public_or_add_shared();
+                            s.add_assign_mixed(&t);
+                            self.val = Reveal::from_add_shared(s);
+                            //self.val.add_assign_mixed(&o.val);
+                        } else {
+                        }
+                    }
+                    (false, true) => {
+                        *self = o.clone().into();
+                    }
+                }
             }
             fn mul<S: AsRef<[u64]>>(self, scalar_words: S) -> Self {
                 // Cast s to bigint..

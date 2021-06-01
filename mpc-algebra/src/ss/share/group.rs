@@ -5,6 +5,7 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags,
 };
+use ark_std::{start_timer, end_timer};
 use core::ops::*;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
@@ -51,52 +52,64 @@ pub trait GroupShare<G: Group>:
         selfs.into_iter().map(|s| s.open()).collect()
     }
 
-    fn add(self, other: &Self) -> Self;
+    fn add(&mut self, other: &Self) -> &mut Self;
 
-    fn sub(&self, other: Self) -> Self {
-        other.neg().add(self)
+    fn sub(&mut self, other: &Self) -> &mut Self {
+        let mut t = other.clone();
+        t.neg();
+        t.add(&self);
+        *self = t;
+        self
     }
-    fn neg(self) -> Self {
+    fn neg(&mut self) -> &mut Self {
         self.scale_pub_scalar(&-<G::ScalarField as ark_ff::One>::one())
     }
 
-    fn scale_pub_scalar(self, scalar: &G::ScalarField) -> Self;
+    fn scale_pub_scalar(&mut self, scalar: &G::ScalarField) -> &mut Self;
 
     fn scale_pub_group(base: G, scalar: &Self::ScalarShare) -> Self;
 
-    fn shift(self, other: &G) -> Self;
+    fn shift(&mut self, other: &G) -> &mut Self;
 
     fn scale<S: BeaverSource<Self, Self::ScalarShare, Self>>(
         self,
         other: Self::ScalarShare,
         source: &mut S,
     ) -> Self {
-        let (x, y, z) = source.triple();
+        let timer = start_timer!(|| "SS scalar multiplication");
+        let (mut x, y, z) = source.triple();
         let s = self;
         let o = other;
         // output: z - open(s + x)y - x*open(o + y) + open(s + x)open(o + y)
         //         xy - sy - xy - ox - yx + so + sy + xo + xy
         //         so
-        let mut sx = s.add(&x).open();
-        let oy = o.add(&y).open();
-        let out = z
-            .sub(Self::scale_pub_group(sx.clone(), &y))
-            .sub(x.scale_pub_scalar(&oy));
+        let mut sx = {
+            let mut t = s;
+            t.add(&x).open()
+        };
+        let oy = {
+            let mut t = o;
+            t.add(&y).open()
+        };
+        let mut out = z.clone();
+        out.sub(&Self::scale_pub_group(sx.clone(), &y));
+        out.sub(x.scale_pub_scalar(&oy));
         sx *= oy;
-        let result = out.shift(&sx);
+        out.shift(&sx);
         #[cfg(debug_assertions)]
         {
             let a = s.reveal();
             let b = o.reveal();
             let mut acp = a.clone();
             acp *= b;
-            let r = result.reveal();
+            let r = out.reveal();
             if acp != r {
                 println!("Bad multiplication!.\n{}\n*\n{}\n=\n{}", a, b, r);
                 panic!("Bad multiplication");
             }
         }
-        result
+        end_timer!(timer);
+        out
     }
 }
 

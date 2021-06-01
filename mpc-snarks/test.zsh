@@ -15,6 +15,11 @@ $BIN --port 8000 --peer-host localhost --peer-port 8001 -d product 0 1 --party 1
 
 wait $pid0 $pid1
 
+$BIN --port 8001 --peer-host localhost --peer-port 8000 -d pproduct 2 3 --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 -d pproduct 1 2 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
 # $BIN --port 8001 --peer-host localhost --peer-port 8000 -d commit 1 0 --party 0 & ; pid0=$!
 # $BIN --port 8000 --peer-host localhost --peer-port 8001 -d commit 0 1 --party 1 & ; pid1=$!
 # 

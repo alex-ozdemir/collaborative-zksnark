@@ -34,6 +34,7 @@ arg_enum! {
         Fft,
         Sum,
         Product,
+        PProduct,
         Commit,
         Merkle,
         Fri,
@@ -622,6 +623,18 @@ impl Computation {
                 let product = inputs[0] * inputs[1];
                 //assert_eq!(inputs[0].reveal() * inputs[1].reveal(), product.reveal());
                 vec![product]
+            }
+            Computation::PProduct => {
+                assert_eq!(inputs.len(), 2);
+                let mut pp = inputs.clone();
+                for p in &mut inputs { p.publicize() };
+                let t = inputs[0];
+                inputs[1] *= t;
+                F::partial_products_in_place(&mut pp[..]);
+                for p in &mut pp { p.publicize() };
+                assert_eq!(pp[0], inputs[0]);
+                assert_eq!(pp[1], inputs[1]);
+                vec![]
             }
             // Commented out because it serializes secrets
             // Computation::Commit => {

@@ -63,18 +63,22 @@ impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
         }
         self_vec
     }
-
-    fn add(mut self, other: &Self) -> Self {
-        self.val += other.val;
+    fn add(&mut self, other: &Self) -> &mut Self {
+        self.val += &other.val;
         self
     }
 
-    fn scale(mut self, other: &F) -> Self {
+    fn sub(&mut self, other: &Self) -> &mut Self {
+        self.val -= &other.val;
+        self
+    }
+
+    fn scale(&mut self, other: &F) -> &mut Self {
         self.val *= other;
         self
     }
 
-    fn shift(mut self, other: &F) -> Self {
+    fn shift(&mut self, other: &F) -> &mut Self {
         if mpc_net::am_first() {
             self.val += other;
         }
@@ -124,22 +128,27 @@ impl<G: Group> GroupShare<G> for AdditiveGroupShare<G> {
         self_vec
     }
 
-    fn add(mut self, other: &Self) -> Self {
+    fn add(&mut self, other: &Self) -> &mut Self {
         self.val += &other.val;
         self
     }
 
-    fn scale_pub_scalar(mut self, scalar: &G::ScalarField) -> Self {
+    fn sub(&mut self, other: &Self) -> &mut Self {
+        self.val -= &other.val;
+        self
+    }
+
+    fn scale_pub_scalar(&mut self, scalar: &G::ScalarField) -> &mut Self {
         self.val *= *scalar;
         self
     }
 
     fn scale_pub_group(mut base: G, scalar: &Self::ScalarShare) -> Self {
         base *= scalar.val;
-        AdditiveGroupShare { val: base }
+        Self { val: base }
     }
 
-    fn shift(mut self, other: &G) -> Self {
+    fn shift(&mut self, other: &G) -> &mut Self {
         if mpc_net::am_first() {
             self.val += other;
         }
@@ -271,18 +280,18 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
         self_vec
     }
 
-    fn add(self, _other: &Self) -> Self {
+    fn add(&mut self, _other: &Self) -> &mut Self {
         unimplemented!("add for MulScalarShare")
     }
 
-    fn scale(mut self, other: &F) -> Self {
+    fn scale(&mut self, other: &F) -> &mut Self {
         if mpc_net::am_first() {
             self.val *= other;
         }
         self
     }
 
-    fn shift(self, _other: &F) -> Self {
+    fn shift(&mut self, _other: &F) -> &mut Self {
         unimplemented!("add for MulScalarShare")
     }
 
