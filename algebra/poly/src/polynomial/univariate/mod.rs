@@ -1,7 +1,7 @@
 //! Work with sparse and dense polynomials.
 
 use crate::{EvaluationDomain, Evaluations, Polynomial, UVPolynomial};
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{FftField, Field, Zero, poly_stub};
 use ark_std::{borrow::Cow, convert::TryInto, vec::Vec};
 use DenseOrSparsePolynomial::*;
 
@@ -12,13 +12,34 @@ pub use dense::DensePolynomial;
 pub use sparse::SparsePolynomial;
 
 /// Represents either a sparse polynomial or a dense one.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum DenseOrSparsePolynomial<'a, F: Field> {
     /// Represents the case where `self` is a sparse polynomial
     SPolynomial(Cow<'a, SparsePolynomial<F>>),
     /// Represents the case where `self` is a dense polynomial
     DPolynomial(Cow<'a, DensePolynomial<F>>),
 }
+
+impl<'a, F: Field> From<DenseOrSparsePolynomial<'a, F>> for poly_stub::DenseOrSparsePolynomial<'a, F> {
+    fn from(p: DenseOrSparsePolynomial<'a, F>) -> Self {
+        use DenseOrSparsePolynomial::*;
+        match p {
+            SPolynomial(s) => Self::SPolynomial(Cow::Owned(s.into_owned().into())),
+            DPolynomial(s) => Self::DPolynomial(Cow::Owned(s.into_owned().into())),
+        }
+    }
+}
+
+impl<'a, F: Field> From<poly_stub::DenseOrSparsePolynomial<'a, F>> for DenseOrSparsePolynomial<'a, F> {
+    fn from(p: poly_stub::DenseOrSparsePolynomial<'a, F>) -> Self {
+        use poly_stub::DenseOrSparsePolynomial::*;
+        match p {
+            SPolynomial(s) => Self::SPolynomial(Cow::Owned(s.into_owned().into())),
+            DPolynomial(s) => Self::DPolynomial(Cow::Owned(s.into_owned().into())),
+        }
+    }
+}
+
 
 impl<'a, F: 'a + Field> From<DensePolynomial<F>> for DenseOrSparsePolynomial<'a, F> {
     fn from(other: DensePolynomial<F>) -> Self {

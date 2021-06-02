@@ -7,10 +7,11 @@ use ark_serialize::*;
 use ark_std::{
     fmt,
     ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub, SubAssign},
+    convert::From,
     vec::Vec,
 };
 
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{FftField, Field, Zero, poly_stub};
 use ark_std::rand::Rng;
 
 #[cfg(feature = "parallel")]
@@ -23,6 +24,22 @@ use rayon::prelude::*;
 pub struct DensePolynomial<F: Field> {
     /// The coefficient of `x^i` is stored at location `i` in `self.coeffs`.
     pub coeffs: Vec<F>,
+}
+
+impl<F: Field> From<DensePolynomial<F>> for poly_stub::DensePolynomial<F> {
+    fn from(p: DensePolynomial<F>) -> Self {
+        Self {
+            coeffs: p.coeffs,
+        }
+    }
+}
+
+impl<F: Field> From<poly_stub::DensePolynomial<F>> for DensePolynomial<F> {
+    fn from(p: poly_stub::DensePolynomial<F>) -> Self {
+        Self {
+            coeffs: p.coeffs,
+        }
+    }
 }
 
 impl<F: Field> Polynomial<F> for DensePolynomial<F> {

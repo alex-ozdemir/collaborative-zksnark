@@ -2,7 +2,7 @@
 use crate::polynomial::Polynomial;
 use crate::univariate::{DenseOrSparsePolynomial, DensePolynomial};
 use crate::{EvaluationDomain, Evaluations, UVPolynomial};
-use ark_ff::{FftField, Field, Zero};
+use ark_ff::{FftField, Field, Zero, poly_stub};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::{
     collections::BTreeMap,
@@ -20,6 +20,23 @@ pub struct SparsePolynomial<F: Field> {
     /// `i`.
     pub coeffs: Vec<(usize, F)>,
 }
+
+impl<F: Field> From<SparsePolynomial<F>> for poly_stub::SparsePolynomial<F> {
+    fn from(p: SparsePolynomial<F>) -> Self {
+        Self {
+            coeffs: p.coeffs,
+        }
+    }
+}
+
+impl<F: Field> From<poly_stub::SparsePolynomial<F>> for SparsePolynomial<F> {
+    fn from(p: poly_stub::SparsePolynomial<F>) -> Self {
+        Self {
+            coeffs: p.coeffs,
+        }
+    }
+}
+
 
 impl<F: Field> fmt::Debug for SparsePolynomial<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
