@@ -5,6 +5,12 @@ cargo build --bin client
 
 BIN=./target/debug/client
 
+# marlin
+RUST_BACKTRACE=1 $BIN --port 8001 --peer-host localhost --peer-port 8000 marlin --party 0 & ; pid0=$!
+$BIN --port 8000 --peer-host localhost --peer-port 8001 marlin --party 1 &> /dev/null & ; pid1=$!
+
+wait $pid0 $pid1
+
 $BIN --port 8001 --peer-host localhost --peer-port 8000 -d sum 1 0 --party 0 & ; pid0=$!
 $BIN --port 8000 --peer-host localhost --peer-port 8001 -d sum 0 1 --party 1 & ; pid1=$!
 
