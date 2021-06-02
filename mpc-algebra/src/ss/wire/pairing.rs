@@ -25,6 +25,7 @@ use mpc_net;
 use mpc_trait::MpcWire;
 
 use super::super::share::field::{ExtFieldShare, ScalarShare};
+use super::super::share::group::GroupShare;
 use super::super::share::pairing::PairingShare;
 use super::super::share::BeaverSource;
 use super::field::MpcField;
@@ -748,6 +749,9 @@ macro_rules! impl_aff_proj {
                 // This is shared because the big intergers are representations of a shared value.
                 product.cast_to_shared();
                 product
+            }
+            fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S) -> Self::Projective {
+                (*self * other.into()).into()
             }
         }
         impl<E: PairingEngine, PS: PairingShare<E>> ProjectiveCurve for $w_pro<E, PS> {
