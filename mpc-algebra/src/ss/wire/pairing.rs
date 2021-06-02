@@ -523,20 +523,6 @@ macro_rules! impl_ext_field_wrapper {
             }
         }
 
-        // impl<F: PrimeField, S: ExtFieldShare<F>> PrimeField for $wrap<F, S> {
-        //     type Params = F::Params;
-        //     type BigInt = F::BigInt;
-        //     fn from_repr(r: <Self as PrimeField>::BigInt) -> Option<Self> {
-        //         // F::from_repr(r.val).map(|v| MpcVal::new(v, r.shared))
-        //         F::from_repr(r).map(|v| Self::from_public(v))
-        //     }
-        //     // We're assuming that into_repr is linear
-        //     fn into_repr(&self) -> <Self as PrimeField>::BigInt {
-        //         // MpcVal::new(self.val.into_repr(), self.shared)
-        //         self.unwrap_as_public().into_repr()
-        //     }
-        // }
-
         impl<F: SquareRootField, S: ExtFieldShare<F>> SquareRootField for $wrap<F, S> {
             fn legendre(&self) -> ark_ff::LegendreSymbol {
                 todo!()
