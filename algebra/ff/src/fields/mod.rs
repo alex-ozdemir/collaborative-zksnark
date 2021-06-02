@@ -33,6 +33,8 @@ pub mod arithmetic;
 pub mod models;
 pub use self::models::*;
 
+pub mod poly_stub;
+
 #[cfg(feature = "parallel")]
 use ark_std::cmp::max;
 #[cfg(feature = "parallel")]
@@ -229,6 +231,20 @@ pub trait Field:
             let last = selfs[i - 1];
             selfs[i] *= &last;
         }
+    }
+
+    fn has_univariate_div_qr() -> bool {
+        false
+    }
+
+    fn univariate_div_qr<'a>(
+        _num: poly_stub::DenseOrSparsePolynomial<'a, Self>,
+        _den: &poly_stub::DenseOrSparsePolynomial<'a, Self>,
+    ) -> Option<(
+        poly_stub::DensePolynomial<Self>,
+        poly_stub::DensePolynomial<Self>,
+    )> {
+        panic!("No special division algorithm")
     }
 }
 
