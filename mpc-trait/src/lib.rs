@@ -5,7 +5,6 @@ use std::borrow::Cow;
 pub trait MpcWire: Clone {
     type Public = Self;
     fn publicize(&mut self) {}
-    fn set_shared(&mut self, _shared: bool) {}
     fn is_shared(&self) -> bool {
         false
     }
@@ -40,11 +39,6 @@ impl<T: MpcWire> MpcWire for Vec<T> {
             x.publicize();
         }
     }
-    fn set_shared(&mut self, shared: bool) {
-        for x in self {
-            x.set_shared(shared);
-        }
-    }
     fn is_shared(&self) -> bool {
         for x in self {
             if x.is_shared() {
@@ -59,11 +53,6 @@ impl<T: MpcWire> MpcWire for Option<T> {
     fn publicize(&mut self) {
         for x in self {
             x.publicize();
-        }
-    }
-    fn set_shared(&mut self, shared: bool) {
-        for x in self {
-            x.set_shared(shared);
         }
     }
     fn is_shared(&self) -> bool {
@@ -87,11 +76,6 @@ macro_rules! struct_mpc_wire_impl {
                 self.$x.publicize();
             )*
         }
-        fn set_shared(&mut self, shared: bool) {
-            $(
-                self.$x.set_shared(shared);
-            )*
-        }
         fn is_shared(&self) -> bool {
             $(
                 if self.$x.is_shared() {
@@ -112,11 +96,6 @@ macro_rules! struct_mpc_wire_simp_impl {
         fn publicize(&mut self) {
             $(
                 self.$x.publicize();
-            )*
-        }
-        fn set_shared(&mut self, shared: bool) {
-            $(
-                self.$x.set_shared(shared);
             )*
         }
         fn is_shared(&self) -> bool {

@@ -357,10 +357,6 @@ macro_rules! impl_pairing_mpc_wrapper {
                 self.val.publicize();
             }
             #[inline]
-            fn set_shared(&mut self, shared: bool) {
-                self.val.set_shared(shared);
-            }
-            #[inline]
             fn is_shared(&self) -> bool {
                 self.val.is_shared()
             }

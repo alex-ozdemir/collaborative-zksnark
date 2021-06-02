@@ -55,13 +55,6 @@ impl<F: Field> MpcWire for ProverMsg<F> {
             ProverMsg::FieldElements(d) => d.is_shared(),
         }
     }
-
-    fn set_shared(&mut self, shared: bool) {
-        match self {
-            ProverMsg::EmptyMessage => {}
-            ProverMsg::FieldElements(d) => d.set_shared(shared)
-        }
-    }
 }
 
 impl<E: PairingEngine, S: PairingShare<E>> Reveal

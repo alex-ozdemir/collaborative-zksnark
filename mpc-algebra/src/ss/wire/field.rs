@@ -237,20 +237,6 @@ impl<T: Field, S: ScalarShare<T>> MpcWire for MpcField<T, S> {
         })
     }
     #[inline]
-    fn set_shared(&mut self, shared: bool) {
-        if shared != self.is_shared() {
-            match self {
-                Self::Shared(s) => {
-                    let p = s.unwrap_as_public();
-                    *self = Self::Public(p);
-                }
-                Self::Public(s) => {
-                    *self = Self::Shared(S::wrap_as_shared(*s));
-                }
-            }
-        }
-    }
-    #[inline]
     fn is_shared(&self) -> bool {
         match self {
             MpcField::Shared(_) => true,
