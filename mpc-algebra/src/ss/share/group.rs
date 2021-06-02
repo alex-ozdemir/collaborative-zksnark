@@ -115,14 +115,13 @@ pub trait GroupShare<G: Group>:
     /// Compute \sum_i (s_i * g_i)
     /// where the s_i are shared and the g_i are public.
     fn multi_scale_pub_group(bases: &[G], scalars: &[Self::ScalarShare]) -> Self {
-        let mut ps = bases
+        bases
             .into_iter()
             .zip(scalars.into_iter())
-            .map(|(g, s)| Self::scale_pub_group(g.clone(), &s));
-        let mut acc = ps.next().expect("empty msm");
-        for p in ps {
-            acc.add(&p);
-        }
-        acc
+            .map(|(g, s)| Self::scale_pub_group(g.clone(), &s))
+            .fold(Self::wrap_as_shared(G::zero()), |mut acc, n| {
+                acc.add(&n);
+                acc
+            })
     }
 }
