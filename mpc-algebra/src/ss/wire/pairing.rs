@@ -716,15 +716,9 @@ macro_rules! impl_aff_proj {
             #[inline]
             fn mul<S: Into<<Self::ScalarField as PrimeField>::BigInt>>(
                 &self,
-                s: S,
+                _s: S,
             ) -> <Self as AffineCurve>::Projective {
-                let bigint = s.into();
-                let mut scalar = Self::ScalarField::from_repr(bigint).unwrap();
-                scalar.set_shared(true);
-                (Self {
-                    val: self.val * scalar,
-                })
-                .into()
+                unimplemented!("mul by bigint")
             }
             fn mul_by_cofactor_to_projective(&self) -> <Self as AffineCurve>::Projective {
                 todo!("AffineCurve::mul_by_cofactor_to_projective")
