@@ -5,14 +5,14 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags,
 };
-use ark_std::{start_timer, end_timer};
+use ark_std::{end_timer, start_timer};
 use core::ops::*;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use super::field::ScalarShare;
 use super::BeaverSource;
 use mpc_trait::Reveal;
-use super::field::ScalarShare;
 
 /// Secret sharing scheme which support affine functions of secrets.
 pub trait GroupShare<G: Group>:

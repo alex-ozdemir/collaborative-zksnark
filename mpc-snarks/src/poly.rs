@@ -60,13 +60,13 @@ impl<'a, 'b> std::ops::Div<&'b MpcVal<P>> for &'a MpcVal<P> {
         if self.shared {
             let mut cs = self.val.coeffs().to_owned();
             for c in &mut cs {
-                c.cast_to_public();
+                c.set_shared(false);
             }
             let self_ = MP::from_coefficients_vec(cs);
             let r = &self_ / other;
             let mut cs = r.val.coeffs().to_owned();
             for c in &mut cs {
-                c.cast_to_shared();
+                c.set_shared(true);
             }
             MP::from_coefficients_vec(cs)
         } else {

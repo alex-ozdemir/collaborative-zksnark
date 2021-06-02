@@ -129,7 +129,8 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>> Proof<F, PC
     pub fn print_size_info(&self) {
         use ark_poly_commit::{PCCommitment, PCProof};
 
-        let size_of_fe_in_bytes = F::zero().into_repr().as_ref().len() * 8;
+        let size_of_fe_in_bytes = F::zero().serialized_size();
+            //F::zero().into_repr().as_ref().len() * 8;
         let mut num_comms_without_degree_bounds = 0;
         let mut num_comms_with_degree_bounds = 0;
         let mut size_bytes_comms_without_degree_bounds = 0;
