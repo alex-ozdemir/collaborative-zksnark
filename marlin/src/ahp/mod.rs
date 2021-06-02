@@ -307,6 +307,7 @@ impl<F: Field, T: Borrow<LabeledPolynomial<F>>> EvaluationsProvider<F> for Vec<T
             };
             eval += *coeff * value
         }
+        eval.publicize();
         Ok(eval)
     }
 }
