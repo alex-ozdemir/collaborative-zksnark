@@ -44,6 +44,8 @@ pub trait GroupShare<G: Group>:
 
     fn wrap_as_shared(g: G) -> Self;
 
+    fn from_public(g: G) -> Self;
+
     fn map_homo<G2: Group, S2: GroupShare<G2>, Fun: Fn(G) -> G2>(self, f: Fun) -> S2 {
         S2::wrap_as_shared(f(self.unwrap_as_public()))
     }

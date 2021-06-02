@@ -47,6 +47,7 @@ arg_enum! {
         PolyEval,
         MarlinPc,
         MarlinPcBatch,
+        Msm,
         Kzg,
         KzgZk,
         KzgZkBatch,
@@ -124,6 +125,7 @@ impl Opt {
             | Computation::Plonk
             | Computation::Kzg
             | Computation::KzgZk
+            | Computation::Msm
             | Computation::KzgZkBatch
             | Computation::MarlinPc
             | Computation::MarlinPcBatch => ComputationDomain::BlsPairing,
@@ -457,6 +459,21 @@ impl Computation {
                 )
                 .unwrap();
                 assert_eq!(result, true);
+                vec![]
+            }
+            Computation::Msm => {
+                let rng = &mut rand::rngs::StdRng::from_seed([0u8; 32]);
+                let ps: Vec<MFr> = (0..inputs.len()).map(|_| MFr::public_rand(rng)).collect();
+                let sum: MFr = inputs.iter().zip(ps.iter()).map(|(a, b)| *a * b).sum();
+                let mut public_gens = vec![<ME as PairingEngine>::G1Affine::prime_subgroup_generator(); inputs.len()];
+                for (g, c) in public_gens.iter_mut().zip(ps.iter()) {
+                    *g = g.scalar_mul(*c).into();
+                }
+                let mut msm = <ME as PairingEngine>::G1Affine::multi_scalar_mul(&public_gens, &inputs);
+                let mut expected = <ME as PairingEngine>::G1Projective::prime_subgroup_generator().scalar_mul(&sum);
+                msm.publicize();
+                expected.publicize();
+                assert_eq!(msm, expected);
                 vec![]
             }
             c => unimplemented!("Cannot run_bls {:?}", c),

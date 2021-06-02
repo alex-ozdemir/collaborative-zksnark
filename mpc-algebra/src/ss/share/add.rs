@@ -142,6 +142,13 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
         }
     }
 
+    fn from_public(g: G) -> Self {
+        Self {
+            val: if mpc_net::am_first() { g } else { G::zero() },
+            _phants: PhantomData::default(),
+        }
+    }
+
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
         let mut self_vec: Vec<G> = selfs.into_iter().map(|s| s.val).collect();
         let other_val = channel::exchange(&self_vec);

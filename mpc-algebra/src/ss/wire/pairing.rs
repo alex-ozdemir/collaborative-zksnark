@@ -8,8 +8,8 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
-use ark_std::{cfg_into_iter,start_timer, end_timer};
 use ark_std::io::{self, Read, Write};
+use ark_std::{cfg_into_iter, end_timer, start_timer};
 use core::ops::*;
 use derivative::Derivative;
 use rand::Rng;
@@ -649,7 +649,7 @@ impl_pairing_curve_wrapper!(
 impl_ext_field_wrapper!(MpcField, MpcExtField);
 
 macro_rules! impl_aff_proj {
-    ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $pro_to_aff:ident, $aff_to_pro:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident) => {
+    ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $pro_to_aff:ident, $aff_to_pro:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident, $share_proj:ident) => {
         impl<E: PairingEngine, PS: PairingShare<E>> Group for $w_aff<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
         }
@@ -727,22 +727,83 @@ macro_rules! impl_aff_proj {
                 todo!("AffineCurve::mul_by_cofactor_inv")
             }
             fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
-                assert!(bases.iter().all(|b| !b.is_shared()));
-                let bigint_scalars = cfg_into_iter!(scalars)
-                    .map(|s| {
-                        if s.is_shared() || mpc_net::am_first() {
-                            s.into_repr()
-                        } else {
-                            Self::ScalarField::from(0u64).into_repr()
+                // println!("Sizes: {} {}", bases.len(), scalars.len());
+                //println!("Scalars: {:#?}", scalars);
+                // let a = {
+                //     let bigint_scalars = cfg_into_iter!(scalars)
+                //         .map(|s| {
+                //             if s.is_shared() || mpc_net::am_first() {
+                //                 s.into_repr()
+                //             } else {
+                //                 Self::ScalarField::from(0u64).into_repr()
+                //             }
+                //         })
+                //         .collect::<Vec<_>>();
+                //     let t = start_timer!(|| "MSM inner");
+                //     let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
+                //     end_timer!(t);
+                //     // This is shared because the big intergers are representations of a shared value.
+                //     product.cast_to_shared();
+                //     product
+                // };
+                let b = {
+                    assert!(bases.iter().all(|b| !b.is_shared()));
+                    let scalars_shared = scalars.first().map(|s| s.is_shared()).unwrap_or(true);
+                    assert!(scalars.iter().all(|b| scalars_shared == b.is_shared()));
+                    let bases =
+                        MpcGroup::all_public_or_shared(bases.into_iter().map(|i| i.val.clone()))
+                            .unwrap();
+                    match MpcField::all_public_or_shared(scalars.into_iter().cloned()) {
+                        Ok(pub_scalars) => {
+                            let t = start_timer!(|| "MSM inner");
+                            let r = $w_pro {
+                                // wat?
+                                val: if true {
+                                    MpcGroup::Shared(
+                                        <PS::$share_proj as GroupShare<E::$pro>>::from_public(
+                                            <E::$aff as AffineCurve>::multi_scalar_mul(
+                                                &bases,
+                                                &pub_scalars,
+                                            ),
+                                        ),
+                                    )
+                                } else {
+                                    MpcGroup::Public(<E::$aff as AffineCurve>::multi_scalar_mul(
+                                        &bases,
+                                        &pub_scalars,
+                                    ))
+                                },
+                            };
+                            end_timer!(t);
+                            r
                         }
-                    })
-                    .collect::<Vec<_>>();
-                let t = start_timer!(|| "MSM inner");
-                let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
-                end_timer!(t);
-                // This is shared because the big intergers are representations of a shared value.
-                product.cast_to_shared();
-                product
+                        Err(priv_scalars) => {
+                            let t = start_timer!(|| "MSM inner");
+                            let r = $w_pro {
+                                val: MpcGroup::Shared(PS::$aff_to_pro(
+                                    <PS::$share_aff as GroupShare<E::$aff>>::multi_scale_pub_group(
+                                        &bases,
+                                        &priv_scalars,
+                                    ),
+                                )),
+                            };
+                            end_timer!(t);
+                            r
+                        }
+                    }
+                };
+                // {
+                //     let mut pa = a;
+                //     let mut pb = b;
+                //     pa.publicize();
+                //     pb.publicize();
+                //     println!("{}\n->\n{}", a, pa);
+                //     println!("{}\n->\n{}", b, pb);
+                //     println!("Check eq!");
+                //     //assert_eq!(a, b);
+                //     assert_eq!(pa, pb);
+                // }
+                b
             }
             fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S) -> Self::Projective {
                 (*self * other.into()).into()
@@ -815,7 +876,8 @@ impl_aff_proj!(
     MpcField,
     Fq,
     FqShare,
-    G1AffineShare
+    G1AffineShare,
+    G1ProjectiveShare
 );
 impl_aff_proj!(
     MpcG2Prep,
@@ -829,5 +891,6 @@ impl_aff_proj!(
     MpcExtField,
     Fqe,
     FqeShare,
-    G2AffineShare
+    G2AffineShare,
+    G2ProjectiveShare
 );

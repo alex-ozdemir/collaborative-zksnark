@@ -346,6 +346,7 @@ pub struct GroupProjective<P: Parameters> {
 impl<P: Parameters> Display for GroupProjective<P> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", GroupAffine::from(*self))
+        //write!(f, "GroupProjective(x={}, y={}, z={})", self.x, self.y, self.z)
     }
 }
 

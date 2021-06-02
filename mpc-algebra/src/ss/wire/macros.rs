@@ -28,7 +28,7 @@ macro_rules! impl_basics_2 {
             #[inline]
             pub fn new(t: T, shared: bool) -> Self {
                 if shared {
-                    Self::Shared(S::from_public(t))
+                    Self::Shared(<S as Reveal>::from_public(t))
                 } else {
                     Self::Public(t)
                 }

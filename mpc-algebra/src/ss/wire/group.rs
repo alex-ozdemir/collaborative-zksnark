@@ -215,10 +215,10 @@ impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
         }
         if out_a.len() > 0 && out_b.len() > 0 {
             panic!("Heterogeous")
-        } else if out_a.len() > 0 {
-            Ok(out_a)
-        } else {
+        } else if out_b.len() > 0 {
             Err(out_b)
+        } else {
+            Ok(out_a)
         }
     }
 }
