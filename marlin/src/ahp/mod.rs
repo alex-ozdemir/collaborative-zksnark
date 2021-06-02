@@ -454,19 +454,19 @@ mod tests {
         let v_h: DenseOrSparsePolynomial<_> = domain_h.vanishing_polynomial().into();
         let (divisor, remainder) = v_k.divide_with_q_and_r(&v_h).unwrap();
         assert!(remainder.is_zero());
-        println!("Divisor: {:?}", divisor);
-        println!(
-            "{:#?}",
-            divisor
-                .coeffs
-                .iter()
-                .filter_map(|f| if !f.is_zero() {
-                    Some(f.into_repr())
-                } else {
-                    None
-                })
-                .collect::<Vec<_>>()
-        );
+        // println!("Divisor: {:?}", divisor);
+        // println!(
+        //     "{:#?}",
+        //     divisor
+        //         .coeffs
+        //         .iter()
+        //         .filter_map(|f| if !f.is_zero() {
+        //             Some(f.into_repr())
+        //         } else {
+        //             None
+        //         })
+        //         .collect::<Vec<_>>()
+        // );
 
         for e in domain_h.elements() {
             println!("{:?}", divisor.evaluate(&e));
@@ -486,19 +486,19 @@ mod tests {
             .divide_with_q_and_r(&DenseOrSparsePolynomial::from(divisor))
             .unwrap();
         assert!(remainder.is_zero());
-        println!("quotient: {:?}", quotient);
-        println!(
-            "{:#?}",
-            quotient
-                .coeffs
-                .iter()
-                .filter_map(|f| if !f.is_zero() {
-                    Some(f.into_repr())
-                } else {
-                    None
-                })
-                .collect::<Vec<_>>()
-        );
+        // println!("quotient: {:?}", quotient);
+        // println!(
+        //     "{:#?}",
+        //     quotient
+        //         .coeffs
+        //         .iter()
+        //         .filter_map(|f| if !f.is_zero() {
+        //             Some(f.into_repr())
+        //         } else {
+        //             None
+        //         })
+        //         .collect::<Vec<_>>()
+        // );
 
         println!("{:?}", alternator_poly);
     }

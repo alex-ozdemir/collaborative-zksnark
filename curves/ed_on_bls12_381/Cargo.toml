@@ -15,7 +15,7 @@ edition = "2018"
 [dependencies]
 ark-ff = { version = "^0.2.0", path = "../../algebra/ff", default-features = false }
 ark-ec = { version = "^0.2.0", path = "../../algebra/ec", default-features = false }
-ark-std = { path = "../util",  path = "../util", default-features = false }
+ark-std = { path = "../../utils", default-features = false }
 ark-r1cs-std = { version = "^0.2.0", path = "../../r1cs-std", default-features = false, optional = true }
 ark-bls12-381 = { version = "^0.2.0", path = "../bls12_381", default-features = false, features = [ "scalar_field" ] }
 
