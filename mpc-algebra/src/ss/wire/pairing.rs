@@ -648,7 +648,7 @@ impl_pairing_curve_wrapper!(
 impl_ext_field_wrapper!(MpcField, MpcExtField);
 
 macro_rules! impl_aff_proj {
-    ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $pro_to_aff:ident, $aff_to_pro:ident, $w_base:ident, $base:ident, $base_share:ident) => {
+    ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $pro_to_aff:ident, $aff_to_pro:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident) => {
         impl<E: PairingEngine, PS: PairingShare<E>> Group for $w_aff<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
         }
@@ -777,7 +777,11 @@ macro_rules! impl_aff_proj {
                         let mut s = self.val.unwrap_as_public_or_add_shared();
                         let t = o.val.unwrap_as_public_or_add_shared();
                         s.add_assign_mixed(&t);
-                        self.val = if self_s { Reveal::from_add_shared(s) } else { Reveal::from_public(s) };
+                        self.val = if self_s {
+                            Reveal::from_add_shared(s)
+                        } else {
+                            Reveal::from_public(s)
+                        };
                     }
                     (true, false) => {
                         if mpc_net::am_first() {
@@ -794,15 +798,8 @@ macro_rules! impl_aff_proj {
                     }
                 }
             }
-            fn mul<S: AsRef<[u64]>>(self, scalar_words: S) -> Self {
-                // Cast s to bigint..
-                let mut scalar = <Self::ScalarField as PrimeField>::BigInt::from(0u64);
-                scalar.as_mut().copy_from_slice(scalar_words.as_ref());
-                let mut scalar = Self::ScalarField::from_repr(scalar).unwrap();
-                scalar.cast_to_shared();
-                Self {
-                    val: self.val * scalar,
-                }
+            fn mul<S: AsRef<[u64]>>(self, _scalar_words: S) -> Self {
+                unimplemented!("mul by words")
             }
         }
     };
@@ -819,7 +816,8 @@ impl_aff_proj!(
     g1_share_aff_to_proj,
     MpcField,
     Fq,
-    FqShare
+    FqShare,
+    G1AffineShare
 );
 impl_aff_proj!(
     MpcG2Prep,
@@ -832,5 +830,6 @@ impl_aff_proj!(
     g2_share_aff_to_proj,
     MpcExtField,
     Fqe,
-    FqeShare
+    FqeShare,
+    G2AffineShare
 );
