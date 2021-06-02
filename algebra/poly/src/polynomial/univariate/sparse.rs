@@ -232,13 +232,6 @@ impl<F: Field> SparsePolynomial<F> {
         first_shared
     }
 
-    /// Cast all coefficients to public
-    pub fn cast_visibility(&mut self, shared: bool) {
-        for c in &mut self.coeffs {
-            c.1.set_shared(shared);
-        }
-    }
-
     /// Constructs a new polynomial from a list of coefficients.
     pub fn from_coefficients_vec(mut coeffs: Vec<(usize, F)>) -> Self {
         // While there are zeros at the end of the coefficient vector, pop them off.

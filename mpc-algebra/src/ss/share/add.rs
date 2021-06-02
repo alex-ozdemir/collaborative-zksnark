@@ -5,11 +5,13 @@ use ark_ec::group::Group;
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
+use ark_poly::UVPolynomial;
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 
+use std::borrow::Cow;
 use std::cmp::Ord;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
@@ -19,7 +21,9 @@ use std::marker::PhantomData;
 use crate::channel;
 use mpc_net;
 
-use super::field::{ExtFieldShare, ScalarShare};
+use super::field::{
+    DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, ScalarShare, SparsePolynomial,
+};
 use super::group::GroupShare;
 use super::pairing::PairingShare;
 use super::BeaverSource;
@@ -28,6 +32,49 @@ use crate::Reveal;
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AdditiveScalarShare<T> {
     val: T,
+}
+
+impl<F: Field> AdditiveScalarShare<F> {
+    fn poly_share<'a>(
+        p: DenseOrSparsePolynomial<Self>,
+    ) -> ark_poly::univariate::DenseOrSparsePolynomial<'a, F> {
+        match p {
+            Ok(p) => ark_poly::univariate::DenseOrSparsePolynomial::DPolynomial(Cow::Owned(
+                Self::d_poly_share(p),
+            )),
+            Err(p) => ark_poly::univariate::DenseOrSparsePolynomial::SPolynomial(Cow::Owned(
+                Self::s_poly_share(p),
+            )),
+        }
+    }
+    fn d_poly_share(p: DensePolynomial<Self>) -> ark_poly::univariate::DensePolynomial<F> {
+        ark_poly::univariate::DensePolynomial::from_coefficients_vec(
+            p.into_iter().map(|s| s.val).collect(),
+        )
+    }
+    fn s_poly_share(p: SparsePolynomial<Self>) -> ark_poly::univariate::SparsePolynomial<F> {
+        ark_poly::univariate::SparsePolynomial::from_coefficients_vec(
+            p.into_iter().map(|(i, s)| (i, s.val)).collect(),
+        )
+    }
+    fn poly_share2<'a>(
+        p: DenseOrSparsePolynomial<F>,
+    ) -> ark_poly::univariate::DenseOrSparsePolynomial<'a, F> {
+        match p {
+            Ok(p) => ark_poly::univariate::DenseOrSparsePolynomial::DPolynomial(Cow::Owned(
+                ark_poly::univariate::DensePolynomial::from_coefficients_vec(p),
+            )),
+            Err(p) => ark_poly::univariate::DenseOrSparsePolynomial::SPolynomial(Cow::Owned(
+                ark_poly::univariate::SparsePolynomial::from_coefficients_vec(p),
+            )),
+        }
+    }
+    fn d_poly_unshare(p: ark_poly::univariate::DensePolynomial<F>) -> DensePolynomial<Self> {
+        p.coeffs
+            .into_iter()
+            .map(|s| Self::wrap_as_shared(s))
+            .collect()
+    }
 }
 
 impl<F: Field> Reveal for AdditiveScalarShare<F> {
@@ -83,6 +130,16 @@ impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
             self.val += other;
         }
         self
+    }
+
+    fn univariate_div_qr<'a>(
+        num: DenseOrSparsePolynomial<Self>,
+        den: DenseOrSparsePolynomial<F>,
+    ) -> Option<(DensePolynomial<Self>, DensePolynomial<Self>)> {
+        let num = Self::poly_share(num);
+        let den = Self::poly_share2(den);
+        num.divide_with_q_and_r(&den)
+            .map(|(q, r)| (Self::d_poly_unshare(q), Self::d_poly_unshare(r)))
     }
 }
 
@@ -462,8 +519,10 @@ impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
     type FqkShare = MulExtFieldShare<E::Fqk>;
     type G1AffineShare = AdditiveGroupShare<E::G1Affine, AdditiveAffineMsm<E::G1Affine>>;
     type G2AffineShare = AdditiveGroupShare<E::G2Affine, AdditiveAffineMsm<E::G2Affine>>;
-    type G1ProjectiveShare = AdditiveGroupShare<E::G1Projective, AdditiveProjectiveMsm<E::G1Projective>>;
-    type G2ProjectiveShare = AdditiveGroupShare<E::G2Projective, AdditiveProjectiveMsm<E::G2Projective>>;
+    type G1ProjectiveShare =
+        AdditiveGroupShare<E::G1Projective, AdditiveProjectiveMsm<E::G1Projective>>;
+    type G2ProjectiveShare =
+        AdditiveGroupShare<E::G2Projective, AdditiveProjectiveMsm<E::G2Projective>>;
     fn g1_share_aff_to_proj(g: Self::G1AffineShare) -> Self::G1ProjectiveShare {
         g.map_homo(|s| s.into())
     }
@@ -484,11 +543,15 @@ pub struct NaiveMsm<G: Group>(pub PhantomData<G>);
 
 impl<G: Group> Msm<G, G::ScalarField> for NaiveMsm<G> {
     fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
-        bases.iter().zip(scalars.iter()).map(|(b, s)| {
-            let mut b = b.clone();
-            b *= *s;
-            b
-        }).fold(G::zero(), |a, b| a + b)
+        bases
+            .iter()
+            .zip(scalars.iter())
+            .map(|(b, s)| {
+                let mut b = b.clone();
+                b *= *s;
+                b
+            })
+            .fold(G::zero(), |a, b| a + b)
     }
 }
 

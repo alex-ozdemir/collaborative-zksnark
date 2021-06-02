@@ -4,6 +4,7 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags,
 };
+//use ark_poly::univariate::{DensePolynomial,DenseOrSparsePolynomial};
 use core::ops::*;
 use std::cmp::Ord;
 use std::fmt::{Debug, Display};
@@ -184,8 +185,21 @@ pub trait ScalarShare<F: Field>:
         mms_inv
     }
 
+    fn univariate_div_qr<'a>(
+        _num: DenseOrSparsePolynomial<Self>,
+        _den: DenseOrSparsePolynomial<F>,
+    ) -> Option<(
+        DensePolynomial<Self>,
+        DensePolynomial<Self>,
+    )> {
+        todo!("Implement generic poly div")
+    }
 
 }
+
+pub type DensePolynomial<T> = Vec<T>;
+pub type SparsePolynomial<T> = Vec<(usize, T)>;
+pub type DenseOrSparsePolynomial<T> = Result<DensePolynomial<T>, SparsePolynomial<T>>;
 
 pub trait ExtFieldShare<F: Field>:
     Clone + Copy + Debug + 'static + Send + Sync + PartialEq + Eq

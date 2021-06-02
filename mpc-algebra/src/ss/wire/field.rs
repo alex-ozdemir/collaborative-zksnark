@@ -5,7 +5,7 @@ use zeroize::Zeroize;
 
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
-use ark_ff::FftField;
+use ark_ff::{poly_stub, FftField};
 use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
@@ -444,6 +444,48 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
                 selfs[i] *= &last;
             }
         }
+    }
+    fn has_univariate_div_qr() -> bool {
+        true
+    }
+    fn univariate_div_qr<'a>(
+        num: poly_stub::DenseOrSparsePolynomial<Self>,
+        den: poly_stub::DenseOrSparsePolynomial<Self>,
+    ) -> Option<(
+        poly_stub::DensePolynomial<Self>,
+        poly_stub::DensePolynomial<Self>,
+    )> {
+        use poly_stub::DenseOrSparsePolynomial::*;
+        let shared_num = match num {
+            DPolynomial(d) => Ok(d.into_owned().coeffs.into_iter().map(|c| match c {
+                MpcField::Shared(s) => s,
+                MpcField::Public(_) => panic!("public numerator"),
+            }).collect()),
+            SPolynomial(d) => Err(d.into_owned().coeffs.into_iter().map(|(i, c)| match c {
+                MpcField::Shared(s) => (i, s),
+                MpcField::Public(_) => panic!("public numerator"),
+            }).collect()),
+        };
+        let pub_denom = match den {
+            DPolynomial(d) => Ok(d.into_owned().coeffs.into_iter().map(|c| match c {
+                MpcField::Public(s) => s,
+                MpcField::Shared(_) => panic!("shared denominator"),
+            }).collect()),
+            SPolynomial(d) => Err(d.into_owned().coeffs.into_iter().map(|(i, c)| match c {
+                MpcField::Public(s) => (i, s),
+                MpcField::Shared(_) => panic!("shared denominator"),
+            }).collect()),
+        };
+        S::univariate_div_qr(shared_num, pub_denom).map(|(q, r)| {
+            (
+                poly_stub::DensePolynomial {
+                    coeffs: q.into_iter().map(|qc| MpcField::Shared(qc)).collect(),
+                },
+                poly_stub::DensePolynomial {
+                    coeffs: r.into_iter().map(|rc| MpcField::Shared(rc)).collect(),
+                },
+            )
+        })
     }
 }
 

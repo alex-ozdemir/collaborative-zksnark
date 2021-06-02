@@ -239,7 +239,7 @@ pub trait Field:
 
     fn univariate_div_qr<'a>(
         _num: poly_stub::DenseOrSparsePolynomial<'a, Self>,
-        _den: &poly_stub::DenseOrSparsePolynomial<'a, Self>,
+        _den: poly_stub::DenseOrSparsePolynomial<'a, Self>,
     ) -> Option<(
         poly_stub::DensePolynomial<Self>,
         poly_stub::DensePolynomial<Self>,

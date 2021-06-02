@@ -89,12 +89,6 @@ impl<F: Field> DensePolynomial<F> {
         }
         first_shared
     }
-    /// Cast all coefficients to public
-    pub fn cast_visibility(&mut self, shared: bool) {
-        for c in &mut self.coeffs {
-            c.set_shared(shared);
-        }
-    }
 
     #[cfg(not(feature = "parallel"))]
     fn internal_evaluate(&self, point: &F) -> F {
