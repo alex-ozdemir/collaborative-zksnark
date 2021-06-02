@@ -18,8 +18,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 mod groth;
 mod marlin;
 mod silly;
-use mpc_algebra::{channel, ss::honest_but_curious::*};
-use mpc_trait::Reveal;
+use mpc_algebra::{Reveal, channel, ss::honest_but_curious::*};
 
 // Field
 type Fr = ark_bls12_377::Fr;
@@ -189,7 +188,7 @@ mod squarings {
         use mpc_plonk::relations::flat::CircuitLayout;
         use mpc_plonk::relations::structured::PlonkCircuit;
         use mpc_plonk::*;
-        use mpc_trait::Reveal;
+        use mpc_algebra::Reveal;
 
         fn plonk_squaring_circuit<F: Field>(c: RepeatedSquaringCircuit<F>) -> PlonkCircuit<F> {
             let n_gates = c.chain.len() as u32 - 1;

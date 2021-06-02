@@ -10,7 +10,7 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 use super::BeaverSource;
-use mpc_trait::Reveal;
+use crate::Reveal;
 
 pub trait ScalarShare<F: Field>:
     Clone
@@ -183,6 +183,8 @@ pub trait ScalarShare<F: Field>:
         debug_assert!(mxm_pub.len() == n);
         mms_inv
     }
+
+
 }
 
 pub trait ExtFieldShare<F: Field>:

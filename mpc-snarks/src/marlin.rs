@@ -5,7 +5,7 @@ use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_std::{end_timer, start_timer, test_rng};
 use blake2::Blake2s;
 use mpc_algebra::ss::honest_but_curious::*;
-use mpc_trait::Reveal;
+use mpc_algebra::Reveal;
 
 fn prover_message_publicize(
     p: ProverMsg<MpcField<ark_bls12_377::Fr>>,

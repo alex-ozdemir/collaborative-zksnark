@@ -20,7 +20,7 @@ rayon = { version = "1", optional = true }
 derivative = { version = "2", default-features = false, features = [ "use_core" ] }
 hashbrown = { version = "0.11.1"}
 mpc-trait = { path = "../../mpc-trait" }
-mpc-algebra = { path = "../../mpc-algebra" }
+#mpc-algebra = { path = "../../mpc-algebra" }
 
 [dev-dependencies]
 ark-test-curves = { path = "../test-curves", default-features = false, features = [ "bls12_381_curve", "bn384_small_two_adicity_curve"] }

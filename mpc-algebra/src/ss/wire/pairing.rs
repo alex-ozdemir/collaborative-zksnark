@@ -29,7 +29,7 @@ use super::super::share::pairing::PairingShare;
 use super::super::share::BeaverSource;
 use super::field::MpcField;
 use super::group::MpcGroup;
-use mpc_trait::Reveal;
+use crate::Reveal;
 
 #[derive(Derivative)]
 #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]

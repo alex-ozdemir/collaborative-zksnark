@@ -20,8 +20,8 @@ use std::ops::*;
 
 use super::super::share::field::ScalarShare;
 use super::super::share::BeaverSource;
+use crate::Reveal;
 use mpc_net;
-use mpc_trait::Reveal;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: ScalarShare<F>> {
@@ -86,7 +86,7 @@ impl<T: Field, S: ScalarShare<T>> MpcField<T, S> {
             )),
         }
     }
-    pub fn all_public_or_shared(v: impl IntoIterator<Item=Self>) -> Result<Vec<T>, Vec<S>> {
+    pub fn all_public_or_shared(v: impl IntoIterator<Item = Self>) -> Result<Vec<T>, Vec<S>> {
         let mut out_a = Vec::new();
         let mut out_b = Vec::new();
         for s in v {
@@ -491,5 +491,45 @@ impl<F: PrimeField, S: ScalarShare<F>> SquareRootField for MpcField<F, S> {
     #[inline]
     fn sqrt_in_place(&mut self) -> Option<&mut Self> {
         todo!()
+    }
+}
+
+mod poly_impl {
+
+    use crate::ss::*;
+    use crate::Reveal;
+    use ark_ff::PrimeField;
+    use ark_poly::domain::{EvaluationDomain, GeneralEvaluationDomain};
+    use ark_poly::evaluations::univariate::Evaluations;
+    use ark_poly::univariate::DensePolynomial;
+
+    impl<E: PrimeField, S: ScalarShare<E>> Reveal for DensePolynomial<MpcField<E, S>> {
+        type Base = DensePolynomial<E>;
+        struct_reveal_simp_impl!(DensePolynomial; coeffs);
+    }
+
+    impl<F: PrimeField, S: ScalarShare<F>> Reveal for Evaluations<MpcField<F, S>> {
+        type Base = Evaluations<F>;
+
+        fn reveal(self) -> Self::Base {
+            Evaluations::from_vec_and_domain(
+                self.evals.reveal(),
+                GeneralEvaluationDomain::new(self.domain.size()).unwrap(),
+            )
+        }
+
+        fn from_add_shared(b: Self::Base) -> Self {
+            Evaluations::from_vec_and_domain(
+                Reveal::from_add_shared(b.evals),
+                GeneralEvaluationDomain::new(b.domain.size()).unwrap(),
+            )
+        }
+
+        fn from_public(b: Self::Base) -> Self {
+            Evaluations::from_vec_and_domain(
+                Reveal::from_public(b.evals),
+                GeneralEvaluationDomain::new(b.domain.size()).unwrap(),
+            )
+        }
     }
 }

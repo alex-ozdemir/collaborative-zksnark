@@ -58,6 +58,7 @@ impl<'a, 'b> std::ops::Div<&'b MpcVal<P>> for &'a MpcVal<P> {
     fn div(self, other: &MpcVal<P>) -> MpcVal<P> {
         assert!(!other.shared);
         if self.shared {
+            panic!("Shared div");
             let mut cs = self.val.coeffs().to_owned();
             for c in &mut cs {
                 c.set_shared(false);

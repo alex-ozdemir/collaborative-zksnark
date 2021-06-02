@@ -12,7 +12,7 @@ use std::hash::Hash;
 
 use super::field::ScalarShare;
 use super::BeaverSource;
-use mpc_trait::Reveal;
+use crate::Reveal;
 
 /// Secret sharing scheme which support affine functions of secrets.
 pub trait GroupShare<G: Group>:

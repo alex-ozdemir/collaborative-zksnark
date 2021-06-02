@@ -23,7 +23,7 @@ use super::field::{ExtFieldShare, ScalarShare};
 use super::group::GroupShare;
 use super::pairing::PairingShare;
 use super::BeaverSource;
-use mpc_trait::Reveal;
+use crate::Reveal;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AdditiveScalarShare<T> {

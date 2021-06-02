@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 use ark_ec::PairingEngine;
-use mpc_algebra::ss::*;
-use mpc_trait::{struct_reveal_simp_impl, Reveal};
+use mpc_algebra::{ss::*, struct_reveal_simp_impl, Reveal};
 
 use super::*;
 

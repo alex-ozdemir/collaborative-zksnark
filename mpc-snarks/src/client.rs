@@ -17,7 +17,8 @@ use std::net::{SocketAddr, ToSocketAddrs};
 
 use mpc_algebra::ss::com::ComField;
 use mpc_algebra::ss::honest_but_curious::*;
-use mpc_trait::{MpcWire, Reveal};
+use mpc_algebra::Reveal;
+use mpc_trait::MpcWire;
 
 use clap::arg_enum;
 use merlin::Transcript;

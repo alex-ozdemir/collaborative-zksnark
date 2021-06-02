@@ -3,7 +3,7 @@ use ark_ec::PairingEngine;
 use ark_groth16::{generate_random_parameters, prepare_verifying_key, verify_proof, ProvingKey};
 use ark_std::{test_rng, UniformRand};
 use mpc_algebra::ss::*;
-use mpc_trait::Reveal;
+use mpc_algebra::Reveal;
 
 pub mod prover;
 pub mod r1cs_to_qap;
