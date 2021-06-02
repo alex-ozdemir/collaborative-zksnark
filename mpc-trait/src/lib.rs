@@ -22,14 +22,6 @@ pub trait MpcWire: Clone {
             Cow::Borrowed(self)
         }
     }
-
-    fn cast_to_shared(&mut self) {
-        self.set_shared(true);
-    }
-
-    fn cast_to_public(&mut self) {
-        self.set_shared(false);
-    }
 }
 
 

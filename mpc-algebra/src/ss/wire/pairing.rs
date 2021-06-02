@@ -1,5 +1,4 @@
 use ark_ec::group::Group;
-use ark_ec::msm::VariableBaseMSM;
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
@@ -9,7 +8,7 @@ use ark_serialize::{
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 use ark_std::io::{self, Read, Write};
-use ark_std::{cfg_into_iter, end_timer, start_timer};
+use ark_std::{end_timer, start_timer};
 use core::ops::*;
 use derivative::Derivative;
 use rand::Rng;
