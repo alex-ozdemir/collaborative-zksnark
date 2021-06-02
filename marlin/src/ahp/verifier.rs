@@ -58,8 +58,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         println!("Sampling now..");
 
         // Cast all RNG output to public, since this is a verifier RNG
-        let mut alpha = domain_h.sample_element_outside_domain(rng, true);
-        alpha.cast_to_public();
+        let alpha = domain_h.sample_element_outside_domain(rng, true);
         let eta_a = F::pub_rand(rng);
         let eta_b = F::pub_rand(rng);
         let eta_c = F::pub_rand(rng);
@@ -88,8 +87,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         mut state: VerifierState<F>,
         rng: &mut R,
     ) -> (VerifierSecondMsg<F>, VerifierState<F>) {
-        let mut beta = state.domain_h.sample_element_outside_domain(rng, true);
-        beta.cast_to_public();
+        let beta = state.domain_h.sample_element_outside_domain(rng, true);
         let msg = VerifierSecondMsg { beta };
         state.second_round_msg = Some(msg);
 
@@ -101,10 +99,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         mut state: VerifierState<F>,
         rng: &mut R,
     ) -> VerifierState<F> {
-        state.gamma = Some(F::rand(rng));
-        for g in &mut state.gamma {
-          g.cast_to_public();
-        }
+        state.gamma = Some(F::pub_rand(rng));
         state
     }
 
