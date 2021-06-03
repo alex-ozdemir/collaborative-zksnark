@@ -54,7 +54,7 @@ pub fn mpc_test_prove_and_verify(n_iters: usize) {
 
     // data circuit
     let data_rng = &mut test_rng();
-    let start = MF::from_add_shared(F::rand(data_rng));
+    let start = MF::rand(data_rng);
     let res = (0..steps).fold(start, |a, _| a * a);
     let public: HashMap<String, F> = vec![("out".to_owned(), res.reveal())]
         .into_iter()

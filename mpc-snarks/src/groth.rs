@@ -18,21 +18,11 @@ pub fn mpc_test_prove_and_verify<E: PairingEngine, S: PairingShare<E>>(n_iters: 
     let mpc_params = ProvingKey::from_public(params);
 
     for _ in 0..n_iters {
-        //let a = MpcField::<E::Fr, S::FrShare>::from_add_shared(E::Fr::from(1u8));
-        //let b = MpcField::<E::Fr, S::FrShare>::from_add_shared(E::Fr::from(1u8));
         let a = MpcField::<E::Fr, S::FrShare>::rand(rng);
         let b = MpcField::<E::Fr, S::FrShare>::rand(rng);
         let mut c = a;
         c *= &b;
 
-        //let mpc_proof = prover::create_proof_no_zk::<MpcPairingEngine<E, S>, _>(
-        //    MySillyCircuit {
-        //        a: Some(a),
-        //        b: Some(b),
-        //    },
-        //    &mpc_params,
-        //)
-        //.unwrap();
         let mpc_proof = prover::create_random_proof::<MpcPairingEngine<E, S>, _, _>(
             MySillyCircuit {
                 a: Some(a),
