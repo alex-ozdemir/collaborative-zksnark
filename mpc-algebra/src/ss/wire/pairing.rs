@@ -203,8 +203,6 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
         let b: Self::G2Projective = b.into();
         if a.is_shared() && b.is_shared() {
             let source = &mut DummyPairingTripleSource::default();
-            //let a = a.unwrap_as_public();
-            //let b = b.unwrap_as_public();
             // x * y = z
             let (x, y, z) = source.triple();
             // x + a
