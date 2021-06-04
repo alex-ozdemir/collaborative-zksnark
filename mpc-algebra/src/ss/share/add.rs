@@ -86,7 +86,7 @@ impl<F: Field> Reveal for AdditiveScalarShare<F> {
     }
     fn from_public(f: F) -> Self {
         Self {
-            val: if mpc_net::am_first() { f } else { F::one() },
+            val: if mpc_net::am_first() { f } else { F::zero() },
         }
     }
     fn from_add_shared(f: F) -> Self {
