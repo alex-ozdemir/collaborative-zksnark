@@ -24,3 +24,13 @@ pub mod honest_but_curious {
     pub type MpcG2Prep<E> = pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
     pub type MpcPairingEngine<E> = pairing::MpcPairingEngine<E, AdditivePairingShare<E>>;
 }
+
+pub mod malicious_majority {
+    use super::{
+        wire::{
+            field,
+        },
+        share::spdz::*,
+    };
+    pub type MpcField<F> = field::MpcField<F, SpdzScalarShare<F>>;
+}
