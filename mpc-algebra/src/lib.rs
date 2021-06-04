@@ -1,11 +1,14 @@
 #![macro_use]
 use ark_std::{collections::BTreeMap, marker::PhantomData, rc::Rc};
 
-pub trait Reveal {
+pub trait Reveal: Sized {
     type Base;
     fn reveal(self) -> Self::Base;
     fn from_add_shared(b: Self::Base) -> Self;
     fn from_public(b: Self::Base) -> Self;
+    fn unwrap_as_public(self) -> Self::Base {
+        unimplemented!("No unwrap as public for {}", std::any::type_name::<Self>())
+    }
     //fn as_public_or_add_share(self) -> Result<Self::Base, Self::Base>;
 }
 
@@ -23,6 +26,10 @@ impl Reveal for usize {
     fn from_public(b: Self::Base) -> Self {
         b
     }
+
+    fn unwrap_as_public(self) -> Self::Base {
+        self
+    }
 }
 
 impl<T: Reveal> Reveal for PhantomData<T> {
@@ -37,6 +44,9 @@ impl<T: Reveal> Reveal for PhantomData<T> {
     }
 
     fn from_public(_b: Self::Base) -> Self {
+        PhantomData::default()
+    }
+    fn unwrap_as_public(self) -> Self::Base {
         PhantomData::default()
     }
 }
@@ -58,6 +68,12 @@ impl<T: Reveal> Reveal for Vec<T> {
             .map(|x| <T as Reveal>::from_add_shared(x))
             .collect()
     }
+    fn unwrap_as_public(self) -> Self::Base {
+        self
+            .into_iter()
+            .map(|x| <T as Reveal>::unwrap_as_public(x))
+            .collect()
+    }
 }
 
 impl<K: Reveal + Ord, V: Reveal> Reveal for BTreeMap<K, V>
@@ -77,6 +93,12 @@ where
             .map(|x| Reveal::from_add_shared(x))
             .collect()
     }
+    fn unwrap_as_public(self) -> Self::Base {
+        self
+            .into_iter()
+            .map(|x| Reveal::unwrap_as_public(x))
+            .collect()
+    }
 }
 
 impl<T: Reveal> Reveal for Option<T> {
@@ -89,6 +111,10 @@ impl<T: Reveal> Reveal for Option<T> {
     }
     fn from_add_shared(other: Self::Base) -> Self {
         other.map(|x| <T as Reveal>::from_add_shared(x))
+    }
+    fn unwrap_as_public(self) -> Self::Base {
+        self
+            .map(|x| Reveal::unwrap_as_public(x))
     }
 }
 
@@ -105,6 +131,9 @@ where
     }
     fn from_add_shared(other: Self::Base) -> Self {
         Rc::new(Reveal::from_add_shared((*other).clone()))
+    }
+    fn unwrap_as_public(self) -> Self::Base {
+        Rc::new((*self).clone().unwrap_as_public())
     }
 }
 
@@ -124,6 +153,9 @@ impl<A: Reveal, B: Reveal> Reveal for (A, B) {
             <A as Reveal>::from_add_shared(other.0),
             <B as Reveal>::from_add_shared(other.1),
         )
+    }
+    fn unwrap_as_public(self) -> Self::Base {
+        (self.0.unwrap_as_public(), self.1.unwrap_as_public())
     }
 }
 
@@ -151,6 +183,13 @@ macro_rules! struct_reveal_impl {
                 )*
             }
         }
+        fn unwrap_as_public(self) -> Self::Base {
+            $con {
+                $(
+                    $x: self.$x.unwrap_as_public(),
+                )*
+            }
+        }
     }
 }
 
@@ -175,6 +214,13 @@ macro_rules! struct_reveal_simp_impl {
             $con {
                 $(
                     $x: Reveal::from_add_shared(other.$x),
+                )*
+            }
+        }
+        fn unwrap_as_public(self) -> Self::Base {
+            $con {
+                $(
+                    $x: self.$x.unwrap_as_public(),
                 )*
             }
         }

@@ -264,6 +264,13 @@ impl<T: Field, S: ScalarShare<T>> Reveal for MpcField<T, S> {
     fn from_add_shared(b: Self::Base) -> Self {
         MpcField::Shared(S::from_add_shared(b))
     }
+    #[inline]
+    fn unwrap_as_public(self) -> Self::Base {
+        match self {
+            Self::Shared(s) => s.unwrap_as_public(),
+            Self::Public(s) => s,
+        }
+    }
 }
 
 from_prim!(bool, Field, ScalarShare, MpcField);
@@ -288,12 +295,13 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
         unimplemented!("extension_degree")
     }
     #[inline]
-    fn from_base_prime_field_elems(b: &[<Self as ark_ff::Field>::BasePrimeField]) -> Option<Self> {
-        assert!(b.len() > 0);
-        let shared = b[0].is_shared();
-        assert!(b.iter().all(|e| e.is_shared() == shared));
-        let base_values = b.iter().map(|e| e.unwrap_as_public()).collect::<Vec<_>>();
-        F::from_base_prime_field_elems(&base_values).map(|val| Self::new(val, shared))
+    fn from_base_prime_field_elems(_b: &[<Self as ark_ff::Field>::BasePrimeField]) -> Option<Self> {
+        unimplemented!()
+        // assert!(b.len() > 0);
+        // let shared = b[0].is_shared();
+        // assert!(b.iter().all(|e| e.is_shared() == shared));
+        // let base_values = b.iter().map(|e| e.unwrap_as_public()).collect::<Vec<_>>();
+        // F::from_base_prime_field_elems(&base_values).map(|val| Self::new(val, shared))
     }
     #[inline]
     fn double(&self) -> Self {

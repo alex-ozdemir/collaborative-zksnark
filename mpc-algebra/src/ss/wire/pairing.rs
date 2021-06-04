@@ -23,7 +23,7 @@ use zeroize::Zeroize;
 use mpc_net;
 use mpc_trait::MpcWire;
 
-use super::super::share::field::{ExtFieldShare, ScalarShare};
+use super::super::share::field::ExtFieldShare;
 use super::super::share::group::GroupShare;
 use super::super::share::pairing::PairingShare;
 use super::super::share::BeaverSource;
@@ -197,12 +197,12 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
         G1: Into<Self::G1Affine>,
         G2: Into<Self::G2Affine>,
     {
-        let source = &mut DummyPairingTripleSource::default();
         let a: Self::G1Affine = p.into();
         let b: Self::G2Affine = q.into();
         let a: Self::G1Projective = a.into();
         let b: Self::G2Projective = b.into();
         if a.is_shared() && b.is_shared() {
+            let source = &mut DummyPairingTripleSource::default();
             //let a = a.unwrap_as_public();
             //let b = b.unwrap_as_public();
             // x * y = z
@@ -214,13 +214,13 @@ impl<E: PairingEngine, PS: PairingShare<E>> PairingEngine for MpcPairingEngine<E
             let xayb: MpcExtField<E::Fqk, PS::FqkShare> =
                 MpcExtField::wrap(MpcField::Public(E::pairing(xa, yb)));
             let xay: MpcExtField<E::Fqk, PS::FqkShare> = MpcExtField::wrap(MpcField::Shared(
-                <PS::FqkShare as ExtFieldShare<E::Fqk>>::Ext::wrap_as_shared(E::pairing(
+                <PS::FqkShare as ExtFieldShare<E::Fqk>>::Ext::from_add_shared(E::pairing(
                     xa,
                     y.unwrap_as_public(),
                 )),
             ));
             let xyb: MpcExtField<E::Fqk, PS::FqkShare> = MpcExtField::wrap(MpcField::Shared(
-                <PS::FqkShare as ExtFieldShare<E::Fqk>>::Ext::wrap_as_shared(E::pairing(
+                <PS::FqkShare as ExtFieldShare<E::Fqk>>::Ext::from_add_shared(E::pairing(
                     x.unwrap_as_public(),
                     yb,
                 )),
@@ -380,10 +380,6 @@ macro_rules! impl_ext_field_wrapper {
             pub fn from_public(t: E) -> Self {
                 Self::wrap($wrapped::from_public(t))
             }
-            #[inline]
-            pub fn unwrap_as_public(self) -> E {
-                self.val.unwrap_as_public()
-            }
         }
         impl_pairing_mpc_wrapper!($wrapped, Field, ExtFieldShare, BasePrimeField, Ext, $wrap);
         impl<'a, E: Field, PS: ExtFieldShare<E>> MulAssign<&'a $wrap<E, PS>> for $wrap<E, PS> {
@@ -438,6 +434,10 @@ macro_rules! impl_ext_field_wrapper {
             fn from_add_shared(t: E) -> Self {
                 Self::wrap($wrapped::from_add_shared(t))
             }
+            #[inline]
+            fn unwrap_as_public(self) -> Self::Base {
+                self.val.unwrap_as_public()
+            }
         }
         from_prim!(bool, Field, ExtFieldShare, $wrap);
         from_prim!(u8, Field, ExtFieldShare, $wrap);
@@ -451,13 +451,14 @@ macro_rules! impl_ext_field_wrapper {
                 unimplemented!("extension_degree")
             }
             fn from_base_prime_field_elems(
-                b: &[<Self as ark_ff::Field>::BasePrimeField],
+                _b: &[<Self as ark_ff::Field>::BasePrimeField],
             ) -> Option<Self> {
-                assert!(b.len() > 0);
-                let shared = b[0].is_shared();
-                assert!(b.iter().all(|e| e.is_shared() == shared));
-                let base_values = b.iter().map(|e| e.unwrap_as_public()).collect::<Vec<_>>();
-                F::from_base_prime_field_elems(&base_values).map(|val| Self::new(val, shared))
+                unimplemented!()
+                // assert!(b.len() > 0);
+                // let shared = b[0].is_shared();
+                // assert!(b.iter().all(|e| e.is_shared() == shared));
+                // let base_values = b.iter().map(|e| e.unwrap_as_public()).collect::<Vec<_>>();
+                // F::from_base_prime_field_elems(&base_values).map(|val| Self::new(val, shared))
             }
             #[inline]
             fn double(&self) -> Self {
@@ -547,10 +548,6 @@ macro_rules! impl_pairing_curve_wrapper {
                     val: $wrapped::from_public(t),
                 }
             }
-            #[inline]
-            pub fn unwrap_as_public(self) -> E::$base {
-                self.val.unwrap_as_public()
-            }
         }
         impl<E: $bound1, PS: $bound2<E>> Reveal for $wrap<E, PS> {
             type Base = E::$base;
@@ -569,6 +566,10 @@ macro_rules! impl_pairing_curve_wrapper {
                 Self {
                     val: $wrapped::from_add_shared(t),
                 }
+            }
+            #[inline]
+            fn unwrap_as_public(self) -> Self::Base {
+                self.val.unwrap_as_public()
             }
         }
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
@@ -754,14 +755,12 @@ macro_rules! impl_aff_proj {
                             let r = $w_pro {
                                 // wat?
                                 val: if true {
-                                    MpcGroup::Shared(
-                                        <PS::$share_proj as GroupShare<E::$pro>>::from_public(
-                                            <E::$aff as AffineCurve>::multi_scalar_mul(
-                                                &bases,
-                                                &pub_scalars,
-                                            ),
+                                    MpcGroup::Shared(<PS::$share_proj as Reveal>::from_public(
+                                        <E::$aff as AffineCurve>::multi_scalar_mul(
+                                            &bases,
+                                            &pub_scalars,
                                         ),
-                                    )
+                                    ))
                                 } else {
                                     MpcGroup::Public(<E::$aff as AffineCurve>::multi_scalar_mul(
                                         &bases,

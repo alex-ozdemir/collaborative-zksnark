@@ -121,6 +121,13 @@ impl<T: Group, S: GroupShare<T>> Reveal for MpcGroup<T, S> {
     fn from_add_shared(b: Self::Base) -> Self {
         Self::Shared(S::from_add_shared(b))
     }
+    #[inline]
+    fn unwrap_as_public(self) -> Self::Base {
+        match self {
+            Self::Shared(s) => s.unwrap_as_public(),
+            Self::Public(s) => s,
+        }
+    }
 }
 
 impl<T: Group, S: GroupShare<T>> Mul<MpcField<T::ScalarField, S::ScalarShare>> for MpcGroup<T, S> {

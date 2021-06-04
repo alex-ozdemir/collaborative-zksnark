@@ -38,13 +38,6 @@ macro_rules! impl_basics_2 {
                 Self::new(t, false)
             }
             #[inline]
-            pub fn unwrap_as_public(self) -> T {
-                match self {
-                    Self::Shared(s) => s.unwrap_as_public(),
-                    Self::Public(s) => s,
-                }
-            }
-            #[inline]
             pub fn map<TT: $bound, SS: $share<TT>, FT: Fn(T) -> TT, FS: Fn(S) -> SS>(
                 self,
                 ft: FT,

@@ -6,7 +6,7 @@ use ark_ff::prelude::*;
 use ark_ff::FftField;
 use mpc_trait::MpcWire;
 
-use crate::channel;
+use crate::{channel, Reveal};
 use mpc_net;
 use crate::ss::wire::field::MpcField;
 use crate::ss::share::field::ScalarShare;
@@ -93,7 +93,7 @@ impl<Fr: PrimeField, S: ScalarShare<Fr>>  ComField for MpcField<Fr, S> {
         )
     }
     fn check_opening(c: &Self::Commitment, p: Self::OpeningProof, i: usize, v: Self) -> bool {
-        if p.0 + p.1 != v.unwrap_as_public() {
+        if p.0 + p.1 != v.reveal() {
             return false;
         }
         let mut hash0 = Vec::new();

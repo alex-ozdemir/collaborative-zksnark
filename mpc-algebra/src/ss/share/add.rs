@@ -72,7 +72,7 @@ impl<F: Field> AdditiveScalarShare<F> {
     fn d_poly_unshare(p: ark_poly::univariate::DensePolynomial<F>) -> DensePolynomial<Self> {
         p.coeffs
             .into_iter()
-            .map(|s| Self::wrap_as_shared(s))
+            .map(|s| Self::from_add_shared(s))
             .collect()
     }
 }
@@ -92,16 +92,11 @@ impl<F: Field> Reveal for AdditiveScalarShare<F> {
     fn from_add_shared(f: F) -> Self {
         Self { val: f }
     }
-}
-impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
     fn unwrap_as_public(self) -> F {
         self.val
     }
-
-    fn wrap_as_shared(g: F) -> Self {
-        Self { val: g }
-    }
-
+}
+impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let mut self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
         let other_val = channel::exchange(&self_vec);
@@ -183,28 +178,13 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
             _phants: PhantomData::default(),
         }
     }
+    fn unwrap_as_public(self) -> G {
+        self.val
+    }
 }
 
 impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G, M> {
     type ScalarShare = AdditiveScalarShare<G::ScalarField>;
-
-    fn unwrap_as_public(self) -> G {
-        self.val
-    }
-
-    fn wrap_as_shared(g: G) -> Self {
-        Self {
-            val: g,
-            _phants: PhantomData::default(),
-        }
-    }
-
-    fn from_public(g: G) -> Self {
-        Self {
-            val: if mpc_net::am_first() { g } else { G::zero() },
-            _phants: PhantomData::default(),
-        }
-    }
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
         let mut self_vec: Vec<G> = selfs.into_iter().map(|s| s.val).collect();
@@ -247,7 +227,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
 
     fn multi_scale_pub_group(bases: &[G], scalars: &[Self::ScalarShare]) -> Self {
         let scalars: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.val.clone()).collect();
-        Self::wrap_as_shared(M::msm(bases, &scalars))
+        Self::from_add_shared(M::msm(bases, &scalars))
     }
 }
 
@@ -420,17 +400,15 @@ impl<F: Field> Reveal for MulScalarShare<F> {
     fn from_add_shared(f: F) -> Self {
         Self { val: f }
     }
-}
-
-impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
     fn unwrap_as_public(self) -> F {
         self.val
     }
+}
 
-    fn wrap_as_shared(g: F) -> Self {
-        Self { val: g }
+impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
+    fn map_homo<FF: Field, SS: ScalarShare<FF>, Fun: Fn(F) -> FF>(self, _f: Fun) -> SS {
+        unimplemented!()
     }
-
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let mut self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
         let other_val = channel::exchange(&self_vec);

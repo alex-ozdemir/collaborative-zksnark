@@ -37,12 +37,8 @@ pub trait ScalarShare<F: Field>:
         <Self as Reveal>::reveal(*self)
     }
 
-    fn unwrap_as_public(self) -> F;
-
-    fn wrap_as_shared(g: F) -> Self;
-
     fn map_homo<FF: Field, SS: ScalarShare<FF>, Fun: Fn(F) -> FF>(self, f: Fun) -> SS {
-        SS::wrap_as_shared(f(self.unwrap_as_public()))
+        SS::from_add_shared(f(self.unwrap_as_public()))
     }
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {

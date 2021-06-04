@@ -40,14 +40,8 @@ pub trait GroupShare<G: Group>:
         <Self as Reveal>::reveal(*self)
     }
 
-    fn unwrap_as_public(self) -> G;
-
-    fn wrap_as_shared(g: G) -> Self;
-
-    fn from_public(g: G) -> Self;
-
     fn map_homo<G2: Group, S2: GroupShare<G2>, Fun: Fn(G) -> G2>(self, f: Fun) -> S2 {
-        S2::wrap_as_shared(f(self.unwrap_as_public()))
+        S2::from_add_shared(f(self.unwrap_as_public()))
     }
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
@@ -121,7 +115,7 @@ pub trait GroupShare<G: Group>:
             .into_iter()
             .zip(scalars.into_iter())
             .map(|(g, s)| Self::scale_pub_group(g.clone(), &s))
-            .fold(Self::wrap_as_shared(G::zero()), |mut acc, n| {
+            .fold(Self::from_add_shared(G::zero()), |mut acc, n| {
                 acc.add(&n);
                 acc
             })

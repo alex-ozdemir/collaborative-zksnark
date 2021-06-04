@@ -44,35 +44,3 @@ impl<F: Field> Reveal for SpdzScalarShare<F> {
         todo!()
     }
 }
-
-// #[derive(Derivative)]
-// #[derivative(
-//     Default(bound = "T: Default"),
-//     Clone(bound = "T: Clone"),
-//     Copy(bound = "T: Copy"),
-//     PartialEq(bound = "T: PartialEq"),
-//     Eq(bound = "T: Eq"),
-//     PartialOrd(bound = "T: PartialOrd"),
-//     Ord(bound = "T: Ord"),
-//     Hash(bound = "T: Hash")
-// )]
-// pub struct SpdzGroupShare<T, M> {
-//     val: T,
-//     _phants: PhantomData<M>,
-// }
-// 
-// #[derive(Debug, Derivative)]
-// #[derivative(
-//     Default(bound = ""),
-//     Clone(bound = ""),
-//     Copy(bound = ""),
-//     PartialEq(bound = "F: PartialEq"),
-//     Eq(bound = "F: Eq"),
-//     Hash(bound = "F: Hash")
-// )]
-// pub struct SpdzExtFieldShare<F: Field>(pub PhantomData<F>);
-// 
-// #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-// pub struct MulScalarShare<T> {
-//     val: T,
-// }
