@@ -31,7 +31,7 @@ use crate::Reveal;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AdditiveScalarShare<T> {
-    val: T,
+    pub val: T,
 }
 
 impl<F: Field> AdditiveScalarShare<F> {

@@ -7,6 +7,8 @@ pub mod pairing;
 pub use pairing::*;
 pub mod add;
 pub use add::*;
+pub mod spdz;
+pub use spdz::*;
 
 pub trait BeaverSource<A, B, C>: Clone {
     fn triple(&mut self) -> (A, B, C);
