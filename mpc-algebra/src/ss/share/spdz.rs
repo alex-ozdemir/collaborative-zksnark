@@ -28,6 +28,14 @@ pub fn mac_share<F: Field>() -> F {
     }
 }
 
+#[inline]
+/// A huge cheat. Useful for importing shares.
+pub fn mac<F: Field>() -> F {
+    F::one()
+}
+
+
+
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SpdzScalarShare<T> {
     sh: AdditiveScalarShare<T>,
@@ -117,8 +125,11 @@ impl<F: Field> Reveal for SpdzScalarShare<F> {
             mac: Reveal::from_add_shared(f * mac_share::<F>()),
         }
     }
-    fn from_add_shared(_f: F) -> Self {
-        todo!()
+    fn from_add_shared(f: F) -> Self {
+        Self {
+            sh: Reveal::from_add_shared(f),
+            mac: Reveal::from_add_shared(f * mac::<F>()),
+        }
     }
 }
 
