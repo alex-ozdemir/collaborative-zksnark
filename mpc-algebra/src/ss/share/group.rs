@@ -115,7 +115,7 @@ pub trait GroupShare<G: Group>:
             .into_iter()
             .zip(scalars.into_iter())
             .map(|(g, s)| Self::scale_pub_group(g.clone(), &s))
-            .fold(Self::from_add_shared(G::zero()), |mut acc, n| {
+            .fold(Self::from_public(G::zero()), |mut acc, n| {
                 acc.add(&n);
                 acc
             })
