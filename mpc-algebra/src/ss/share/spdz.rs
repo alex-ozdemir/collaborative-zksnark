@@ -34,8 +34,6 @@ pub fn mac<F: Field>() -> F {
     F::one()
 }
 
-
-
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SpdzScalarShare<T> {
     sh: AdditiveScalarShare<T>,
@@ -180,13 +178,34 @@ impl<F: Field> ScalarShare<F> for SpdzScalarShare<F> {
     }
 
     fn univariate_div_qr<'a>(
-        _num: DenseOrSparsePolynomial<Self>,
-        _den: DenseOrSparsePolynomial<F>,
+        num: DenseOrSparsePolynomial<Self>,
+        den: DenseOrSparsePolynomial<F>,
     ) -> Option<(DensePolynomial<Self>, DensePolynomial<Self>)> {
-        todo!()
-        // let num = Self::poly_share(num);
-        // let den = Self::poly_share2(den);
-        // num.divide_with_q_and_r(&den)
-        //     .map(|(q, r)| (Self::d_poly_unshare(q), Self::d_poly_unshare(r)))
+        let (num_sh, num_mac) = match num {
+            Ok(dense) => {
+                let (num_sh, num_mac): (Vec<_>, Vec<_>) =
+                    dense.into_iter().map(|s| (s.sh, s.mac)).unzip();
+                (Ok(num_sh), Ok(num_mac))
+            }
+            Err(sparse) => {
+                let (num_sh, num_mac): (Vec<_>, Vec<_>) = sparse
+                    .into_iter()
+                    .map(|(i, s)| ((i, s.sh), (i, s.mac)))
+                    .unzip();
+                (Err(num_sh), Err(num_mac))
+            }
+        };
+        let (q_sh, r_sh) = AdditiveScalarShare::univariate_div_qr(num_sh, den.clone()).unwrap();
+        let (q_mac, r_mac) = AdditiveScalarShare::univariate_div_qr(num_mac, den).unwrap();
+        Some((
+            q_sh.into_iter()
+                .zip(q_mac)
+                .map(|(sh, mac)| Self { sh, mac })
+                .collect(),
+            r_sh.into_iter()
+                .zip(r_mac)
+                .map(|(sh, mac)| Self { sh, mac })
+                .collect(),
+        ))
     }
 }
