@@ -111,7 +111,7 @@ impl<F: Field> Reveal for SpdzScalarShare<F> {
         let other_val: F = channel::exchange(&self.sh.val);
         // _Pragmatic MPC_ 6.6.2
         let x: F = self.sh.val + other_val;
-        let dx_t: F = mac_share::<F>() * x + self.mac.val;
+        let dx_t: F = mac_share::<F>() * x - self.mac.val;
         let other_dx_t: F = channel::atomic_exchange(&dx_t);
         let sum: F = dx_t + other_dx_t;
         assert!(sum.is_zero());
@@ -144,7 +144,7 @@ impl<F: Field> ScalarShare<F> for SpdzScalarShare<F> {
         let dx_ts: Vec<F> = macs
             .iter()
             .zip(vals.iter())
-            .map(|(mac, val)| mac_share::<F>() * val + mac)
+            .map(|(mac, val)| mac_share::<F>() * val - mac)
             .collect();
         let o_dx_ts: Vec<F> = channel::atomic_exchange(&dx_ts);
         for (a, b) in dx_ts.into_iter().zip(o_dx_ts) {

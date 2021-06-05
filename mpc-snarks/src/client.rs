@@ -17,6 +17,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 
 use mpc_algebra::ss::com::ComField;
 use mpc_algebra::ss::honest_but_curious::*;
+use mpc_algebra::ss::malicious_majority as mm;
 use mpc_algebra::Reveal;
 use mpc_trait::MpcWire;
 
@@ -57,6 +58,7 @@ arg_enum! {
     }
 }
 
+#[derive(PartialEq, Debug)]
 enum ComputationDomain {
     G1,
     G2,
@@ -101,6 +103,10 @@ struct Opt {
     /// Computation to perform
     #[structopt(long)]
     use_g2: bool,
+
+    /// Computation to perform
+    #[structopt(long)]
+    spdz: bool,
 
     /// Input a
     #[structopt()]
@@ -466,12 +472,15 @@ impl Computation {
                 let rng = &mut rand::rngs::StdRng::from_seed([0u8; 32]);
                 let ps: Vec<MFr> = (0..inputs.len()).map(|_| MFr::public_rand(rng)).collect();
                 let sum: MFr = inputs.iter().zip(ps.iter()).map(|(a, b)| *a * b).sum();
-                let mut public_gens = vec![<ME as PairingEngine>::G1Affine::prime_subgroup_generator(); inputs.len()];
+                let mut public_gens =
+                    vec![<ME as PairingEngine>::G1Affine::prime_subgroup_generator(); inputs.len()];
                 for (g, c) in public_gens.iter_mut().zip(ps.iter()) {
                     *g = g.scalar_mul(*c).into();
                 }
-                let mut msm = <ME as PairingEngine>::G1Affine::multi_scalar_mul(&public_gens, &inputs);
-                let mut expected = <ME as PairingEngine>::G1Projective::prime_subgroup_generator().scalar_mul(&sum);
+                let mut msm =
+                    <ME as PairingEngine>::G1Affine::multi_scalar_mul(&public_gens, &inputs);
+                let mut expected = <ME as PairingEngine>::G1Projective::prime_subgroup_generator()
+                    .scalar_mul(&sum);
                 msm.publicize();
                 expected.publicize();
                 assert_eq!(msm, expected);
@@ -645,11 +654,15 @@ impl Computation {
             Computation::PProduct => {
                 assert_eq!(inputs.len(), 2);
                 let mut pp = inputs.clone();
-                for p in &mut inputs { p.publicize() };
+                for p in &mut inputs {
+                    p.publicize()
+                }
                 let t = inputs[0];
                 inputs[1] *= t;
                 F::partial_products_in_place(&mut pp[..]);
-                for p in &mut pp { p.publicize() };
+                for p in &mut pp {
+                    p.publicize()
+                }
                 assert_eq!(pp[0], inputs[0]);
                 assert_eq!(pp[1], inputs[1]);
                 vec![]
@@ -834,64 +847,87 @@ fn main() -> () {
         .unwrap();
     mpc_net::init(self_addr, peer_addr, opt.party == 0);
     debug!("Start");
-    let inputs = opt
-        .args
-        .iter()
-        .map(|i| MFr::from_add_shared(Fr::from(*i)))
-        .collect::<Vec<MFr>>();
-    println!("Inputs:");
-    for (i, v) in inputs.iter().enumerate() {
-        println!("  {}: {}", i, v);
-    }
-    match domain {
-        ComputationDomain::Field => {
-            let mut outputs = opt.computation.run_field(inputs);
-            outputs.iter_mut().for_each(|c| c.publicize());
-            println!("Public Outputs:");
-            for (i, v) in outputs.iter().enumerate() {
-                println!("  {}: {}", i, v);
-            }
+    if opt.spdz {
+        let inputs = opt
+            .args
+            .iter()
+            .map(|i| mm::MpcField::<Fr>::from_add_shared(Fr::from(*i)))
+            .collect::<Vec<_>>();
+        println!("Inputs:");
+        for (i, v) in inputs.iter().enumerate() {
+            println!("  {}: {}", i, v);
         }
-        ComputationDomain::G1 => {
-            let mut outputs = opt.computation.run_gp::<MG1>(inputs);
-            outputs.iter_mut().for_each(|c| c.publicize());
-            println!("Public Outputs:");
-            for (i, v) in outputs.iter().enumerate() {
-                println!("  {}: {}", i, v);
+        match domain {
+            ComputationDomain::Field => {
+                let mut outputs = opt.computation.run_field(inputs);
+                outputs.iter_mut().for_each(|c| c.publicize());
+                println!("Public Outputs:");
+                for (i, v) in outputs.iter().enumerate() {
+                    println!("  {}: {}", i, v);
+                }
             }
+            d => panic!("Bad domain: {:?}", d),
         }
-        ComputationDomain::G2 => {
-            let mut outputs = opt.computation.run_gp::<MG2>(inputs);
-            outputs.iter_mut().for_each(|c| c.publicize());
-            println!("Public Outputs:");
-            for (i, v) in outputs.iter().enumerate() {
-                println!("  {}: {}", i, v);
+    } else {
+        let inputs = opt
+            .args
+            .iter()
+            .map(|i| MFr::from_add_shared(Fr::from(*i)))
+            .collect::<Vec<MFr>>();
+        println!("Inputs:");
+        for (i, v) in inputs.iter().enumerate() {
+            println!("  {}: {}", i, v);
+        }
+        match domain {
+            ComputationDomain::Field => {
+                let mut outputs = opt.computation.run_field(inputs);
+                outputs.iter_mut().for_each(|c| c.publicize());
+                println!("Public Outputs:");
+                for (i, v) in outputs.iter().enumerate() {
+                    println!("  {}: {}", i, v);
+                }
             }
-        }
-        ComputationDomain::Pairing => {
-            let mut outputs = opt
-                .computation
-                .run_pairing::<MpcPairingEngine<ark_bls12_377::Bls12_377>>(inputs);
-            outputs.iter_mut().for_each(|c| c.publicize());
-            println!("Public Outputs:");
-            for (i, v) in outputs.iter().enumerate() {
-                println!("  {}: {}", i, v);
+            ComputationDomain::G1 => {
+                let mut outputs = opt.computation.run_gp::<MG1>(inputs);
+                outputs.iter_mut().for_each(|c| c.publicize());
+                println!("Public Outputs:");
+                for (i, v) in outputs.iter().enumerate() {
+                    println!("  {}: {}", i, v);
+                }
             }
-        }
-        ComputationDomain::BlsPairing => {
-            let mut outputs = opt.computation.run_bls(inputs);
-            outputs.iter_mut().for_each(|c| c.publicize());
-            println!("Public Outputs:");
-            for (i, v) in outputs.iter().enumerate() {
-                println!("  {}: {}", i, v);
+            ComputationDomain::G2 => {
+                let mut outputs = opt.computation.run_gp::<MG2>(inputs);
+                outputs.iter_mut().for_each(|c| c.publicize());
+                println!("Public Outputs:");
+                for (i, v) in outputs.iter().enumerate() {
+                    println!("  {}: {}", i, v);
+                }
             }
-        }
-        ComputationDomain::PolyField => {
-            let mut outputs = opt.computation.run_uv_poly::<MFr, MP>(inputs);
-            outputs.iter_mut().for_each(|c| c.publicize());
-            println!("Public Outputs:");
-            for (i, v) in outputs.iter().enumerate() {
-                println!("  {}: {}", i, v);
+            ComputationDomain::Pairing => {
+                let mut outputs = opt
+                    .computation
+                    .run_pairing::<MpcPairingEngine<ark_bls12_377::Bls12_377>>(inputs);
+                outputs.iter_mut().for_each(|c| c.publicize());
+                println!("Public Outputs:");
+                for (i, v) in outputs.iter().enumerate() {
+                    println!("  {}: {}", i, v);
+                }
+            }
+            ComputationDomain::BlsPairing => {
+                let mut outputs = opt.computation.run_bls(inputs);
+                outputs.iter_mut().for_each(|c| c.publicize());
+                println!("Public Outputs:");
+                for (i, v) in outputs.iter().enumerate() {
+                    println!("  {}: {}", i, v);
+                }
+            }
+            ComputationDomain::PolyField => {
+                let mut outputs = opt.computation.run_uv_poly::<MFr, MP>(inputs);
+                outputs.iter_mut().for_each(|c| c.publicize());
+                println!("Public Outputs:");
+                for (i, v) in outputs.iter().enumerate() {
+                    println!("  {}: {}", i, v);
+                }
             }
         }
     }

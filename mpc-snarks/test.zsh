@@ -5,7 +5,22 @@ cargo build --bin client
 
 BIN=./target/debug/client
 
-#exit 0
+$BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d sum 1 0 --party 0 & ; pid0=$!
+$BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d sum 0 1 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+$BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d product 1 3 --party 0 & ; pid0=$!
+$BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d product 2 1 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+RUST_BACKTRACE=1 $BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d pproduct 1 3 --party 0 & ; pid0=$!
+$BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d pproduct 2 1 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+exit 0
 
 # msm
 $BIN --port 8001 --peer-host localhost --peer-port 8000 msm 4 1 2 --party 0 & ; pid0=$!

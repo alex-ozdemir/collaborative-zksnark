@@ -230,3 +230,9 @@ macro_rules! struct_reveal_simp_impl {
 pub mod channel;
 pub mod ss;
 
+#[macro_export]
+macro_rules! dbg_disp {
+    ($e:expr) => {
+        println!("{}: {}", std::stringify!($e), &$e)
+    }
+}
