@@ -15,8 +15,13 @@ $BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d product 2 1 --
 
 wait $pid0 $pid1
 
-RUST_BACKTRACE=1 $BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d pproduct 1 3 --party 0 & ; pid0=$!
+$BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d pproduct 1 3 --party 0 & ; pid0=$!
 $BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d pproduct 2 1 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+$BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d polydiv 1 3 1 0 --party 0 & ; pid0=$!
+$BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d polydiv 0 0 2 1 --party 1 & ; pid1=$!
 
 wait $pid0 $pid1
 

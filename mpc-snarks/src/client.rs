@@ -55,6 +55,7 @@ arg_enum! {
         KzgZkBatch,
         PcTwoCom,
         Plonk,
+        PolyDiv,
     }
 }
 
@@ -641,6 +642,16 @@ impl Computation {
                 let d = Radix2EvaluationDomain::<F>::new(inputs.len()).unwrap();
                 d.ifft_in_place(&mut inputs);
                 inputs
+            }
+            Computation::PolyDiv => {
+                let p = DensePolynomial::from_coefficients_vec(inputs.clone());
+                let q = DensePolynomial::from_coefficients_vec(vec![F::from(1u8), F::from(1u8)]);
+                let a = &p / &q;
+                let x = F::from(1u8);
+                let mut d = a.evaluate(&x) * q.evaluate(&x) - p.evaluate(&x);
+                d.publicize();
+                assert!(d.is_zero());
+                vec![]
             }
             Computation::Sum => {
                 vec![inputs.into_iter().fold(F::from(0u32), std::ops::Add::add)]
