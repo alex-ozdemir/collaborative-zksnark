@@ -25,6 +25,7 @@ use super::field::{
     DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, ScalarShare, SparsePolynomial,
 };
 use super::group::GroupShare;
+use super::msm::Msm;
 use super::pairing::PairingShare;
 use super::BeaverSource;
 use crate::Reveal;
@@ -138,11 +139,6 @@ impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
     }
 }
 
-/// Multi-scalar multiplications
-pub trait Msm<G, S>: Send + Sync + 'static {
-    fn msm(bases: &[G], scalars: &[S]) -> G;
-}
-
 #[derive(Derivative)]
 #[derivative(
     Default(bound = "T: Default"),
@@ -155,7 +151,7 @@ pub trait Msm<G, S>: Send + Sync + 'static {
     Hash(bound = "T: Hash")
 )]
 pub struct AdditiveGroupShare<T, M> {
-    val: T,
+    pub val: T,
     _phants: PhantomData<M>,
 }
 

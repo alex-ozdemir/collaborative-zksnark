@@ -29,8 +29,11 @@ pub mod malicious_majority {
     use super::{
         wire::{
             field,
+            group,
         },
         share::spdz::*,
+        share::add::NaiveMsm,
     };
     pub type MpcField<F> = field::MpcField<F, SpdzScalarShare<F>>;
+    pub type MpcGroup<G> = group::MpcGroup<G, SpdzGroupShare<G, NaiveMsm<G>>>;
 }

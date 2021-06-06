@@ -5,6 +5,7 @@ pub mod group;
 pub use group::*;
 pub mod pairing;
 pub use pairing::*;
+pub mod msm;
 pub mod add;
 pub use add::*;
 pub mod spdz;

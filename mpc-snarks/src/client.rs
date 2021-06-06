@@ -41,6 +41,8 @@ arg_enum! {
         Merkle,
         Fri,
         Dh,
+        NaiveMsm,
+        GroupOps,
         PairingDh,
         PairingProd,
         PairingDiv,
@@ -63,6 +65,7 @@ arg_enum! {
 enum ComputationDomain {
     G1,
     G2,
+    Group,
     Field,
     Pairing,
     BlsPairing,
@@ -124,7 +127,9 @@ impl Opt {
                     ComputationDomain::G1
                 }
             }
-
+            Computation::NaiveMsm | Computation::GroupOps => {
+                ComputationDomain::Group
+            }
             Computation::PairingDh | Computation::PairingProd | Computation::PairingDiv => {
                 ComputationDomain::Pairing
             }
@@ -593,6 +598,40 @@ impl Computation {
         }
         outputs
     }
+    fn run_group<G: Group>(
+        &self,
+        inputs: Vec<G::ScalarField>,
+        generator: G,
+    ) {
+        match self {
+            Computation::Dh => {
+                assert_eq!(2, inputs.len());
+                let a = inputs[0];
+                let b = inputs[1];
+                let g = generator;
+                let mut alice = G::mul(&G::mul(&g, &a), &b);
+                let mut bob = G::mul(&G::mul(&g, &b), &a);
+                alice.publicize();
+                bob.publicize();
+                assert_eq!(alice, bob);
+            }
+            Computation::Msm => {
+                let _bases: Vec<G> = (0u8..).map(|i| generator.mul(&G::ScalarField::from(i))).take(inputs.len()).collect();
+                todo!()
+            }
+            Computation::GroupOps => {
+                let g = generator;
+                let mut r1 = (g.mul(&inputs[0]) + &g - &g).mul(&G::ScalarField::from(4u8));
+                r1.publicize();
+                let mut t = inputs[0];
+                t.publicize();
+                let mut r2 = g.mul(&(t * G::ScalarField::from(4u8)));
+                r2.publicize();
+                assert_eq!(r1, r2);
+            }
+            c => unimplemented!("Cannot run_dh {:?}", c),
+        }
+    }
     fn run_gp<G: ProjectiveCurve + MpcWire>(
         &self,
         inputs: Vec<<G as Group>::ScalarField>,
@@ -877,6 +916,10 @@ fn main() -> () {
                     println!("  {}: {}", i, v);
                 }
             }
+            ComputationDomain::Group | ComputationDomain::G1 => {
+                let generator = mm::MpcGroup::<ark_bls12_377::G1Projective>::from_public(ark_bls12_377::G1Projective::prime_subgroup_generator());
+                opt.computation.run_group::<mm::MpcGroup<ark_bls12_377::G1Projective>>(inputs, generator);
+            }
             d => panic!("Bad domain: {:?}", d),
         }
     } else {
@@ -940,6 +983,7 @@ fn main() -> () {
                     println!("  {}: {}", i, v);
                 }
             }
+            d => panic!("Bad domain: {:?}", d),
         }
     }
     debug!("Stats: {:#?}", mpc_net::stats());

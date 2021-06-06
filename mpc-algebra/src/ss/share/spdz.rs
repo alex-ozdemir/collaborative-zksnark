@@ -1,5 +1,7 @@
+use derivative::Derivative;
 use rand::Rng;
 
+use ark_ec::group::Group;
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
 use ark_serialize::{
@@ -15,8 +17,10 @@ use std::io::{self, Read, Write};
 use crate::channel;
 use mpc_net;
 
-use super::add::AdditiveScalarShare;
+use super::add::{AdditiveGroupShare, AdditiveScalarShare};
 use super::field::{DenseOrSparsePolynomial, DensePolynomial, ScalarShare};
+use super::group::GroupShare;
+use super::msm::Msm;
 use crate::Reveal;
 
 #[inline]
@@ -207,5 +211,196 @@ impl<F: Field> ScalarShare<F> for SpdzScalarShare<F> {
                 .map(|(sh, mac)| Self { sh, mac })
                 .collect(),
         ))
+    }
+}
+
+#[derive(Derivative)]
+#[derivative(
+    Default(bound = "T: Default"),
+    Clone(bound = "T: Clone"),
+    Copy(bound = "T: Copy"),
+    PartialEq(bound = "T: PartialEq"),
+    Eq(bound = "T: Eq"),
+    PartialOrd(bound = "T: PartialOrd"),
+    Ord(bound = "T: Ord"),
+    Hash(bound = "T: Hash")
+)]
+pub struct SpdzGroupShare<T, M> {
+    sh: AdditiveGroupShare<T, M>,
+    mac: AdditiveGroupShare<T, M>,
+}
+
+impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
+    type Base = G;
+
+    fn reveal(self) -> G {
+        let other_val: G = channel::exchange(&self.sh.val);
+        // _Pragmatic MPC_ 6.6.2
+        let x: G = self.sh.val + other_val;
+        let dx_t: G = {
+            let mut t = x.clone();
+            t *= mac_share::<G::ScalarField>();
+            t - self.mac.val
+        };
+        let other_dx_t: G = channel::atomic_exchange(&dx_t);
+        let sum: G = dx_t + other_dx_t;
+        assert!(sum.is_zero());
+        x
+    }
+    fn from_public(f: G) -> Self {
+        Self {
+            sh: Reveal::from_public(f),
+            mac: Reveal::from_add_shared({
+                let mut t = f;
+                t *= mac_share::<G::ScalarField>();
+                t
+            }),
+        }
+    }
+    fn from_add_shared(f: G) -> Self {
+        Self {
+            sh: Reveal::from_add_shared(f),
+            mac: Reveal::from_add_shared({
+                let mut t = f;
+                t *= mac::<G::ScalarField>();
+                t
+            }),
+        }
+    }
+}
+macro_rules! impl_spdz_basics_2_param {
+    ($share:ident, $bound:ident) => {
+        impl<T: $bound, M> Display for $share<T, M> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.sh.val)
+            }
+        }
+        impl<T: $bound, M> Debug for $share<T, M> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                write!(f, "{:?}", self.sh.val)
+            }
+        }
+        impl<T: $bound, M> ToBytes for $share<T, M> {
+            fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
+                unimplemented!("write")
+            }
+        }
+        impl<T: $bound, M> FromBytes for $share<T, M> {
+            fn read<R: Read>(_reader: R) -> io::Result<Self> {
+                unimplemented!("read")
+            }
+        }
+        impl<T: $bound, M> CanonicalSerialize for $share<T, M> {
+            fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
+                unimplemented!("serialize")
+            }
+            fn serialized_size(&self) -> usize {
+                unimplemented!("serialized_size")
+            }
+        }
+        impl<T: $bound, M> CanonicalSerializeWithFlags for $share<T, M> {
+            fn serialize_with_flags<W: Write, F: Flags>(
+                &self,
+                _writer: W,
+                _flags: F,
+            ) -> Result<(), SerializationError> {
+                unimplemented!("serialize_with_flags")
+            }
+
+            fn serialized_size_with_flags<F: Flags>(&self) -> usize {
+                unimplemented!("serialized_size_with_flags")
+            }
+        }
+        impl<T: $bound, M> CanonicalDeserialize for $share<T, M> {
+            fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
+                unimplemented!("deserialize")
+            }
+        }
+        impl<T: $bound, M> CanonicalDeserializeWithFlags for $share<T, M> {
+            fn deserialize_with_flags<R: Read, F: Flags>(
+                _reader: R,
+            ) -> Result<(Self, F), SerializationError> {
+                unimplemented!("deserialize_with_flags")
+            }
+        }
+        impl<T: $bound, M> UniformRand for $share<T, M> {
+            fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
+                Self::from_add_shared(<T as UniformRand>::rand(rng))
+            }
+        }
+    };
+}
+
+impl_spdz_basics_2_param!(SpdzGroupShare, Group);
+
+impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M> {
+    type ScalarShare = SpdzScalarShare<G::ScalarField>;
+
+    fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
+        let (s_vals, macs): (Vec<G>, Vec<G>) =
+            selfs.into_iter().map(|s| (s.sh.val, s.mac.val)).unzip();
+        let o_vals = channel::exchange(&s_vals);
+        let vals: Vec<G> = s_vals
+            .iter()
+            .zip(o_vals.iter())
+            .map(|(a, b)| *a + b)
+            .collect();
+        let dx_ts: Vec<G> = macs
+            .iter()
+            .zip(vals.iter())
+            .map(|(mac, val)| {
+                let mut t = *val;
+                t *= mac_share::<G::ScalarField>();
+                t - mac
+            })
+            .collect();
+        let o_dx_ts: Vec<G> = channel::atomic_exchange(&dx_ts);
+        for (a, b) in dx_ts.into_iter().zip(o_dx_ts) {
+            let sum: G = a + b;
+            assert!(sum.is_zero());
+        }
+        vals
+    }
+
+    fn add(&mut self, other: &Self) -> &mut Self {
+        self.sh.add(&other.sh);
+        self.mac.add(&other.mac);
+        self
+    }
+
+    fn sub(&mut self, other: &Self) -> &mut Self {
+        self.sh.sub(&other.sh);
+        self.mac.sub(&other.mac);
+        self
+    }
+
+    fn scale_pub_scalar(&mut self, scalar: &G::ScalarField) -> &mut Self {
+        self.sh.scale_pub_scalar(scalar);
+        self.mac.scale_pub_scalar(scalar);
+        self
+    }
+
+    fn scale_pub_group(base: G, scalar: &Self::ScalarShare) -> Self {
+        let sh = AdditiveGroupShare::scale_pub_group(base, &scalar.sh);
+        let mac = AdditiveGroupShare::scale_pub_group(base, &scalar.mac);
+        Self { sh, mac }
+    }
+
+    fn shift(&mut self, other: &G) -> &mut Self {
+        if mpc_net::am_first() {
+            self.sh.shift(other);
+        }
+        let mut other = other.clone();
+        other *= mac_share::<G::ScalarField>();
+        self.mac.val += other;
+        self
+    }
+
+    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::ScalarShare]) -> Self {
+        let shares: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.sh.val.clone()).collect();
+        let macs: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.sh.val.clone()).collect();
+        let sh = AdditiveGroupShare::from_add_shared(M::msm(bases, &shares));
+        let mac = AdditiveGroupShare::from_add_shared(M::msm(bases, &macs));
+        Self { sh, mac }
     }
 }

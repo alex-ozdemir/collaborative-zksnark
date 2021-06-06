@@ -25,6 +25,16 @@ $BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d polydiv 0 0 2 
 
 wait $pid0 $pid1
 
+$BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d dh 1 3 --party 0 & ; pid0=$!
+$BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d dh 0 0 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
+$BIN --spdz --port 8001 --peer-host localhost --peer-port 8000 -d groupops 1 3 --party 0 & ; pid0=$!
+$BIN --spdz --port 8000 --peer-host localhost --peer-port 8001 -d groupops 5 0 --party 1 & ; pid1=$!
+
+wait $pid0 $pid1
+
 exit 0
 
 # msm
