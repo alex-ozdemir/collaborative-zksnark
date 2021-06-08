@@ -47,14 +47,17 @@ pub fn atomic_exchange<F: CanonicalSerialize + CanonicalDeserialize>(f: &F) -> F
     F::deserialize(&other_bytes[..ser_len]).unwrap()
 }
 
+#[inline]
 pub fn can_cheat() -> bool {
     ALLOW_CHEATING.get()
 }
 
+#[inline]
 pub fn set_cheating_allowed(allowed: bool) {
     ALLOW_CHEATING.set(allowed)
 }
 
+#[inline]
 pub fn without_cheating<O, F: FnOnce() -> O>(f: F) -> O {
     let allowed = can_cheat();
     set_cheating_allowed(false);

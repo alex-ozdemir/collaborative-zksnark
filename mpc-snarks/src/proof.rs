@@ -137,13 +137,15 @@ mod squarings {
                 end_timer!(computation_timer);
                 mpc_net::reset_stats();
                 let timer = start_timer!(|| timer_label);
-                let mpc_proof = create_random_proof::<ss::MpcPairingEngine<E, S>, _, _>(
-                    circ_data,
-                    &mpc_params,
-                    rng,
-                )
-                .unwrap();
-                let proof = mpc_proof.reveal();
+                let proof = channel::without_cheating(|| {
+                    create_random_proof::<ss::MpcPairingEngine<E, S>, _, _>(
+                        circ_data,
+                        &mpc_params,
+                        rng,
+                    )
+                    .unwrap()
+                    .reveal()
+                });
                 end_timer!(timer);
 
                 assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
@@ -201,12 +203,14 @@ mod squarings {
 
                 let timer = start_timer!(|| timer_label);
                 let zk_rng = &mut test_rng();
-                let mpc_proof = KzgMarlin::<
-                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
-                    ss::MpcPairingEngine<E, S>,
-                >::prove(&mpc_pk, circ_data, zk_rng)
-                .unwrap();
-                let proof = mpc_proof.reveal();
+                let proof = channel::without_cheating(|| {
+                    KzgMarlin::<
+                        <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                        ss::MpcPairingEngine<E, S>,
+                    >::prove(&mpc_pk, circ_data, zk_rng)
+                    .unwrap()
+                    .reveal()
+                });
                 end_timer!(timer);
                 assert!(KzgMarlin::<E::Fr, E>::verify(&vk, &public_inputs, &proof, rng).unwrap());
             }
@@ -288,11 +292,13 @@ mod squarings {
                 let (pk, vk) = MarlinPcPlonk::<E::Fr, E>::circuit_setup(&srs, &circ_no_data);
                 let mpc_pk = Reveal::from_public(pk);
                 let t = start_timer!(|| timer_label);
-                let mpc_pf = MarlinPcPlonk::<
-                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
-                    ss::MpcPairingEngine<E, S>,
-                >::prove(&mpc_pk, &plonk_circ_data, zk_rng);
-                let pf = mpc_pf.reveal();
+                let pf = channel::without_cheating(|| {
+                    MarlinPcPlonk::<
+                        <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                        ss::MpcPairingEngine<E, S>,
+                    >::prove(&mpc_pk, &plonk_circ_data, zk_rng)
+                    .reveal()
+                });
                 end_timer!(t);
                 MarlinPcPlonk::<E::Fr, E>::verify(&vk, &circ_no_data, pf, &public_inputs);
             }
