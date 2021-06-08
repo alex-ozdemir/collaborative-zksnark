@@ -13,15 +13,35 @@ use std::cmp::Ord;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::io::{self, Read, Write};
+use std::marker::PhantomData;
 
 use crate::channel;
 use mpc_net;
 
-use super::add::{AdditiveGroupShare, AdditiveScalarShare};
-use super::field::{DenseOrSparsePolynomial, DensePolynomial, ScalarShare};
+use super::BeaverSource;
+use super::add::{AdditiveGroupShare, AdditiveScalarShare, MulScalarShare};
+use super::field::{DenseOrSparsePolynomial, DensePolynomial, ScalarShare, ExtFieldShare};
 use super::group::GroupShare;
 use super::msm::Msm;
 use crate::Reveal;
+
+#[derive(Derivative)]
+#[derivative(
+    Default(bound = ""),
+    Clone(bound = ""),
+)]
+/// Panics if you ask it for triples.
+struct PanicBeaverSource<F>(PhantomData<F>);
+
+impl<F> BeaverSource<F, F, F> for PanicBeaverSource<F> {
+    fn triple(&mut self) -> (F, F, F) {
+        panic!("PanicBeaverSource")
+    }
+
+    fn inv_pair(&mut self) -> (F, F) {
+        panic!("PanicBeaverSource")
+    }
+}
 
 #[inline]
 pub fn mac_share<F: Field>() -> F {
@@ -324,8 +344,9 @@ macro_rules! impl_spdz_basics_2_param {
             }
         }
         impl<T: $bound, M> UniformRand for $share<T, M> {
-            fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
-                Self::from_add_shared(<T as UniformRand>::rand(rng))
+            fn rand<R: Rng + ?Sized>(_rng: &mut R) -> Self {
+                todo!()
+                //Self::from_add_shared(<T as UniformRand>::rand(rng))
             }
         }
     };
@@ -404,3 +425,115 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
         Self { sh, mac }
     }
 }
+
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "T: Clone"),
+    Copy(bound = "T: Copy"),
+    PartialEq(bound = "T: PartialEq"),
+    Eq(bound = "T: Eq"),
+    PartialOrd(bound = "T: PartialOrd"),
+    Ord(bound = "T: Ord"),
+    Hash(bound = "T: Hash")
+)]
+pub struct SpdzMulScalarShare<T, S> {
+    sh: MulScalarShare<T>,
+    mac: MulScalarShare<T>,
+    _phants: PhantomData<S>,
+}
+impl_spdz_basics_2_param!(SpdzMulScalarShare, Field);
+
+impl<F: Field, S: PrimeField> Reveal for SpdzMulScalarShare<F, S> {
+    type Base = F;
+
+    fn reveal(self) -> F {
+        let other_val: F = channel::exchange(&self.sh.val);
+        // _Pragmatic MPC_ 6.6.2
+        let x: F = self.sh.val * other_val;
+        let dx_t: F = x.pow(&mac_share::<S>().into_repr()) / self.mac.val;
+        let other_dx_t: F = channel::atomic_exchange(&dx_t);
+        let prod: F = dx_t * other_dx_t;
+        assert!(prod.is_one());
+        x
+    }
+    fn from_public(f: F) -> Self {
+        Self {
+            sh: Reveal::from_public(f),
+            mac: Reveal::from_add_shared(f.pow(&mac_share::<S>().into_repr())),
+            _phants: PhantomData::default(),
+        }
+    }
+    fn from_add_shared(f: F) -> Self {
+        Self {
+            sh: Reveal::from_add_shared(f),
+            mac: Reveal::from_add_shared(f.pow(&mac::<S>().into_repr())),
+            _phants: PhantomData::default(),
+        }
+    }
+}
+
+impl<F: Field, S: PrimeField> ScalarShare<F> for SpdzMulScalarShare<F, S> {
+    fn add(&mut self, _other: &Self) -> &mut Self {
+        unimplemented!("add for SpdzMulScalarShare")
+    }
+
+    fn scale(&mut self, other: &F) -> &mut Self {
+        if mpc_net::am_first() {
+            self.sh.scale(other);
+        }
+        self.mac.scale(&other.pow(&mac_share::<S>().into_repr()));
+        self
+    }
+
+    fn shift(&mut self, _other: &F) -> &mut Self {
+        unimplemented!("add for SpdzMulScalarShare")
+    }
+
+    fn mul<S2: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S2) -> Self {
+        self.sh.mul(other.sh, &mut PanicBeaverSource::default());
+        self.mac.mul(other.mac, &mut PanicBeaverSource::default());
+        self
+    }
+
+    fn batch_mul<S2: BeaverSource<Self, Self, Self>>(
+        mut xs: Vec<Self>,
+        ys: Vec<Self>,
+        _source: &mut S2,
+    ) -> Vec<Self> {
+        for (x, y) in xs.iter_mut().zip(ys.iter()) {
+            x.sh.mul(y.sh, &mut PanicBeaverSource::default());
+            x.mac.mul(y.mac, &mut PanicBeaverSource::default());
+        }
+        xs
+    }
+
+    fn inv<S2: BeaverSource<Self, Self, Self>>(self, _source: &mut S2) -> Self {
+        Self {
+            sh: self.sh.inv(&mut PanicBeaverSource::default()),
+            mac: self.mac.inv(&mut PanicBeaverSource::default()),
+            _phants: PhantomData::default(),
+        }
+    }
+
+    fn batch_inv<S2: BeaverSource<Self, Self, Self>>(xs: Vec<Self>, source: &mut S2) -> Vec<Self> {
+        xs.into_iter().map(|x| x.inv(source)).collect()
+    }
+}
+
+#[derive(Debug, Derivative)]
+#[derivative(
+    Default(bound = ""),
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "F: PartialEq"),
+    Eq(bound = "F: Eq"),
+    Hash(bound = "F: Hash")
+)]
+pub struct SpdzMulExtFieldShare<F: Field, S>(pub PhantomData<(F, S)>);
+
+impl<F: Field, S: PrimeField> ExtFieldShare<F> for SpdzMulExtFieldShare<F, S> {
+    type Ext = SpdzMulScalarShare<F, S>;
+    type Base = SpdzMulScalarShare<F::BasePrimeField, S>;
+}
+
+

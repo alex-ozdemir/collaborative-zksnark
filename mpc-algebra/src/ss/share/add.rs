@@ -376,7 +376,7 @@ impl<F: Field> ExtFieldShare<F> for AdditiveExtFieldShare<F> {
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MulScalarShare<T> {
-    val: T,
+    pub val: T,
 }
 
 impl<F: Field> Reveal for MulScalarShare<F> {
