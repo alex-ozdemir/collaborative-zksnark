@@ -2,8 +2,11 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use digest::Digest;
 use rand::RngCore;
 use sha2::Sha256;
+use std::cell::Cell;
 
 use mpc_net;
+
+const ALLOW_CHEATING: Cell<bool> = Cell::new(true);
 
 /// Number of randomness bytes to use in the commitment scheme
 const COMMIT_RAND_BYTES: usize = 32;
@@ -42,4 +45,20 @@ pub fn atomic_exchange<F: CanonicalSerialize + CanonicalDeserialize>(f: &F) -> F
     );
     // parse data
     F::deserialize(&other_bytes[..ser_len]).unwrap()
+}
+
+pub fn can_cheat() -> bool {
+    ALLOW_CHEATING.get()
+}
+
+pub fn set_cheating_allowed(allowed: bool) {
+    ALLOW_CHEATING.set(allowed)
+}
+
+pub fn without_cheating<O, F: FnOnce() -> O>(f: F) -> O {
+    let allowed = can_cheat();
+    set_cheating_allowed(false);
+    let r = f();
+    set_cheating_allowed(allowed);
+    r
 }

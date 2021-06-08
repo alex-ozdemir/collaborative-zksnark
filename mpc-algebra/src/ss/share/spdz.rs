@@ -56,7 +56,11 @@ pub fn mac_share<F: Field>() -> F {
 #[inline]
 /// A huge cheat. Useful for importing shares.
 pub fn mac<F: Field>() -> F {
-    F::one()
+    if channel::can_cheat() {
+        F::one()
+    } else {
+        panic!("Attempted to grab the MAC secret while cheating was not allowed")
+    }
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
