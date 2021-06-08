@@ -5,6 +5,4 @@ pub mod reveal;
 pub use reveal::*;
 pub mod channel;
 pub mod ss;
-pub mod pairing;
-pub use pairing::*;
 

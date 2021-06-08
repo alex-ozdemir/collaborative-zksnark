@@ -26,7 +26,7 @@ use super::field::{
 };
 use super::group::GroupShare;
 use super::msm::Msm;
-use super::pairing::PairingShare;
+use super::pairing::{AffProjShare, PairingShare};
 use super::BeaverSource;
 use crate::Reveal;
 
@@ -472,6 +472,46 @@ impl<F: Field> ExtFieldShare<F> for MulExtFieldShare<F> {
 
 impl_basics!(MulScalarShare, Field);
 
+macro_rules! groups_share {
+    ($struct_name:ident, $affine:ident, $proj:ident) => {
+        pub struct $struct_name<E: PairingEngine>(pub PhantomData<E>);
+
+        impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
+            type FrShare = AdditiveScalarShare<E::Fr>;
+            type AffineShare = AdditiveGroupShare<E::$affine, AdditiveAffineMsm<E::$affine>>;
+            type ProjectiveShare = AdditiveGroupShare<E::$proj, AdditiveProjectiveMsm<E::$proj>>;
+
+            fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
+                g.map_homo(|s| s.into())
+            }
+
+            fn sh_proj_to_aff(g: Self::ProjectiveShare) -> Self::AffineShare {
+                g.map_homo(|s| s.into())
+            }
+
+            fn add_sh_proj_sh_aff(
+                mut a: Self::ProjectiveShare,
+                o: &Self::AffineShare,
+            ) -> Self::ProjectiveShare {
+                a.val.add_assign_mixed(&o.val);
+                a
+            }
+            fn add_sh_proj_pub_aff(mut a: Self::ProjectiveShare, o: &E::$affine) -> Self::ProjectiveShare {
+                if mpc_net::am_first() {
+                    a.val.add_assign_mixed(&o);
+                }
+                a
+            }
+            fn add_pub_proj_sh_aff(_a: &E::$proj, _o: Self::AffineShare) -> Self::ProjectiveShare {
+                unimplemented!()
+            }
+        }
+    };
+}
+
+groups_share!(AdditiveG1Share, G1Affine, G1Projective);
+groups_share!(AdditiveG2Share, G2Affine, G2Projective);
+
 #[derive(Debug, Derivative)]
 #[derivative(
     Default(bound = ""),
@@ -495,18 +535,8 @@ impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
         AdditiveGroupShare<E::G1Projective, AdditiveProjectiveMsm<E::G1Projective>>;
     type G2ProjectiveShare =
         AdditiveGroupShare<E::G2Projective, AdditiveProjectiveMsm<E::G2Projective>>;
-    fn g1_share_aff_to_proj(g: Self::G1AffineShare) -> Self::G1ProjectiveShare {
-        g.map_homo(|s| s.into())
-    }
-    fn g1_share_proj_to_aff(g: Self::G1ProjectiveShare) -> Self::G1AffineShare {
-        g.map_homo(|s| s.into())
-    }
-    fn g2_share_aff_to_proj(g: Self::G2AffineShare) -> Self::G2ProjectiveShare {
-        g.map_homo(|s| s.into())
-    }
-    fn g2_share_proj_to_aff(g: Self::G2ProjectiveShare) -> Self::G2AffineShare {
-        g.map_homo(|s| s.into())
-    }
+    type G1 = AdditiveG1Share<E>;
+    type G2 = AdditiveG2Share<E>;
 }
 
 #[derive(Debug, Derivative)]

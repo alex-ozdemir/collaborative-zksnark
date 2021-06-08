@@ -20,12 +20,11 @@ use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use zeroize::Zeroize;
 
-use mpc_net;
 use mpc_trait::MpcWire;
 
 use super::super::share::field::ExtFieldShare;
 use super::super::share::group::GroupShare;
-use super::super::share::pairing::PairingShare;
+use super::super::share::pairing::{AffProjShare, PairingShare};
 use super::super::share::BeaverSource;
 use super::field::MpcField;
 use super::group::MpcGroup;
@@ -643,7 +642,7 @@ impl_pairing_curve_wrapper!(
 impl_ext_field_wrapper!(MpcField, MpcExtField);
 
 macro_rules! impl_aff_proj {
-    ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $pro_to_aff:ident, $aff_to_pro:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident, $share_proj:ident) => {
+    ($w_prep:ident, $prep:ident, $w_aff:ident, $w_pro:ident, $aff:ident, $pro:ident, $g_name:ident, $w_base:ident, $base:ident, $base_share:ident, $share_aff:ident, $share_proj:ident) => {
         impl<E: PairingEngine, PS: PairingShare<E>> Group for $w_aff<E, PS> {
             type ScalarField = MpcField<E::Fr, PS::FrShare>;
         }
@@ -651,7 +650,7 @@ macro_rules! impl_aff_proj {
             #[inline]
             fn from(o: $w_pro<E, PS>) -> Self {
                 Self {
-                    val: o.val.map(|s| s.into(), PS::$pro_to_aff),
+                    val: o.val.map(|s| s.into(), PS::$g_name::sh_proj_to_aff),
                 }
             }
         }
@@ -659,7 +658,7 @@ macro_rules! impl_aff_proj {
             #[inline]
             fn from(o: $w_aff<E, PS>) -> Self {
                 Self {
-                    val: o.val.map(|s| s.into(), PS::$aff_to_pro),
+                    val: o.val.map(|s| s.into(), PS::$g_name::sh_aff_to_proj),
                 }
             }
         }
@@ -772,7 +771,7 @@ macro_rules! impl_aff_proj {
                         Err(priv_scalars) => {
                             let t = start_timer!(|| "MSM inner");
                             let r = $w_pro {
-                                val: MpcGroup::Shared(PS::$aff_to_pro(
+                                val: MpcGroup::Shared(PS::$g_name::sh_aff_to_proj(
                                     <PS::$share_aff as GroupShare<E::$aff>>::multi_scale_pub_group(
                                         &bases,
                                         &priv_scalars,
@@ -821,33 +820,50 @@ macro_rules! impl_aff_proj {
                 self
             }
             fn add_assign_mixed(&mut self, o: &<Self as ProjectiveCurve>::Affine) {
-                let self_s = self.val.is_shared();
-                let o_s = o.val.is_shared();
-                match (self_s, o_s) {
-                    (true, true) | (false, false) => {
-                        let mut s = self.val.unwrap_as_public_or_add_shared();
-                        let t = o.val.unwrap_as_public_or_add_shared();
-                        s.add_assign_mixed(&t);
-                        self.val = if self_s {
-                            Reveal::from_add_shared(s)
-                        } else {
-                            Reveal::from_public(s)
-                        };
+                let new_self = match (&self.val, &o.val) {
+                    (MpcGroup::Shared(a), MpcGroup::Shared(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_sh_proj_sh_aff(a.clone(), b))
                     }
-                    (true, false) => {
-                        if mpc_net::am_first() {
-                            let mut s = self.val.unwrap_as_public_or_add_shared();
-                            let t = o.val.unwrap_as_public_or_add_shared();
-                            s.add_assign_mixed(&t);
-                            self.val = Reveal::from_add_shared(s);
-                            //self.val.add_assign_mixed(&o.val);
-                        } else {
-                        }
+                    (MpcGroup::Shared(a), MpcGroup::Public(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_sh_proj_pub_aff(a.clone(), b))
                     }
-                    (false, true) => {
-                        *self = o.clone().into();
+                    (MpcGroup::Public(a), MpcGroup::Shared(b)) => {
+                        MpcGroup::Shared(PS::$g_name::add_pub_proj_sh_aff(a, b.clone()))
                     }
-                }
+                    (MpcGroup::Public(a), MpcGroup::Public(b)) => MpcGroup::Public({
+                        let mut a = a.clone();
+                        a.add_assign_mixed(b);
+                        a
+                    }),
+                };
+                self.val = new_self;
+                // let self_s = self.val.is_shared();
+                // let o_s = o.val.is_shared();
+                // match (self_s, o_s) {
+                //     (true, true) | (false, false) => {
+                //         let mut s = self.val.unwrap_as_public_or_add_shared();
+                //         let t = o.val.unwrap_as_public_or_add_shared();
+                //         s.add_assign_mixed(&t);
+                //         self.val = if self_s {
+                //             Reveal::from_add_shared(s)
+                //         } else {
+                //             Reveal::from_public(s)
+                //         };
+                //     }
+                //     (true, false) => {
+                //         if mpc_net::am_first() {
+                //             let mut s = self.val.unwrap_as_public_or_add_shared();
+                //             let t = o.val.unwrap_as_public_or_add_shared();
+                //             s.add_assign_mixed(&t);
+                //             self.val = Reveal::from_add_shared(s);
+                //             //self.val.add_assign_mixed(&o.val);
+                //         } else {
+                //         }
+                //     }
+                //     (false, true) => {
+                //         *self = o.clone().into();
+                //     }
+                // }
             }
             fn mul<S: AsRef<[u64]>>(self, _scalar_words: S) -> Self {
                 unimplemented!("mul by words")
@@ -863,8 +879,7 @@ impl_aff_proj!(
     MpcG1Projective,
     G1Affine,
     G1Projective,
-    g1_share_proj_to_aff,
-    g1_share_aff_to_proj,
+    G1,
     MpcField,
     Fq,
     FqShare,
@@ -878,8 +893,7 @@ impl_aff_proj!(
     MpcG2Projective,
     G2Affine,
     G2Projective,
-    g2_share_proj_to_aff,
-    g2_share_aff_to_proj,
+    G2,
     MpcExtField,
     Fqe,
     FqeShare,

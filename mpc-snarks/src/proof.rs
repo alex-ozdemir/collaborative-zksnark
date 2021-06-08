@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
+use ark_ec::PairingEngine;
 use ark_ff::{Field, UniformRand};
 use ark_groth16;
 use ark_relations::{
@@ -11,6 +12,7 @@ use ark_std::{end_timer, start_timer};
 use blake2::Blake2s;
 use clap::arg_enum;
 use log::debug;
+use mpc_algebra::ss::PairingShare;
 use structopt::StructOpt;
 
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -18,7 +20,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 mod groth;
 mod marlin;
 mod silly;
-use mpc_algebra::{Reveal, channel, ss::honest_but_curious::*};
+use mpc_algebra::{channel, ss, ss::honest_but_curious::*, Reveal};
 
 // Field
 type Fr = ark_bls12_377::Fr;
@@ -30,6 +32,14 @@ type MFr = MpcField<Fr>;
 type ME = MpcPairingEngine<E>;
 
 const TIMED_SECTION_LABEL: &str = "timed section";
+
+trait SnarkBench {
+    fn local<E: PairingEngine>(n: usize, timer_label: &str);
+    fn ark_local<E: PairingEngine>(_n: usize, _timer_label: &str) {
+        unimplemented!("ark benchmark for {}", std::any::type_name::<Self>())
+    }
+    fn mpc<E: PairingEngine, S: PairingShare<E>>(n: usize, timer_label: &str);
+}
 
 mod squarings {
     use super::*;
@@ -68,64 +78,76 @@ mod squarings {
         use crate::ark_groth16::{generate_random_parameters, prepare_verifying_key, verify_proof};
         use crate::groth::prover::create_random_proof;
 
-        pub fn mpc(n: usize) {
-            let rng = &mut test_rng();
-            let circ_no_data = RepeatedSquaringCircuit::without_data(n);
+        pub struct Groth16Bench;
 
-            let params = generate_random_parameters::<E, _, _>(circ_no_data, rng).unwrap();
+        impl SnarkBench for Groth16Bench {
+            fn local<E: PairingEngine>(n: usize, timer_label: &str) {
+                let rng = &mut test_rng();
+                let circ_no_data = RepeatedSquaringCircuit::without_data(n);
 
-            let pvk = prepare_verifying_key::<E>(&params.vk);
-            let mpc_params = Reveal::from_public(params);
+                let params = generate_random_parameters::<E, _, _>(circ_no_data, rng).unwrap();
 
-            let a = Fr::rand(rng);
-            let computation_timer = start_timer!(|| "do the mpc (cheat)");
-            let circ_data = mpc_squaring_circuit(a, n);
-            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
-            end_timer!(computation_timer);
-            mpc_net::reset_stats();
-            let timer = start_timer!(|| TIMED_SECTION_LABEL);
-            let mpc_proof = create_random_proof::<ME, _, _>(circ_data, &mpc_params, rng).unwrap();
-            let proof = mpc_proof.reveal();
-            end_timer!(timer);
+                let pvk = prepare_verifying_key::<E>(&params.vk);
 
-            assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
-        }
+                let a = E::Fr::rand(rng);
+                let circ_data = RepeatedSquaringCircuit::from_start(a, n);
+                let public_inputs = vec![circ_data.chain.last().unwrap().unwrap()];
+                let timer = start_timer!(|| timer_label);
+                let proof = create_random_proof::<E, _, _>(circ_data, &params, rng).unwrap();
+                end_timer!(timer);
 
-        pub fn local(n: usize) {
-            let rng = &mut test_rng();
-            let circ_no_data = RepeatedSquaringCircuit::without_data(n);
+                assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
+            }
 
-            let params = generate_random_parameters::<E, _, _>(circ_no_data, rng).unwrap();
+            fn ark_local<E: PairingEngine>(n: usize, timer_label: &str) {
+                let rng = &mut test_rng();
+                let circ_no_data = RepeatedSquaringCircuit::without_data(n);
 
-            let pvk = prepare_verifying_key::<E>(&params.vk);
+                let params = generate_random_parameters::<E, _, _>(circ_no_data, rng).unwrap();
 
-            let a = Fr::rand(rng);
-            let circ_data = RepeatedSquaringCircuit::from_start(a, n);
-            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap()];
-            let timer = start_timer!(|| TIMED_SECTION_LABEL);
-            let proof = create_random_proof::<E, _, _>(circ_data, &params, rng).unwrap();
-            end_timer!(timer);
+                let pvk = prepare_verifying_key::<E>(&params.vk);
 
-            assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
-        }
+                let a = E::Fr::rand(rng);
+                let circ_data = RepeatedSquaringCircuit::from_start(a, n);
+                let public_inputs = vec![circ_data.chain.last().unwrap().unwrap()];
+                let timer = start_timer!(|| timer_label);
+                let proof =
+                    ark_groth16::create_random_proof::<E, _, _>(circ_data, &params, rng).unwrap();
+                end_timer!(timer);
 
-        pub fn local_ark(n: usize) {
-            let rng = &mut test_rng();
-            let circ_no_data = RepeatedSquaringCircuit::without_data(n);
+                assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
+            }
 
-            let params = generate_random_parameters::<E, _, _>(circ_no_data, rng).unwrap();
+            fn mpc<E: PairingEngine, S: PairingShare<E>>(n: usize, timer_label: &str) {
+                let rng = &mut test_rng();
+                let circ_no_data = RepeatedSquaringCircuit::without_data(n);
 
-            let pvk = prepare_verifying_key::<E>(&params.vk);
+                let params = generate_random_parameters::<E, _, _>(circ_no_data, rng).unwrap();
 
-            let a = Fr::rand(rng);
-            let circ_data = RepeatedSquaringCircuit::from_start(a, n);
-            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap()];
-            let timer = start_timer!(|| TIMED_SECTION_LABEL);
-            let proof =
-                ark_groth16::create_random_proof::<E, _, _>(circ_data, &params, rng).unwrap();
-            end_timer!(timer);
+                let pvk = prepare_verifying_key::<E>(&params.vk);
+                let mpc_params = Reveal::from_public(params);
 
-            assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
+                let a = E::Fr::rand(rng);
+                let computation_timer = start_timer!(|| "do the mpc (cheat)");
+                let circ_data = mpc_squaring_circuit::<
+                    E::Fr,
+                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                >(a, n);
+                let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
+                end_timer!(computation_timer);
+                mpc_net::reset_stats();
+                let timer = start_timer!(|| timer_label);
+                let mpc_proof = create_random_proof::<ss::MpcPairingEngine<E, S>, _, _>(
+                    circ_data,
+                    &mpc_params,
+                    rng,
+                )
+                .unwrap();
+                let proof = mpc_proof.reveal();
+                end_timer!(timer);
+
+                assert!(verify_proof(&pvk, &proof, &public_inputs).unwrap());
+            }
         }
     }
 
@@ -136,48 +158,58 @@ mod squarings {
         use ark_poly::univariate::DensePolynomial;
         use ark_poly_commit::marlin::marlin_pc::MarlinKZG10;
 
-        type LocalMarlin = Marlin<Fr, MarlinKZG10<E, DensePolynomial<Fr>>, Blake2s>;
-        type MpcMarlin = Marlin<MFr, MarlinKZG10<ME, DensePolynomial<MFr>>, Blake2s>;
+        type KzgMarlin<Fr, E> = Marlin<Fr, MarlinKZG10<E, DensePolynomial<Fr>>, Blake2s>;
 
-        pub fn local(n: usize) {
-            let rng = &mut test_rng();
-            let circ_no_data = RepeatedSquaringCircuit::without_data(n);
+        pub struct MarlinBench;
 
-            let srs = LocalMarlin::universal_setup(n, n + 2, 3 * n, rng).unwrap();
+        impl SnarkBench for MarlinBench {
+            fn local<E: PairingEngine>(n: usize, timer_label: &str) {
+                let rng = &mut test_rng();
+                let circ_no_data = RepeatedSquaringCircuit::without_data(n);
 
-            let (pk, vk) = LocalMarlin::index(&srs, circ_no_data).unwrap();
+                let srs = KzgMarlin::<E::Fr, E>::universal_setup(n, n + 2, 3 * n, rng).unwrap();
 
-            let a = Fr::rand(rng);
-            let circ_data = RepeatedSquaringCircuit::from_start(a, n);
-            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap()];
-            let timer = start_timer!(|| TIMED_SECTION_LABEL);
-            let zk_rng = &mut test_rng();
-            let proof = LocalMarlin::prove(&pk, circ_data, zk_rng).unwrap();
-            end_timer!(timer);
-            assert!(LocalMarlin::verify(&vk, &public_inputs, &proof, rng).unwrap());
-        }
+                let (pk, vk) = KzgMarlin::<E::Fr, E>::index(&srs, circ_no_data).unwrap();
 
-        pub fn mpc(n: usize) {
-            let rng = &mut test_rng();
-            let circ_no_data = RepeatedSquaringCircuit::without_data(n);
+                let a = E::Fr::rand(rng);
+                let circ_data = RepeatedSquaringCircuit::from_start(a, n);
+                let public_inputs = vec![circ_data.chain.last().unwrap().unwrap()];
+                let timer = start_timer!(|| timer_label);
+                let zk_rng = &mut test_rng();
+                let proof = KzgMarlin::<E::Fr, E>::prove(&pk, circ_data, zk_rng).unwrap();
+                end_timer!(timer);
+                assert!(KzgMarlin::<E::Fr, E>::verify(&vk, &public_inputs, &proof, rng).unwrap());
+            }
 
-            let srs = LocalMarlin::universal_setup(n, n + 2, 3 * n, rng).unwrap();
+            fn mpc<E: PairingEngine, S: PairingShare<E>>(n: usize, timer_label: &str) {
+                let rng = &mut test_rng();
+                let circ_no_data = RepeatedSquaringCircuit::without_data(n);
 
-            let (pk, vk) = LocalMarlin::index(&srs, circ_no_data).unwrap();
-            let mpc_pk = IndexProverKey::from_public(pk);
+                let srs = KzgMarlin::<E::Fr, E>::universal_setup(n, n + 2, 3 * n, rng).unwrap();
 
-            let a = Fr::rand(rng);
-            let computation_timer = start_timer!(|| "do the mpc (cheat)");
-            let circ_data = mpc_squaring_circuit(a, n);
-            let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
-            end_timer!(computation_timer);
+                let (pk, vk) = KzgMarlin::<E::Fr, E>::index(&srs, circ_no_data).unwrap();
+                let mpc_pk = IndexProverKey::from_public(pk);
 
-            let timer = start_timer!(|| TIMED_SECTION_LABEL);
-            let zk_rng = &mut test_rng();
-            let mpc_proof = MpcMarlin::prove(&mpc_pk, circ_data, zk_rng).unwrap();
-            let proof = mpc_proof.reveal();
-            end_timer!(timer);
-            assert!(LocalMarlin::verify(&vk, &public_inputs, &proof, rng).unwrap());
+                let a = E::Fr::rand(rng);
+                let computation_timer = start_timer!(|| "do the mpc (cheat)");
+                let circ_data = mpc_squaring_circuit::<
+                    E::Fr,
+                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                >(a, n);
+                let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
+                end_timer!(computation_timer);
+
+                let timer = start_timer!(|| timer_label);
+                let zk_rng = &mut test_rng();
+                let mpc_proof = KzgMarlin::<
+                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                    ss::MpcPairingEngine<E, S>,
+                >::prove(&mpc_pk, circ_data, zk_rng)
+                .unwrap();
+                let proof = mpc_proof.reveal();
+                end_timer!(timer);
+                assert!(KzgMarlin::<E::Fr, E>::verify(&vk, &public_inputs, &proof, rng).unwrap());
+            }
         }
     }
 
@@ -185,10 +217,10 @@ mod squarings {
         use super::*;
         use ark_poly::univariate::DensePolynomial;
         use ark_poly_commit::marlin::marlin_pc::MarlinKZG10;
+        use mpc_algebra::Reveal;
         use mpc_plonk::relations::flat::CircuitLayout;
         use mpc_plonk::relations::structured::PlonkCircuit;
         use mpc_plonk::*;
-        use mpc_algebra::Reveal;
 
         fn plonk_squaring_circuit<F: Field>(c: RepeatedSquaringCircuit<F>) -> PlonkCircuit<F> {
             let n_gates = c.chain.len() as u32 - 1;
@@ -204,59 +236,73 @@ mod squarings {
             this.pad_to_power_of_2();
             this
         }
-        type LocalPlonk = mpc_plonk::Plonk<Fr, MarlinKZG10<E, DensePolynomial<Fr>>>;
-        type MpcPlonk = mpc_plonk::Plonk<MFr, MarlinKZG10<ME, DensePolynomial<MFr>>>;
+        type MarlinPcPlonk<Fr, E> = mpc_plonk::Plonk<Fr, MarlinKZG10<E, DensePolynomial<Fr>>>;
 
-        pub fn local(n: usize) {
-            let rng = &mut test_rng();
-            let circ_no_data = plonk_squaring_circuit(RepeatedSquaringCircuit::without_data(n));
-            let circ_no_data = CircuitLayout::from_circuit(&circ_no_data);
+        pub struct PlonkBench;
 
-            let a = Fr::rand(rng);
-            let circ_data = RepeatedSquaringCircuit::from_start(a, n);
-            let plonk_circ_data = plonk_squaring_circuit(circ_data.clone());
-            let plonk_circ_data = CircuitLayout::from_circuit(&plonk_circ_data);
-            let public_inputs =
-                std::iter::once(("out".to_owned(), circ_data.chain.last().unwrap().unwrap()))
-                    .collect();
-            let setup_rng = &mut test_rng();
-            let zk_rng = &mut test_rng();
-            let srs = LocalPlonk::universal_setup(n.next_power_of_two(), setup_rng);
-            let (pk, vk) = LocalPlonk::circuit_setup(&srs, &circ_no_data);
-            let timer = start_timer!(|| TIMED_SECTION_LABEL);
-            let pf = LocalPlonk::prove(&pk, &plonk_circ_data, zk_rng);
-            end_timer!(timer);
-            LocalPlonk::verify(&vk, &circ_no_data, pf, &public_inputs);
-        }
+        impl SnarkBench for PlonkBench {
+            fn local<E: PairingEngine>(n: usize, timer_label: &str) {
+                let rng = &mut test_rng();
+                let circ_no_data = plonk_squaring_circuit(RepeatedSquaringCircuit::without_data(n));
+                let circ_no_data = CircuitLayout::from_circuit(&circ_no_data);
 
-        pub fn mpc(n: usize) {
-            let rng = &mut test_rng();
-            let circ_no_data = plonk_squaring_circuit(RepeatedSquaringCircuit::without_data(n));
-            let circ_no_data = CircuitLayout::from_circuit(&circ_no_data);
+                let a = E::Fr::rand(rng);
+                let circ_data = RepeatedSquaringCircuit::from_start(a, n);
+                let plonk_circ_data = plonk_squaring_circuit(circ_data.clone());
+                let plonk_circ_data = CircuitLayout::from_circuit(&plonk_circ_data);
+                let public_inputs =
+                    std::iter::once(("out".to_owned(), circ_data.chain.last().unwrap().unwrap()))
+                        .collect();
+                let setup_rng = &mut test_rng();
+                let zk_rng = &mut test_rng();
+                let srs =
+                    MarlinPcPlonk::<E::Fr, E>::universal_setup(n.next_power_of_two(), setup_rng);
+                let (pk, vk) = MarlinPcPlonk::<E::Fr, E>::circuit_setup(&srs, &circ_no_data);
+                let timer = start_timer!(|| timer_label);
+                let pf = MarlinPcPlonk::<E::Fr, E>::prove(&pk, &plonk_circ_data, zk_rng);
+                end_timer!(timer);
+                MarlinPcPlonk::<E::Fr, E>::verify(&vk, &circ_no_data, pf, &public_inputs);
+            }
 
-            let a = Fr::rand(rng);
-            let circ_data = mpc_squaring_circuit(a, n);
-            let plonk_circ_data = plonk_squaring_circuit(circ_data.clone());
-            let plonk_circ_data = CircuitLayout::from_circuit(&plonk_circ_data);
-            let public_inputs = std::iter::once((
-                "out".to_owned(),
-                circ_data.chain.last().unwrap().unwrap().reveal(),
-            ))
-            .collect();
-            let setup_rng = &mut test_rng();
-            let zk_rng = &mut test_rng();
-            let srs = LocalPlonk::universal_setup(n.next_power_of_two(), setup_rng);
-            let (pk, vk) = LocalPlonk::circuit_setup(&srs, &circ_no_data);
-            let t = start_timer!(|| TIMED_SECTION_LABEL);
-            let mpc_pk = ProverKey::from_public(pk);
-            let mpc_pf = MpcPlonk::prove(&mpc_pk, &plonk_circ_data, zk_rng);
-            let pf = mpc_pf.reveal();
-            end_timer!(t);
-            LocalPlonk::verify(&vk, &circ_no_data, pf, &public_inputs);
+            fn mpc<E: PairingEngine, S: PairingShare<E>>(n: usize, timer_label: &str) {
+                let rng = &mut test_rng();
+                let circ_no_data = plonk_squaring_circuit(RepeatedSquaringCircuit::without_data(n));
+                let circ_no_data = CircuitLayout::from_circuit(&circ_no_data);
+
+                let a = E::Fr::rand(rng);
+                let circ_data = mpc_squaring_circuit::<
+                    E::Fr,
+                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                >(a, n);
+                let plonk_circ_data = plonk_squaring_circuit(circ_data.clone());
+                let plonk_circ_data = CircuitLayout::from_circuit(&plonk_circ_data);
+                let public_inputs = std::iter::once((
+                    "out".to_owned(),
+                    circ_data.chain.last().unwrap().unwrap().reveal(),
+                ))
+                .collect();
+                let setup_rng = &mut test_rng();
+                let zk_rng = &mut test_rng();
+                let srs =
+                    MarlinPcPlonk::<E::Fr, E>::universal_setup(n.next_power_of_two(), setup_rng);
+                let (pk, vk) = MarlinPcPlonk::<E::Fr, E>::circuit_setup(&srs, &circ_no_data);
+                let mpc_pk = Reveal::from_public(pk);
+                let t = start_timer!(|| timer_label);
+                let mpc_pf = MarlinPcPlonk::<
+                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                    ss::MpcPairingEngine<E, S>,
+                >::prove(&mpc_pk, &plonk_circ_data, zk_rng);
+                let pf = mpc_pf.reveal();
+                end_timer!(t);
+                MarlinPcPlonk::<E::Fr, E>::verify(&vk, &circ_no_data, pf, &public_inputs);
+            }
         }
     }
 
-    fn mpc_squaring_circuit(start: Fr, squarings: usize) -> RepeatedSquaringCircuit<MFr> {
+    fn mpc_squaring_circuit<Fr: Field, MFr: Field + Reveal<Base = Fr>>(
+        start: Fr,
+        squarings: usize,
+    ) -> RepeatedSquaringCircuit<MFr> {
         let rng = &mut test_rng();
         let raw_chain: Vec<Fr> = std::iter::successors(Some(start), |a| Some(a.square()))
             .take(squarings + 1)
@@ -283,7 +329,7 @@ mod squarings {
         RepeatedSquaringCircuit {
             chain: my_shares
                 .into_iter()
-                .map(|s| Some(MpcField::from_add_shared(s)))
+                .map(|s| Some(MFr::from_add_shared(s)))
                 .collect(),
         }
     }
@@ -318,7 +364,7 @@ mod squarings {
 }
 
 #[derive(Debug, StructOpt)]
-struct PartyInfo {
+struct ShareInfo {
     /// Your host
     #[structopt(long, default_value = "localhost")]
     host: String,
@@ -338,9 +384,13 @@ struct PartyInfo {
     /// Which party are you? 0 or 1?
     #[structopt(long, default_value = "0")]
     party: u8,
+
+    /// Use spdz?
+    #[structopt(long)]
+    spdz: bool,
 }
 
-impl PartyInfo {
+impl ShareInfo {
     fn setup(&self) {
         let self_addr = (self.host.clone(), self.port)
             .to_socket_addrs()
@@ -359,6 +409,26 @@ impl PartyInfo {
     fn teardown(&self) {
         debug!("Stats: {:#?}", mpc_net::stats());
         mpc_net::deinit();
+    }
+    fn run<E: PairingEngine, B: SnarkBench>(
+        &self,
+        computation: Computation,
+        computation_size: usize,
+        _b: B,
+        timed_label: &str,
+    ) {
+        match computation {
+            Computation::Squaring => {
+                if self.spdz {
+                    B::mpc::<E, ss::share::spdz::SpdzPairingShare<E>>(computation_size, timed_label)
+                } else {
+                    B::mpc::<E, ss::share::add::AdditivePairingShare<E>>(
+                        computation_size,
+                        timed_label,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -382,7 +452,7 @@ arg_enum! {
 enum FieldOpt {
     Mpc {
         #[structopt(flatten)]
-        party_info: PartyInfo,
+        party_info: ShareInfo,
     },
     Local,
     ArkLocal,
@@ -391,47 +461,30 @@ enum FieldOpt {
 impl FieldOpt {
     fn setup(&self) {
         match self {
-            FieldOpt::Mpc { party_info } => party_info.setup(),
+            FieldOpt::Mpc { party_info, .. } => party_info.setup(),
             _ => {}
         }
     }
     fn teardown(&self) {
         match self {
-            FieldOpt::Mpc { party_info } => party_info.teardown(),
+            FieldOpt::Mpc { party_info, .. } => party_info.teardown(),
             _ => {}
         }
     }
-    fn run(&self, computation: Computation, proof_system: ProofSystem, computation_size: usize) {
+    fn run<E: PairingEngine, B: SnarkBench>(
+        &self,
+        computation: Computation,
+        computation_size: usize,
+        b: B,
+        timed_label: &str,
+    ) {
         self.setup();
-        match computation {
-            Computation::Squaring => match (self, proof_system) {
-                (FieldOpt::Mpc { .. }, ProofSystem::Groth16) => {
-                    squarings::groth::mpc(computation_size);
-                }
-                (FieldOpt::Mpc { .. }, ProofSystem::Marlin) => {
-                    squarings::marlin::mpc(computation_size);
-                }
-                (FieldOpt::Mpc { .. }, ProofSystem::Plonk) => {
-                    squarings::plonk::mpc(computation_size);
-                }
-                (FieldOpt::Local, ProofSystem::Groth16) => {
-                    squarings::groth::local(computation_size);
-                }
-                (FieldOpt::Local, ProofSystem::Marlin) => {
-                    squarings::marlin::local(computation_size);
-                }
-                (FieldOpt::Local, ProofSystem::Plonk) => {
-                    squarings::plonk::local(computation_size);
-                }
-                (FieldOpt::ArkLocal, ProofSystem::Groth16) => {
-                    squarings::groth::local_ark(computation_size);
-                }
-                _ => unimplemented!(
-                    "Proof {:?} with field configuration {:?}",
-                    proof_system,
-                    self
-                ),
-            },
+        match self {
+            FieldOpt::Mpc { party_info, .. } => {
+                party_info.run::<E, B>(computation, computation_size, b, timed_label)
+            }
+            FieldOpt::Local => B::local::<E>(computation_size, timed_label),
+            FieldOpt::ArkLocal => B::ark_local::<E>(computation_size, timed_label),
         }
         self.teardown();
     }
@@ -461,7 +514,25 @@ impl Opt {}
 fn main() {
     let opt = Opt::from_args();
     env_logger::init();
-    opt.field
-        .run(opt.computation, opt.proof_system, opt.computation_size);
+    match opt.proof_system {
+        ProofSystem::Groth16 => opt.field.run::<ark_bls12_377::Bls12_377, _>(
+            opt.computation,
+            opt.computation_size,
+            squarings::groth::Groth16Bench,
+            TIMED_SECTION_LABEL,
+        ),
+        ProofSystem::Plonk => opt.field.run::<ark_bls12_377::Bls12_377, _>(
+            opt.computation,
+            opt.computation_size,
+            squarings::plonk::PlonkBench,
+            TIMED_SECTION_LABEL,
+        ),
+        ProofSystem::Marlin => opt.field.run::<ark_bls12_377::Bls12_377, _>(
+            opt.computation,
+            opt.computation_size,
+            squarings::marlin::MarlinBench,
+            TIMED_SECTION_LABEL,
+        ),
+    }
     println!("Exchange stats: {:#?}", mpc_net::stats());
 }
