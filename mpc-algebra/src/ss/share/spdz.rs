@@ -1,7 +1,7 @@
 use derivative::Derivative;
 use rand::Rng;
 
-use ark_ec::group::Group;
+use ark_ec::{group::Group, PairingEngine};
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
 use ark_serialize::{
@@ -19,8 +19,9 @@ use crate::channel;
 use mpc_net;
 
 use super::BeaverSource;
-use super::add::{AdditiveGroupShare, AdditiveScalarShare, MulScalarShare};
+use super::add::{AdditiveGroupShare, AdditiveScalarShare, MulScalarShare, AdditiveAffineMsm, AdditiveProjectiveMsm};
 use super::field::{DenseOrSparsePolynomial, DensePolynomial, ScalarShare, ExtFieldShare};
+use super::pairing::PairingShare;
 use super::group::GroupShare;
 use super::msm::Msm;
 use crate::Reveal;
@@ -536,4 +537,55 @@ impl<F: Field, S: PrimeField> ExtFieldShare<F> for SpdzMulExtFieldShare<F, S> {
     type Base = SpdzMulScalarShare<F::BasePrimeField, S>;
 }
 
+#[derive(Debug, Derivative)]
+#[derivative(
+    Default(bound = ""),
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "F: PartialEq"),
+    Eq(bound = "F: Eq"),
+    Hash(bound = "F: Hash")
+)]
+pub struct SpdzExtFieldShare<F: Field>(pub PhantomData<F>);
 
+impl<F: Field> ExtFieldShare<F> for SpdzExtFieldShare<F> {
+    type Ext = AdditiveScalarShare<F>;
+    type Base = AdditiveScalarShare<F::BasePrimeField>;
+}
+
+#[derive(Debug, Derivative)]
+#[derivative(
+    Default(bound = ""),
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "E::G1Affine: PartialEq"),
+    Eq(bound = "E::G1Affine: Eq"),
+    Hash(bound = "E::G1Affine: Hash")
+)]
+pub struct SpdzPairingShare<E: PairingEngine>(pub PhantomData<E>);
+
+impl<E: PairingEngine> PairingShare<E> for SpdzPairingShare<E> {
+    type FrShare = SpdzScalarShare<E::Fr>;
+    type FqShare = SpdzScalarShare<E::Fq>;
+    type FqeShare = SpdzExtFieldShare<E::Fqe>;
+    // Not a typo. We want a multiplicative subgroup.
+    type FqkShare = SpdzMulExtFieldShare<E::Fqk, E::Fr>;
+    type G1AffineShare = SpdzGroupShare<E::G1Affine, AdditiveAffineMsm<E::G1Affine>>;
+    type G2AffineShare = SpdzGroupShare<E::G2Affine, AdditiveAffineMsm<E::G2Affine>>;
+    type G1ProjectiveShare =
+        SpdzGroupShare<E::G1Projective, AdditiveProjectiveMsm<E::G1Projective>>;
+    type G2ProjectiveShare =
+        SpdzGroupShare<E::G2Projective, AdditiveProjectiveMsm<E::G2Projective>>;
+    fn g1_share_aff_to_proj(g: Self::G1AffineShare) -> Self::G1ProjectiveShare {
+        g.map_homo(|s| s.into())
+    }
+    fn g1_share_proj_to_aff(g: Self::G1ProjectiveShare) -> Self::G1AffineShare {
+        g.map_homo(|s| s.into())
+    }
+    fn g2_share_aff_to_proj(g: Self::G2AffineShare) -> Self::G2ProjectiveShare {
+        g.map_homo(|s| s.into())
+    }
+    fn g2_share_proj_to_aff(g: Self::G2ProjectiveShare) -> Self::G2AffineShare {
+        g.map_homo(|s| s.into())
+    }
+}
