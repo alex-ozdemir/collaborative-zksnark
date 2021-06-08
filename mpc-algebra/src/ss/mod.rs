@@ -6,6 +6,8 @@ pub use wire::*;
 pub mod com;
 
 pub mod honest_but_curious {
+    use ark_ec::PairingEngine;
+    use crate::pairing::RevealPairingEngine;
     use super::{
         wire::{
             field,
@@ -23,9 +25,14 @@ pub mod honest_but_curious {
     pub type MpcG1Prep<E> = pairing::MpcG1Prep<E, AdditivePairingShare<E>>;
     pub type MpcG2Prep<E> = pairing::MpcG2Prep<E, AdditivePairingShare<E>>;
     pub type MpcPairingEngine<E> = pairing::MpcPairingEngine<E, AdditivePairingShare<E>>;
+
+    impl<E: PairingEngine> RevealPairingEngine<E> for MpcPairingEngine<E> {
+    }
 }
 
 pub mod malicious_majority {
+    use ark_ec::PairingEngine;
+    use crate::pairing::RevealPairingEngine;
     use super::{
         wire::{
             field,
@@ -44,4 +51,7 @@ pub mod malicious_majority {
     pub type MpcG1Prep<E> = pairing::MpcG1Prep<E, SpdzPairingShare<E>>;
     pub type MpcG2Prep<E> = pairing::MpcG2Prep<E, SpdzPairingShare<E>>;
     pub type MpcPairingEngine<E> = pairing::MpcPairingEngine<E, SpdzPairingShare<E>>;
+
+    impl<E: PairingEngine> RevealPairingEngine<E> for MpcPairingEngine<E> {
+    }
 }
