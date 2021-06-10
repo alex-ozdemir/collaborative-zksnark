@@ -30,10 +30,10 @@ esac
 
 case $infra in
     mpc)
-        $BIN -p $proof -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 |& tee out0 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 &
         #$BIN -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 &
         pid0=$!
-        $BIN -p $proof -c squaring --computation-size $size mpc --port 8000 --peer-port 8001 --party 1 |& tee out1 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --port 8000 --peer-port 8001 --party 1 &> /dev/null &
         #$BIN -c squaring --computation-size $size mpc --port 8000 --peer-port 8001 --party 1 &
         pid1=$!
         wait $pid0 $pid1

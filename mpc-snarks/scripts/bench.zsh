@@ -12,7 +12,7 @@ LABEL="timed section"
 
 
 function usage {
-  echo "Usage: $0 {groth16,marlin,plonk} {mpc,spdz,local,ark-local} N_SQUARINGS" >&2
+  echo "Usage: $0 {groth16,marlin,plonk} {hbc,spdz,local,ark-local} N_SQUARINGS" >&2
   exit 1
 }
 
@@ -28,7 +28,7 @@ case $proof in
 esac
 
 case $infra in
-    mpc)
+    hbc)
         $BIN -p $proof -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 > /dev/null &
         #$BIN -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 &
         pid0=$!

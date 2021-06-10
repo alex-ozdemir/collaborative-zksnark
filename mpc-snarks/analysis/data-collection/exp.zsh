@@ -13,7 +13,7 @@ do
         steps=$((2 ** $lsteps))
         for proof in groth16 marlin plonk
         do
-            for infra in local mpc spdz
+            for infra in local hbc spdz
             do
                 local_trial_time=$(./scripts/bench.zsh $proof $infra $steps)
                 local_trial_time=$(units -t $local_trial_time s)
