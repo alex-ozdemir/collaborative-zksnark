@@ -118,9 +118,19 @@ impl Connections {
             // Sender for next round waits for note from this sender to prevent race on receipt.
             if from_id + 1 < n {
                 if self.id == from_id {
-                    self.peers[self.id + 1].stream.as_mut().unwrap().write_all(&[0u8]).unwrap();
+                    self.peers[self.id + 1]
+                        .stream
+                        .as_mut()
+                        .unwrap()
+                        .write_all(&[0u8])
+                        .unwrap();
                 } else if self.id == from_id + 1 {
-                    self.peers[self.id - 1].stream.as_mut().unwrap().read_exact(&mut [0u8]).unwrap();
+                    self.peers[self.id - 1]
+                        .stream
+                        .as_mut()
+                        .unwrap()
+                        .read_exact(&mut [0u8])
+                        .unwrap();
                 }
             }
         }
@@ -156,6 +166,61 @@ impl Connections {
             })
             .collect()
     }
+    fn send_to_king(&mut self, bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
+        let m = bytes_out.len();
+        let own_id = self.id;
+        if self.am_king() {
+            Some(
+                self.peers
+                    .par_iter_mut()
+                    .enumerate()
+                    .map(|(id, peer)| {
+                        let mut bytes_in = vec![0u8; m];
+                        if id == own_id {
+                            bytes_in.copy_from_slice(bytes_out);
+                        } else {
+                            let stream = peer.stream.as_mut().unwrap();
+                            stream.read_exact(&mut bytes_in[..]).unwrap();
+                        };
+                        bytes_in
+                    })
+                    .collect(),
+            )
+        } else {
+            self.peers[0]
+                .stream
+                .as_mut()
+                .unwrap()
+                .write_all(bytes_out)
+                .unwrap();
+            None
+        }
+    }
+    fn recv_from_king(&mut self, bytes_out: Option<Vec<Vec<u8>>>, n_bytes: usize) -> Vec<u8> {
+        let own_id = self.id;
+        if self.am_king() {
+            let bytes_out = bytes_out.unwrap();
+            self.peers
+                .par_iter_mut()
+                .enumerate()
+                .filter(|p| p.0 != own_id)
+                .for_each(|(id, peer)| {
+                    let stream = peer.stream.as_mut().unwrap();
+                    assert_eq!(bytes_out[id].len(), n_bytes);
+                    stream.write_all(&bytes_out[id]).unwrap();
+                });
+            bytes_out[own_id].clone()
+        } else {
+            let mut bytes_in = vec![0u8; n_bytes];
+            self.peers[0]
+                .stream
+                .as_mut()
+                .unwrap()
+                .read_exact(&mut bytes_in)
+                .unwrap();
+            bytes_in
+        }
+    }
     fn uninit(&mut self) {
         for p in &mut self.peers {
             p.stream = None;
@@ -172,6 +237,14 @@ pub fn init_from_path(path: &str, id: usize) {
 
 pub fn broadcast(bytes_out: &[u8]) -> Vec<Vec<u8>> {
     get_ch!().broadcast(bytes_out)
+}
+
+pub fn send_to_king(bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
+    get_ch!().send_to_king(bytes_out)
+}
+
+pub fn recv_from_king(bytes_out: Option<Vec<Vec<u8>>>, n_bytes: usize) -> Vec<u8> {
+    get_ch!().recv_from_king(bytes_out, n_bytes)
 }
 
 pub fn am_king() -> bool {

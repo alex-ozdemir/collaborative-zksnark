@@ -23,5 +23,8 @@ fn main() {
     multi::init_from_path(opt.input.to_str().unwrap(), opt.id);
     let all = multi::broadcast(&[opt.id as u8]);
     println!("{:?}", all);
+    let r = multi::send_to_king(&[opt.id as u8]);
+    let all = multi::recv_from_king(r, 1);
+    println!("{:?}", all);
     multi::uninit();
 }
