@@ -19,18 +19,18 @@ macro_rules! get_ch {
     };
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Stats {
     pub bytes_sent: u64,
     pub bytes_recv: u64,
-    pub exchanges: u64,
+    pub king_exchanges: u64,
+    pub broadcasts: u64,
 }
 
 pub struct Peer {
     pub id: usize,
     pub addr: SocketAddr,
     pub stream: Option<TcpStream>,
-    pub stats: Stats,
 }
 
 #[derive(Default)]
@@ -46,7 +46,6 @@ impl std::default::Default for Peer {
             id: 0,
             addr: "127.0.0.1:8000".parse().unwrap(),
             stream: None,
-            stats: Default::default(),
         }
     }
 }
@@ -67,7 +66,6 @@ impl Connections {
                     id: peer_id,
                     addr,
                     stream: None,
-                    stats: Default::default(),
                 };
                 self.peers.push(peer);
                 peer_id += 1;
@@ -146,6 +144,9 @@ impl Connections {
     fn broadcast(&mut self, bytes_out: &[u8]) -> Vec<Vec<u8>> {
         let m = bytes_out.len();
         let own_id = self.id;
+        self.stats.bytes_sent += ((self.peers.len() - 1) * m) as u64;
+        self.stats.bytes_recv += ((self.peers.len() - 1) * m) as u64;
+        self.stats.broadcasts += 1;
         self.peers
             .par_iter_mut()
             .enumerate()
@@ -169,7 +170,9 @@ impl Connections {
     fn send_to_king(&mut self, bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
         let m = bytes_out.len();
         let own_id = self.id;
+        self.stats.king_exchanges += 1;
         if self.am_king() {
+            self.stats.bytes_recv += ((self.peers.len() - 1) * m) as u64;
             Some(
                 self.peers
                     .par_iter_mut()
@@ -187,6 +190,7 @@ impl Connections {
                     .collect(),
             )
         } else {
+            self.stats.bytes_sent += m as u64;
             self.peers[0]
                 .stream
                 .as_mut()
@@ -198,8 +202,10 @@ impl Connections {
     }
     fn recv_from_king(&mut self, bytes_out: Option<Vec<Vec<u8>>>, n_bytes: usize) -> Vec<u8> {
         let own_id = self.id;
+        self.stats.king_exchanges += 1;
         if self.am_king() {
             let bytes_out = bytes_out.unwrap();
+            self.stats.bytes_sent += ((self.peers.len() - 1) * n_bytes) as u64;
             self.peers
                 .par_iter_mut()
                 .enumerate()
@@ -211,6 +217,7 @@ impl Connections {
                 });
             bytes_out[own_id].clone()
         } else {
+            self.stats.bytes_recv += n_bytes as u64;
             let mut bytes_in = vec![0u8; n_bytes];
             self.peers[0]
                 .stream
@@ -254,4 +261,7 @@ pub fn am_king() -> bool {
 pub fn uninit() {
     get_ch!().uninit();
     debug!("Unconnected");
+}
+pub fn stats() -> Stats {
+    get_ch!().stats.clone()
 }
