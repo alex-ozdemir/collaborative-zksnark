@@ -6,6 +6,8 @@ use std::sync::Mutex;
 
 use ark_std::{start_timer, end_timer};
 
+pub mod multi;
+
 #[macro_use]
 lazy_static! {
     pub static ref CH: Mutex<FieldChannel> = Mutex::new(FieldChannel::default());
