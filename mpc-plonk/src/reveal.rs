@@ -1,6 +1,6 @@
 use ark_ec::PairingEngine;
 use ark_poly_commit::marlin_pc;
-use mpc_algebra::{ss::*, struct_reveal_impl, struct_reveal_simp_impl, Reveal};
+use mpc_algebra::*;
 
 use crate::*;
 

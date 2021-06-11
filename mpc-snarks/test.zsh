@@ -1,5 +1,7 @@
 #!/usr/bin/env zsh
 set -xe
+trap "exit" INT TERM
+trap "kill 0" EXIT
 
 cargo build --bin client
 

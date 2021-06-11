@@ -1,6 +1,6 @@
 use log::debug;
 use mpc_net::multi as net;
-use mpc_algebra::ss::share::gs20;
+use mpc_algebra::share::gs20;
 
 use std::path::PathBuf;
 use structopt::StructOpt;

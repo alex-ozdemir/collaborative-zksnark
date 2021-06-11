@@ -8,8 +8,8 @@ use mpc_trait::MpcWire;
 
 use crate::{channel, Reveal};
 use mpc_net;
-use crate::ss::wire::field::MpcField;
-use crate::ss::share::field::ScalarShare;
+use crate::wire::field::MpcField;
+use crate::share::field::ScalarShare;
 
 /// Vector-Commitable Field
 pub trait ComField: FftField + MpcWire {

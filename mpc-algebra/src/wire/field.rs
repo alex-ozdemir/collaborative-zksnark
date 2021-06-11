@@ -532,7 +532,8 @@ impl<F: PrimeField, S: ScalarShare<F>> SquareRootField for MpcField<F, S> {
 
 mod poly_impl {
 
-    use crate::ss::*;
+    use crate::share::*;
+    use crate::wire::*;
     use crate::Reveal;
     use ark_ff::PrimeField;
     use ark_poly::domain::{EvaluationDomain, GeneralEvaluationDomain};

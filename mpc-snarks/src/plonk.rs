@@ -2,7 +2,7 @@ use ark_ff::UniformRand;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::marlin_pc::MarlinKZG10;
 use ark_std::{end_timer, start_timer, test_rng};
-use mpc_algebra::ss::honest_but_curious::*;
+use mpc_algebra::honest_but_curious::*;
 use mpc_plonk::*;
 use mpc_algebra::Reveal;
 use std::collections::HashMap;

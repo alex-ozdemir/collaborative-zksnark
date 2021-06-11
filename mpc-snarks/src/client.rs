@@ -15,10 +15,10 @@ use ark_std::rand::SeedableRng;
 use std::borrow::Cow;
 use std::net::{SocketAddr, ToSocketAddrs};
 
-use mpc_algebra::ss::com::ComField;
-use mpc_algebra::ss::honest_but_curious::*;
-use mpc_algebra::ss::malicious_majority as mm;
-use mpc_algebra::Reveal;
+use mpc_algebra::com::ComField;
+use mpc_algebra::honest_but_curious as hbc;
+use mpc_algebra::malicious_majority as mm;
+use mpc_algebra::*;
 use mpc_trait::MpcWire;
 
 use clap::arg_enum;
@@ -165,7 +165,7 @@ fn pairing_engine_test<E: PairingEngine>(
 
 fn powers_to_mpc<'a>(
     p: ark_poly_commit::kzg10::Powers<'a, ark_bls12_377::Bls12_377>,
-) -> ark_poly_commit::kzg10::Powers<'a, MpcPairingEngine<ark_bls12_377::Bls12_377>> {
+) -> ark_poly_commit::kzg10::Powers<'a, hbc::MpcPairingEngine<ark_bls12_377::Bls12_377>> {
     ark_poly_commit::kzg10::Powers {
         powers_of_g: Cow::Owned(
             p.powers_of_g
@@ -184,12 +184,12 @@ fn powers_to_mpc<'a>(
     }
 }
 fn commit_from_mpc<'a>(
-    p: ark_poly_commit::kzg10::Commitment<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
+    p: ark_poly_commit::kzg10::Commitment<hbc::MpcPairingEngine<ark_bls12_377::Bls12_377>>,
 ) -> ark_poly_commit::kzg10::Commitment<ark_bls12_377::Bls12_377> {
     ark_poly_commit::kzg10::Commitment(p.0.reveal())
 }
 fn pf_from_mpc<'a>(
-    pf: ark_poly_commit::kzg10::Proof<MpcPairingEngine<ark_bls12_377::Bls12_377>>,
+    pf: ark_poly_commit::kzg10::Proof<hbc::MpcPairingEngine<ark_bls12_377::Bls12_377>>,
 ) -> ark_poly_commit::kzg10::Proof<ark_bls12_377::Bls12_377> {
     ark_poly_commit::kzg10::Proof {
         w: pf.w.reveal(),
@@ -203,7 +203,7 @@ impl Computation {
             Computation::Groth16 => {
                 groth::mpc_test_prove_and_verify::<
                     ark_bls12_377::Bls12_377,
-                    mpc_algebra::ss::AdditivePairingShare<ark_bls12_377::Bls12_377>,
+                    mpc_algebra::AdditivePairingShare<ark_bls12_377::Bls12_377>,
                 >(1);
                 vec![]
             }
@@ -862,10 +862,10 @@ impl Computation {
 }
 
 type E = ark_bls12_377::Bls12_377;
-type ME = MpcPairingEngine<E>;
-type MFr = MpcField<Fr>;
-type MG1 = MpcG1Projective<E>;
-type MG2 = MpcG2Projective<E>;
+type ME = hbc::MpcPairingEngine<E>;
+type MFr = hbc::MpcField<Fr>;
+type MG1 = hbc::MpcG1Projective<E>;
+type MG2 = hbc::MpcG2Projective<E>;
 type P = ark_poly::univariate::DensePolynomial<Fr>;
 type MP = ark_poly::univariate::DensePolynomial<MFr>;
 trait Pc = ark_poly_commit::PolynomialCommitment<Fr, DensePolynomial<Fr>>;
@@ -960,7 +960,7 @@ fn main() -> () {
             ComputationDomain::Pairing => {
                 let mut outputs = opt
                     .computation
-                    .run_pairing::<MpcPairingEngine<ark_bls12_377::Bls12_377>>(inputs);
+                    .run_pairing::<hbc::MpcPairingEngine<ark_bls12_377::Bls12_377>>(inputs);
                 outputs.iter_mut().for_each(|c| c.publicize());
                 println!("Public Outputs:");
                 for (i, v) in outputs.iter().enumerate() {

@@ -9,10 +9,10 @@ use ark_relations::{
 };
 use ark_std::test_rng;
 use ark_std::{end_timer, start_timer};
+use mpc_algebra::{channel, Reveal, PairingShare, MpcPairingEngine};
 use blake2::Blake2s;
 use clap::arg_enum;
 use log::debug;
-use mpc_algebra::ss::PairingShare;
 use structopt::StructOpt;
 
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -20,16 +20,6 @@ use std::net::{SocketAddr, ToSocketAddrs};
 mod groth;
 mod marlin;
 mod silly;
-use mpc_algebra::{channel, ss, ss::honest_but_curious::*, Reveal};
-
-// Field
-type Fr = ark_bls12_377::Fr;
-// Pairing (E)ngine
-type E = ark_bls12_377::Bls12_377;
-// MPC Field
-type MFr = MpcField<Fr>;
-// MPC pairing engine
-type ME = MpcPairingEngine<E>;
 
 const TIMED_SECTION_LABEL: &str = "timed section";
 
@@ -131,14 +121,14 @@ mod squarings {
                 let computation_timer = start_timer!(|| "do the mpc (cheat)");
                 let circ_data = mpc_squaring_circuit::<
                     E::Fr,
-                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                    <MpcPairingEngine<E, S> as PairingEngine>::Fr,
                 >(a, n);
                 let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
                 end_timer!(computation_timer);
                 mpc_net::reset_stats();
                 let timer = start_timer!(|| timer_label);
                 let proof = channel::without_cheating(|| {
-                    create_random_proof::<ss::MpcPairingEngine<E, S>, _, _>(
+                    create_random_proof::<MpcPairingEngine<E, S>, _, _>(
                         circ_data,
                         &mpc_params,
                         rng,
@@ -196,7 +186,7 @@ mod squarings {
                 let computation_timer = start_timer!(|| "do the mpc (cheat)");
                 let circ_data = mpc_squaring_circuit::<
                     E::Fr,
-                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                    <MpcPairingEngine<E, S> as PairingEngine>::Fr,
                 >(a, n);
                 let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
                 end_timer!(computation_timer);
@@ -205,8 +195,8 @@ mod squarings {
                 let zk_rng = &mut test_rng();
                 let proof = channel::without_cheating(|| {
                     KzgMarlin::<
-                        <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
-                        ss::MpcPairingEngine<E, S>,
+                        <MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                        MpcPairingEngine<E, S>,
                     >::prove(&mpc_pk, circ_data, zk_rng)
                     .unwrap()
                     .reveal()
@@ -276,7 +266,7 @@ mod squarings {
                 let a = E::Fr::rand(rng);
                 let circ_data = mpc_squaring_circuit::<
                     E::Fr,
-                    <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                    <MpcPairingEngine<E, S> as PairingEngine>::Fr,
                 >(a, n);
                 let plonk_circ_data = plonk_squaring_circuit(circ_data.clone());
                 let plonk_circ_data = CircuitLayout::from_circuit(&plonk_circ_data);
@@ -294,8 +284,8 @@ mod squarings {
                 let t = start_timer!(|| timer_label);
                 let pf = channel::without_cheating(|| {
                     MarlinPcPlonk::<
-                        <ss::MpcPairingEngine<E, S> as PairingEngine>::Fr,
-                        ss::MpcPairingEngine<E, S>,
+                        <MpcPairingEngine<E, S> as PairingEngine>::Fr,
+                        MpcPairingEngine<E, S>,
                     >::prove(&mpc_pk, &plonk_circ_data, zk_rng)
                     .reveal()
                 });
@@ -426,9 +416,9 @@ impl ShareInfo {
         match computation {
             Computation::Squaring => {
                 if self.spdz {
-                    B::mpc::<E, ss::share::spdz::SpdzPairingShare<E>>(computation_size, timed_label)
+                    B::mpc::<E, mpc_algebra::share::spdz::SpdzPairingShare<E>>(computation_size, timed_label)
                 } else {
-                    B::mpc::<E, ss::share::add::AdditivePairingShare<E>>(
+                    B::mpc::<E, mpc_algebra::share::add::AdditivePairingShare<E>>(
                         computation_size,
                         timed_label,
                     )

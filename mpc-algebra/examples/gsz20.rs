@@ -1,6 +1,6 @@
 use ark_ff::FftField;
 use log::debug;
-use mpc_algebra::{ss::share::gsz20::*, Reveal};
+use mpc_algebra::{share::gsz20::*, Reveal};
 use mpc_net::multi;
 
 use std::path::PathBuf;
