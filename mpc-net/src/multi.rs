@@ -200,31 +200,33 @@ impl Connections {
             None
         }
     }
-    fn recv_from_king(&mut self, bytes_out: Option<Vec<Vec<u8>>>, n_bytes: usize) -> Vec<u8> {
+    fn recv_from_king(&mut self, bytes_out: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         let own_id = self.id;
         self.stats.king_exchanges += 1;
         if self.am_king() {
             let bytes_out = bytes_out.unwrap();
-            self.stats.bytes_sent += ((self.peers.len() - 1) * n_bytes) as u64;
+            let m = bytes_out[0].len();
+            let bytes_size = (m as u64).to_le_bytes();
+            self.stats.bytes_sent += ((self.peers.len() - 1) * (m + 8)) as u64;
             self.peers
                 .par_iter_mut()
                 .enumerate()
                 .filter(|p| p.0 != own_id)
                 .for_each(|(id, peer)| {
                     let stream = peer.stream.as_mut().unwrap();
-                    assert_eq!(bytes_out[id].len(), n_bytes);
+                    assert_eq!(bytes_out[id].len(), m);
+                    stream.write_all(&bytes_size).unwrap();
                     stream.write_all(&bytes_out[id]).unwrap();
                 });
             bytes_out[own_id].clone()
         } else {
-            self.stats.bytes_recv += n_bytes as u64;
-            let mut bytes_in = vec![0u8; n_bytes];
-            self.peers[0]
-                .stream
-                .as_mut()
-                .unwrap()
-                .read_exact(&mut bytes_in)
-                .unwrap();
+            let stream = self.peers[0].stream.as_mut().unwrap();
+            let mut bytes_size = [0u8; 8];
+            stream.read_exact(&mut bytes_size).unwrap();
+            let m = u64::from_le_bytes(bytes_size) as usize;
+            self.stats.bytes_recv += m as u64;
+            let mut bytes_in = vec![0u8; m];
+            stream.read_exact(&mut bytes_in).unwrap();
             bytes_in
         }
     }
@@ -250,8 +252,8 @@ pub fn send_to_king(bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
     get_ch!().send_to_king(bytes_out)
 }
 
-pub fn recv_from_king(bytes_out: Option<Vec<Vec<u8>>>, n_bytes: usize) -> Vec<u8> {
-    get_ch!().recv_from_king(bytes_out, n_bytes)
+pub fn recv_from_king(bytes_out: Option<Vec<Vec<u8>>>) -> Vec<u8> {
+    get_ch!().recv_from_king(bytes_out)
 }
 
 pub fn am_king() -> bool {
