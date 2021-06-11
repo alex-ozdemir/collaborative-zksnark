@@ -1,7 +1,7 @@
-use log::debug;
-use mpc_net::multi;
-use mpc_algebra::ss::share::gsz20;
 use ark_ff::FftField;
+use log::debug;
+use mpc_algebra::{ss::share::gsz20::*, Reveal};
+use mpc_net::multi;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -18,10 +18,22 @@ struct Opt {
 }
 
 fn test<F: FftField>() {
-    let (a, b) = gsz20::double_rand::<F>();
-    let a_pub = gsz20::open(&a);
-    let b_pub = gsz20::open_degree(&b, gsz20::t() * 2);
+    let rng = &mut ark_std::test_rng();
+    let (a, b) = double_rand::<F>();
+    let a_pub = open(&a);
+    let b_pub = open(&b);
     assert_eq!(a_pub, b_pub);
+
+    for _i in 0..10 {
+        let a_pub = F::rand(rng);
+        let b_pub = F::rand(rng);
+        let a = GszFieldShare::from_public(a_pub);
+        let b = GszFieldShare::from_public(b_pub);
+        let c = mult(a, &b);
+        let c_pub = open(&c);
+        assert_eq!(c_pub, a_pub * b_pub);
+        assert_ne!(c_pub, a_pub * b_pub + F::one());
+    }
 }
 
 fn main() {

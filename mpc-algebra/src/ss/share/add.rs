@@ -1,3 +1,4 @@
+#![macro_use]
 use derivative::Derivative;
 use rand::Rng;
 
