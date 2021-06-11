@@ -275,3 +275,8 @@ pub fn uninit() {
 pub fn stats() -> Stats {
     get_ch!().stats.clone()
 }
+
+#[inline]
+pub fn n_parties() -> usize {
+    get_ch!().peers.len()
+}

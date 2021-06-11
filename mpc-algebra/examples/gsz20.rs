@@ -1,6 +1,7 @@
 use log::debug;
-use mpc_net::multi as net;
-use mpc_algebra::ss::share::gs20;
+use mpc_net::multi;
+use mpc_algebra::ss::share::gsz20;
+use ark_ff::FftField;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -16,16 +17,23 @@ struct Opt {
     input: PathBuf,
 }
 
+fn test<F: FftField>() {
+    let (a, b) = gsz20::double_rand::<F>();
+    let a_pub = gsz20::open(&a);
+    let b_pub = gsz20::open_degree(&b, gsz20::t() * 2);
+    assert_eq!(a_pub, b_pub);
+}
+
 fn main() {
-    env_logger::builder().format_timestamp(None).format_module_path(false).init();
+    env_logger::builder().format_timestamp(None).init();
+    //env_logger::builder().format_timestamp(None).format_module_path(false).init();
     debug!("Start");
     let opt = Opt::from_args();
     println!("{:?}", opt);
     multi::init_from_path(opt.input.to_str().unwrap(), opt.id);
-    let all = multi::broadcast(&[opt.id as u8]);
-    println!("{:?}", all);
-    let r = multi::send_to_king(&[opt.id as u8]);
-    let all = multi::recv_from_king(r);
-    println!("{:?}", all);
+
+    test::<ark_bls12_377::Fr>();
+
+    debug!("Done");
     multi::uninit();
 }
