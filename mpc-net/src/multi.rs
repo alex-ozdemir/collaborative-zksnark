@@ -237,6 +237,7 @@ impl Connections {
     }
 }
 
+#[inline]
 pub fn init_from_path(path: &str, id: usize) {
     let mut ch = get_ch!();
     ch.init_from_path(path, id);
@@ -244,26 +245,33 @@ pub fn init_from_path(path: &str, id: usize) {
     debug!("Connected");
 }
 
+#[inline]
 pub fn broadcast(bytes_out: &[u8]) -> Vec<Vec<u8>> {
     get_ch!().broadcast(bytes_out)
 }
 
+#[inline]
 pub fn send_to_king(bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
     get_ch!().send_to_king(bytes_out)
 }
 
+#[inline]
 pub fn recv_from_king(bytes_out: Option<Vec<Vec<u8>>>) -> Vec<u8> {
     get_ch!().recv_from_king(bytes_out)
 }
 
+#[inline]
 pub fn am_king() -> bool {
     get_ch!().am_king()
 }
 
+#[inline]
 pub fn uninit() {
     get_ch!().uninit();
     debug!("Unconnected");
 }
+
+#[inline]
 pub fn stats() -> Stats {
     get_ch!().stats.clone()
 }

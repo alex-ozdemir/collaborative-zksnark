@@ -6,6 +6,8 @@ use std::cell::Cell;
 
 use mpc_net;
 
+pub mod multi;
+
 const ALLOW_CHEATING: Cell<bool> = Cell::new(true);
 
 /// Number of randomness bytes to use in the commitment scheme
