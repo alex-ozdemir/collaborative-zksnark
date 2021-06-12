@@ -1,7 +1,8 @@
-use ark_ff::FftField;
 use ark_ec::group::Group;
+use ark_ff::{FftField, UniformRand};
 use log::debug;
-use mpc_algebra::{share::gsz20::*, Reveal, add::NaiveMsm};
+use mpc_algebra::gsz20::group::GszGroupShare;
+use mpc_algebra::{add::NaiveMsm, share::gsz20::*, Reveal};
 use mpc_net::multi;
 
 use std::path::PathBuf;
@@ -38,11 +39,21 @@ fn test<F: FftField>() {
 }
 
 fn test_group<G: Group>() {
-    //let rng = &mut ark_std::test_rng();
+    let rng = &mut ark_std::test_rng();
     let (a, b) = group::double_rand::<G, NaiveMsm<G>>();
     let a_pub = group::open(&a);
     let b_pub = group::open(&b);
     assert_eq!(a_pub, b_pub);
+
+    for _i in 0..2 {
+        let a_pub = G::ScalarField::rand(rng);
+        let b_pub = G::rand(rng);
+        let a = GszFieldShare::from_public(a_pub);
+        let b = GszGroupShare::<G, NaiveMsm<G>>::from_public(b_pub);
+        let c = group::mult(&a, b);
+        let c_pub = group::open(&c);
+        assert_eq!(c_pub, b_pub.mul(&a_pub));
+    }
 }
 
 fn main() {

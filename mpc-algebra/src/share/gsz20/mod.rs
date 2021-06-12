@@ -368,4 +368,49 @@ pub mod group {
         }
         coeffs[0]
     }
+
+    /// Given
+    /// * A share `share`
+    /// * A function over plain data, `f`
+    ///   * which also outputs a sharing degree.
+    ///
+    /// 1. Opens the share to King.
+    /// 2. King performs the function.
+    /// 3. King reshares the result.
+    pub fn king_compute<G: Group, M, Func: FnOnce(G) -> G>(
+        share: &GszGroupShare<G, M>,
+        new_degree: usize,
+        f: Func,
+    ) -> GszGroupShare<G, M> {
+        let king_answer = alg_net::send_to_king(&share.val).map(|shares| {
+            let n = shares.len();
+            let value = open_degree_vec(shares, share.degree);
+            let output = f(value);
+            // TODO: randomize
+            vec![output; n]
+        });
+        let from_king = alg_net::recv_from_king(king_answer.as_ref());
+        GszGroupShare {
+            degree: new_degree,
+            val: from_king,
+            _phants: Default::default(),
+        }
+    }
+    /// Multiply shares, using king
+    ///
+    /// Protocol 8.
+    pub fn mult<G: Group, M>(
+        x: &GszFieldShare<G::ScalarField>,
+        mut y: GszGroupShare<G, M>,
+    ) -> GszGroupShare<G, M> {
+        let (r, r2) = double_rand::<G, M>();
+        y.val *= x.val;
+        y.degree *= 2;
+        y.val += r2.val;
+        // king just reduces the sharing degree
+        let mut shift_res = king_compute(&y, x.degree / 2, |r| r);
+        // TODO: record triple
+        shift_res.val -= r.val;
+        shift_res
+    }
 }
