@@ -347,10 +347,7 @@ macro_rules! impl_basics_2_param {
         }
         impl<T: $bound, M> UniformRand for $share<T, M> {
             fn rand<R: Rng + ?Sized>(rng: &mut R) -> Self {
-                Self {
-                    val: <T as UniformRand>::rand(rng),
-                    _phants: PhantomData::default(),
-                }
+                Reveal::from_add_shared(<T as UniformRand>::rand(rng))
             }
         }
     };
