@@ -2,7 +2,7 @@ use ark_ec::group::Group;
 use ark_ff::{FftField, UniformRand};
 use log::debug;
 use mpc_algebra::gsz20::group::GszGroupShare;
-use mpc_algebra::{add::NaiveMsm, share::gsz20::*, Reveal};
+use mpc_algebra::{add::NaiveMsm, share::gsz20::*, Reveal, share::field::ScalarShare};
 use mpc_net::multi;
 
 use std::path::PathBuf;
@@ -35,6 +35,17 @@ fn test<F: FftField>() {
         let c_pub = field::open(&c);
         assert_eq!(c_pub, a_pub * b_pub);
         assert_ne!(c_pub, a_pub * b_pub + F::one());
+    }
+
+    let size = 1000;
+    let a_pubs: Vec<F> = (0..size).map(|_| F::rand(rng)).collect();
+    let b_pubs: Vec<F> = (0..size).map(|_| F::rand(rng)).collect();
+    let a: Vec<_> = a_pubs.iter().map(|a| GszFieldShare::from_public(*a)).collect();
+    let b: Vec<_> = b_pubs.iter().map(|b| GszFieldShare::from_public(*b)).collect();
+    let c = field::batch_mult(a, &b);
+    let c_pub = GszFieldShare::batch_open(c.clone());
+    for i in 0..c.len() {
+        assert_eq!(c_pub[i], a_pubs[i] * b_pubs[i]);
     }
 }
 

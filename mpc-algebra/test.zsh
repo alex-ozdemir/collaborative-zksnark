@@ -9,9 +9,16 @@ PROCS=()
 for i in 0 1 2 3
 do
   #$BIN $i ./data/4 &
-  RUST_LOG=gsz20 $BIN $i ./data/4 &
-  pid=$!
-  PROCS[$i]=$pid
+  if [ $i == 0 ]
+  then
+    RUST_BACKTRACE=1 RUST_LOG=gsz20 $BIN $i ./data/4 &
+    pid=$!
+    PROCS[$i]=$pid
+  else
+    RUST_LOG=gsz20 $BIN $i ./data/4 &
+    pid=$!
+    PROCS[$i]=$pid
+  fi
 done
 
 for pid in ${PROCS[@]}

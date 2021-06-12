@@ -106,6 +106,15 @@ pub mod field {
             mult(self, &other)
         }
 
+        /// Multiply many pairs of shares, consuming many double-shares.
+        fn batch_mul<S: BeaverSource<Self, Self, Self>>(
+            xs: Vec<Self>,
+            ys: Vec<Self>,
+            _source: &mut S,
+        ) -> Vec<Self> {
+            batch_mult(xs, &ys)
+        }
+
         fn inv<S: super::BeaverSource<Self, Self, Self>>(self, _source: &mut S) -> Self {
             todo!()
         }
@@ -141,6 +150,10 @@ pub mod field {
         )
     }
 
+    pub fn batch_double_rand<F: Field>(n: usize) -> (Vec<GszFieldShare<F>>, Vec<GszFieldShare<F>>) {
+        (0..n).map(|_| double_rand()).unzip()
+    }
+
     /// Open a t-share.
     pub fn open<F: FftField>(s: &GszFieldShare<F>) -> F {
         let shares = alg_net::broadcast(&s.val);
@@ -164,7 +177,6 @@ pub mod field {
     /// Given
     /// * A share `share`
     /// * A function over plain data, `f`
-    ///   * which also outputs a sharing degree.
     ///
     /// 1. Opens the share to King.
     /// 2. King performs the function.
@@ -188,6 +200,43 @@ pub mod field {
         }
     }
 
+    /// Given
+    /// * Shares `share`
+    /// * A function over plain data, `f`
+    ///
+    /// 1. Opens the share to King.
+    /// 2. King performs the function.
+    /// 3. King reshares the result.
+    pub fn batch_king_compute<F: FftField, Func: Fn(F) -> F>(
+        shares: &[GszFieldShare<F>],
+        new_degree: usize,
+        f: Func,
+    ) -> Vec<GszFieldShare<F>> {
+        let values: Vec<F> = shares.iter().map(|s| s.val).collect();
+        let king_answer = alg_net::send_to_king(&values).map(|all_shares| {
+            let n = all_shares.len();
+            let mut outputs = vec![Vec::new(); n];
+            for i in 0..all_shares[0].len() {
+                let these_shares: Vec<F> = all_shares.iter().map(|s| s[i]).collect();
+                let value = open_degree_vec(these_shares, shares[i].degree);
+                let output = f(value);
+                // TODO: randomize
+                outputs.iter_mut().for_each(|o| o.push(output));
+            }
+            assert_eq!(outputs.len(), all_shares.len());
+            assert_eq!(outputs[0].len(), all_shares[0].len());
+            outputs
+        });
+        let from_king = alg_net::recv_from_king(king_answer.as_ref());
+        from_king
+            .into_iter()
+            .map(|from_king| GszFieldShare {
+                degree: new_degree,
+                val: from_king,
+            })
+            .collect()
+    }
+
     /// Generate a random coin, unknown to all parties until now.
     ///
     /// Protocol 6.
@@ -207,6 +256,32 @@ pub mod field {
         let mut shift_res = king_compute(&x, x.degree / 2, |r| r);
         // TODO: record triple
         shift_res.val -= r.val;
+        shift_res
+    }
+
+    /// Multiply shares, using king
+    ///
+    /// Protocol 8.
+    pub fn batch_mult<F: FftField>(
+        mut x: Vec<GszFieldShare<F>>,
+        y: &[GszFieldShare<F>],
+    ) -> Vec<GszFieldShare<F>> {
+        let n = x.len();
+        let d = x[0].degree;
+        assert_eq!(x.len(), y.len());
+        let (r, r2) = batch_double_rand::<F>(n);
+        for ((x, y), r2) in x.iter_mut().zip(y).zip(r2) {
+            assert_eq!(x.degree, d);
+            x.val *= y.val;
+            x.degree *= 2;
+            x.val += r2.val;
+        }
+        // king just reduces the sharing degree
+        let mut shift_res = batch_king_compute(&x, x[0].degree / 2, |r| r);
+        for (shift_res, r) in shift_res.iter_mut().zip(r) {
+            // TODO: record triple
+            shift_res.val -= r.val;
+        }
         shift_res
     }
 }
