@@ -1,12 +1,12 @@
 //! Implementation based on ["Malicious Security Comes Free in Honest-Majority
 //! MPC"](https://ia.cr/2020/134) by Goyal and Song.
 
+use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
     prelude::*,
     FftField,
 };
-use ark_ec::{ProjectiveCurve, AffineCurve, PairingEngine};
 use ark_poly::{
     domain::{EvaluationDomain, GeneralEvaluationDomain},
     univariate::DensePolynomial,
@@ -27,12 +27,12 @@ use std::marker::PhantomData;
 use derivative::Derivative;
 use rand::Rng;
 
-use super::field::FieldShare;
+use super::field::{ExtFieldShare, FieldShare};
 use super::BeaverSource;
-use crate::share::pairing::{PairingShare, AffProjShare};
-use crate::share::group::GroupShare;
-use crate::msm::Msm;
 use crate::channel::multi as alg_net;
+use crate::msm::*;
+use crate::share::group::GroupShare;
+use crate::share::pairing::{AffProjShare, PairingShare};
 use crate::Reveal;
 
 /// Malicious degree
@@ -296,7 +296,6 @@ pub use field::GszFieldShare;
 pub mod group {
     use super::super::group::GroupShare;
     use super::*;
-    use crate::msm::Msm;
     use ark_ec::group::Group;
     use std::marker::PhantomData;
 
@@ -440,7 +439,7 @@ pub mod group {
         for i in d + 1..n {
             assert!(
                 coeffs[i].is_zero(),
-                "Non-one coeffs {} ({}), when expecting a degree <= {} poly",
+                "Non-identity coeffs {} ({}), when expecting a degree <= {} poly",
                 i,
                 coeffs[i],
                 d
@@ -500,17 +499,17 @@ pub use group::GszGroupShare;
 // #[derive(Debug, Derivative)]
 // #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
 // pub struct AdditiveAffineMsm<G: AffineCurve>(pub PhantomData<G>);
-// 
+//
 // impl<G: AffineCurve> Msm<G, G::ScalarField> for AdditiveAffineMsm<G> {
 //     fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
 //         G::multi_scalar_mul(bases, scalars).into()
 //     }
 // }
-// 
+//
 // #[derive(Debug, Derivative)]
 // #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
 // pub struct AdditiveProjectiveMsm<G: ProjectiveCurve>(pub PhantomData<G>);
-// 
+//
 // impl<G: ProjectiveCurve> Msm<G, G::ScalarField> for AdditiveProjectiveMsm<G> {
 //     fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
 //         let bases: Vec<G::Affine> = bases.iter().map(|s| s.clone().into()).collect();
@@ -524,8 +523,8 @@ macro_rules! groups_share {
 
         impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
             type FrShare = GszFieldShare<E::Fr>;
-            type AffineShare = GszGroupShare<E::$affine, super::add::AdditiveAffineMsm<E::$affine>>;
-            type ProjectiveShare = GszGroupShare<E::$proj, super::add::AdditiveProjectiveMsm<E::$proj>>;
+            type AffineShare = GszGroupShare<E::$affine, AffineMsm<E::$affine>>;
+            type ProjectiveShare = GszGroupShare<E::$proj, ProjectiveMsm<E::$proj>>;
 
             fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
                 g.map_homo(|s| s.into())
@@ -542,7 +541,10 @@ macro_rules! groups_share {
                 a.val.add_assign_mixed(&o.val);
                 a
             }
-            fn add_sh_proj_pub_aff(mut a: Self::ProjectiveShare, o: &E::$affine) -> Self::ProjectiveShare {
+            fn add_sh_proj_pub_aff(
+                mut a: Self::ProjectiveShare,
+                o: &E::$affine,
+            ) -> Self::ProjectiveShare {
                 if mpc_net::am_first() {
                     a.val.add_assign_mixed(&o);
                 }
@@ -557,3 +559,257 @@ macro_rules! groups_share {
 
 groups_share!(GszG1Share, G1Affine, G1Projective);
 groups_share!(GszG2Share, G2Affine, G2Projective);
+
+pub mod mul_field {
+    use super::*;
+
+    #[derive(Derivative)]
+    #[derivative(
+        Clone(bound = "T: Clone"),
+        Copy(bound = "T: Copy"),
+        PartialEq(bound = "T: PartialEq"),
+        Eq(bound = "T: Eq"),
+        PartialOrd(bound = "T: PartialOrd"),
+        Ord(bound = "T: Ord"),
+        Hash(bound = "T: Hash")
+    )]
+    pub struct MulFieldShare<T, S> {
+        pub val: T,
+        pub degree: usize,
+        pub _phants: PhantomData<S>,
+    }
+
+    macro_rules! impl_basics_2_param {
+        ($share:ident, $bound:ident) => {
+            impl<T: $bound, M> Display for $share<T, M> {
+                fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                    write!(f, "{}", self.val)
+                }
+            }
+            impl<T: $bound, M> Debug for $share<T, M> {
+                fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                    write!(f, "{:?}", self.val)
+                }
+            }
+            impl<T: $bound, M> ToBytes for $share<T, M> {
+                fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
+                    unimplemented!("write")
+                }
+            }
+            impl<T: $bound, M> FromBytes for $share<T, M> {
+                fn read<R: Read>(_reader: R) -> io::Result<Self> {
+                    unimplemented!("read")
+                }
+            }
+            impl<T: $bound, M> CanonicalSerialize for $share<T, M> {
+                fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
+                    unimplemented!("serialize")
+                }
+                fn serialized_size(&self) -> usize {
+                    unimplemented!("serialized_size")
+                }
+            }
+            impl<T: $bound, M> CanonicalSerializeWithFlags for $share<T, M> {
+                fn serialize_with_flags<W: Write, F: Flags>(
+                    &self,
+                    _writer: W,
+                    _flags: F,
+                ) -> Result<(), SerializationError> {
+                    unimplemented!("serialize_with_flags")
+                }
+
+                fn serialized_size_with_flags<F: Flags>(&self) -> usize {
+                    unimplemented!("serialized_size_with_flags")
+                }
+            }
+            impl<T: $bound, M> CanonicalDeserialize for $share<T, M> {
+                fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
+                    unimplemented!("deserialize")
+                }
+            }
+            impl<T: $bound, M> CanonicalDeserializeWithFlags for $share<T, M> {
+                fn deserialize_with_flags<R: Read, F: Flags>(
+                    _reader: R,
+                ) -> Result<(Self, F), SerializationError> {
+                    unimplemented!("deserialize_with_flags")
+                }
+            }
+            impl<T: $bound, M> UniformRand for $share<T, M> {
+                fn rand<R: Rng + ?Sized>(_rng: &mut R) -> Self {
+                    todo!()
+                    //Reveal::from_add_shared(<T as UniformRand>::rand(rng))
+                }
+            }
+        };
+    }
+
+    impl_basics_2_param!(MulFieldShare, Field);
+
+    impl<F: Field, S: PrimeField> Reveal for MulFieldShare<F, S> {
+        type Base = F;
+
+        fn reveal(self) -> F {
+            open_mul_field(&self)
+        }
+        fn from_public(f: F) -> Self {
+            Self {
+                val: f,
+                degree: t(),
+                _phants: Default::default(),
+            }
+        }
+        fn from_add_shared(_f: F) -> Self {
+            unimplemented!()
+        }
+        fn unwrap_as_public(self) -> F {
+            self.val
+        }
+    }
+
+    impl<F: Field, S: PrimeField> FieldShare<F> for MulFieldShare<F, S> {
+        fn map_homo<FF: Field, SS: FieldShare<FF>, Fun: Fn(F) -> FF>(self, _f: Fun) -> SS {
+            unimplemented!()
+        }
+
+        fn add(&mut self, _other: &Self) -> &mut Self {
+            unimplemented!("add for MulFieldShare")
+        }
+
+        fn scale(&mut self, other: &F) -> &mut Self {
+            self.val *= other;
+            self
+        }
+
+        fn shift(&mut self, _other: &F) -> &mut Self {
+            unimplemented!("add for MulFieldShare")
+        }
+
+        fn mul<SS: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut SS) -> Self {
+            Self {
+                val: self.val * other.val,
+                degree: self.degree,
+                _phants: Default::default(),
+            }
+        }
+
+        fn inv<SS: BeaverSource<Self, Self, Self>>(mut self, _source: &mut SS) -> Self {
+            self.val = self.val.inverse().unwrap();
+            self
+        }
+        fn batch_mul<SS: BeaverSource<Self, Self, Self>>(
+            mut xs: Vec<Self>,
+            ys: Vec<Self>,
+            _source: &mut SS,
+        ) -> Vec<Self> {
+            for (x, y) in xs.iter_mut().zip(ys.iter()) {
+                x.val *= y.val;
+            }
+            xs
+        }
+
+        fn batch_inv<SS: BeaverSource<Self, Self, Self>>(
+            xs: Vec<Self>,
+            source: &mut SS,
+        ) -> Vec<Self> {
+            xs.into_iter().map(|x| x.inv(source)).collect()
+        }
+    }
+
+    /// Open a t-share.
+    pub fn open_mul_field<F: Field, S: PrimeField>(s: &MulFieldShare<F, S>) -> F {
+        let shares = alg_net::broadcast(&s.val);
+        open_degree_vec::<F, S>(shares, s.degree)
+    }
+
+    fn open_degree_vec<F: Field, S: PrimeField>(shares: Vec<F>, d: usize) -> F {
+        let domain = domain::<S>();
+        let n = net::n_parties();
+        let n_inv = S::from(n as u32).inverse().unwrap();
+        let w = domain.element(1);
+        let w_inv = w.inverse().unwrap();
+        // w^{-i}
+        let mut w_inv_i = S::one();
+        let coeffs: Vec<F> = (0..n)
+            .map(|i| {
+                let mut coeff = F::one();
+                // 1/N * w^{-ij}
+                let mut w_inv_ij = n_inv;
+                for _j in 0..n {
+                    coeff *= shares[i].pow(&w_inv_ij.into_repr());
+                    w_inv_ij *= &w_inv_i;
+                }
+                w_inv_i *= &w_inv;
+                coeff
+            })
+            .collect();
+        assert_eq!(coeffs.len(), n);
+        for i in d + 1..n {
+            assert!(
+                coeffs[i].is_one(),
+                "Non-one coeffs {} ({}), when expecting a degree <= {} poly",
+                i,
+                coeffs[i],
+                d
+            );
+        }
+        coeffs[0]
+    }
+}
+
+#[derive(Debug, Derivative)]
+#[derivative(
+    Default(bound = ""),
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "F: PartialEq"),
+    Eq(bound = "F: Eq"),
+    Hash(bound = "F: Hash")
+)]
+pub struct GszMulExtFieldShare<F: Field, S>(pub PhantomData<(F, S)>);
+
+impl<F: Field, S: PrimeField> ExtFieldShare<F> for GszMulExtFieldShare<F, S> {
+    type Ext = mul_field::MulFieldShare<F, S>;
+    type Base = mul_field::MulFieldShare<F::BasePrimeField, S>;
+}
+
+#[derive(Debug, Derivative)]
+#[derivative(
+    Default(bound = ""),
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "F: PartialEq"),
+    Eq(bound = "F: Eq"),
+    Hash(bound = "F: Hash")
+)]
+pub struct GszExtFieldShare<F: Field>(pub PhantomData<F>);
+
+impl<F: Field> ExtFieldShare<F> for GszExtFieldShare<F> {
+    // TODO: wrong!
+    type Ext = mul_field::MulFieldShare<F, F::BasePrimeField>;
+    type Base = GszFieldShare<F::BasePrimeField>;
+}
+
+#[derive(Debug, Derivative)]
+#[derivative(
+    Default(bound = ""),
+    Clone(bound = ""),
+    Copy(bound = ""),
+    PartialEq(bound = "E::G1Affine: PartialEq"),
+    Eq(bound = "E::G1Affine: Eq"),
+    Hash(bound = "E::G1Affine: Hash")
+)]
+pub struct GszPairingShare<E: PairingEngine>(pub PhantomData<E>);
+
+impl<E: PairingEngine> PairingShare<E> for GszPairingShare<E> {
+    type FrShare = GszFieldShare<E::Fr>;
+    type FqShare = GszFieldShare<E::Fq>;
+    type FqeShare = GszExtFieldShare<E::Fqe>;
+    // Not a typo. We want a multiplicative subgroup.
+    type FqkShare = GszMulExtFieldShare<E::Fqk, E::Fr>;
+    type G1AffineShare = GszGroupShare<E::G1Affine, AffineMsm<E::G1Affine>>;
+    type G2AffineShare = GszGroupShare<E::G2Affine, AffineMsm<E::G2Affine>>;
+    type G1ProjectiveShare = GszGroupShare<E::G1Projective, ProjectiveMsm<E::G1Projective>>;
+    type G2ProjectiveShare = GszGroupShare<E::G2Projective, ProjectiveMsm<E::G2Projective>>;
+    type G1 = GszG1Share<E>;
+    type G2 = GszG2Share<E>;
+}

@@ -1,7 +1,8 @@
+#![macro_use]
 use derivative::Derivative;
 use rand::Rng;
 
-use ark_ec::{group::Group, PairingEngine, ProjectiveCurve, AffineCurve};
+use ark_ec::{group::Group, AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
 use ark_serialize::{
@@ -18,21 +19,18 @@ use std::marker::PhantomData;
 use crate::channel;
 use mpc_net;
 
-use super::add::{
-    AdditiveAffineMsm, AdditiveGroupShare, AdditiveProjectiveMsm, AdditiveFieldShare,
-    MulFieldShare,
-};
+use super::add::{AdditiveFieldShare, AdditiveGroupShare, MulFieldShare};
 use super::field::{DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare};
 use super::group::GroupShare;
-use super::msm::Msm;
-use super::pairing::{PairingShare, AffProjShare};
+use super::msm::*;
+use super::pairing::{AffProjShare, PairingShare};
 use super::BeaverSource;
 use crate::Reveal;
 
 #[derive(Derivative)]
 #[derivative(Default(bound = ""), Clone(bound = ""))]
 /// Panics if you ask it for triples.
-struct PanicBeaverSource<F>(PhantomData<F>);
+pub struct PanicBeaverSource<F>(PhantomData<F>);
 
 impl<F> BeaverSource<F, F, F> for PanicBeaverSource<F> {
     fn triple(&mut self) -> (F, F, F) {
@@ -563,8 +561,8 @@ macro_rules! groups_share {
 
         impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
             type FrShare = SpdzFieldShare<E::Fr>;
-            type AffineShare = SpdzGroupShare<E::$affine, AdditiveAffineMsm<E::$affine>>;
-            type ProjectiveShare = SpdzGroupShare<E::$proj, AdditiveProjectiveMsm<E::$proj>>;
+            type AffineShare = SpdzGroupShare<E::$affine, AffineMsm<E::$affine>>;
+            type ProjectiveShare = SpdzGroupShare<E::$proj, ProjectiveMsm<E::$proj>>;
 
             fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
                 SpdzGroupShare {
@@ -588,7 +586,10 @@ macro_rules! groups_share {
                 a.mac.val.add_assign_mixed(&o.mac.val);
                 a
             }
-            fn add_sh_proj_pub_aff(mut a: Self::ProjectiveShare, o: &E::$affine) -> Self::ProjectiveShare {
+            fn add_sh_proj_pub_aff(
+                mut a: Self::ProjectiveShare,
+                o: &E::$affine,
+            ) -> Self::ProjectiveShare {
                 if mpc_net::am_first() {
                     a.sh.val.add_assign_mixed(&o);
                 }
@@ -622,12 +623,12 @@ impl<E: PairingEngine> PairingShare<E> for SpdzPairingShare<E> {
     type FqeShare = SpdzExtFieldShare<E::Fqe>;
     // Not a typo. We want a multiplicative subgroup.
     type FqkShare = SpdzMulExtFieldShare<E::Fqk, E::Fr>;
-    type G1AffineShare = SpdzGroupShare<E::G1Affine, AdditiveAffineMsm<E::G1Affine>>;
-    type G2AffineShare = SpdzGroupShare<E::G2Affine, AdditiveAffineMsm<E::G2Affine>>;
+    type G1AffineShare = SpdzGroupShare<E::G1Affine, AffineMsm<E::G1Affine>>;
+    type G2AffineShare = SpdzGroupShare<E::G2Affine, AffineMsm<E::G2Affine>>;
     type G1ProjectiveShare =
-        SpdzGroupShare<E::G1Projective, AdditiveProjectiveMsm<E::G1Projective>>;
+        SpdzGroupShare<E::G1Projective, ProjectiveMsm<E::G1Projective>>;
     type G2ProjectiveShare =
-        SpdzGroupShare<E::G2Projective, AdditiveProjectiveMsm<E::G2Projective>>;
+        SpdzGroupShare<E::G2Projective, ProjectiveMsm<E::G2Projective>>;
     type G1 = SpdzG1Share<E>;
     type G2 = SpdzG2Share<E>;
 }

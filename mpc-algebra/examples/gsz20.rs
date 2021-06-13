@@ -1,8 +1,8 @@
-use ark_ec::group::Group;
-use ark_ff::{FftField, UniformRand};
+use ark_ec::{AffineCurve, PairingEngine, group::Group};
+use ark_ff::{FftField, UniformRand, Field, PrimeField};
 use log::debug;
 use mpc_algebra::gsz20::group::GszGroupShare;
-use mpc_algebra::{add::NaiveMsm, share::gsz20::*, Reveal, share::field::FieldShare};
+use mpc_algebra::{msm::NaiveMsm, share::gsz20::*, Reveal, share::field::FieldShare};
 use mpc_net::multi;
 
 use std::path::PathBuf;
@@ -49,6 +49,25 @@ fn test<F: FftField>() {
     }
 }
 
+fn test_mul_field<E: PairingEngine>() {
+    use mpc_algebra::share::spdz::PanicBeaverSource;
+    let rng = &mut ark_std::test_rng();
+    let g = E::pairing(E::G1Affine::prime_subgroup_generator(), 
+    E::G2Affine::prime_subgroup_generator());
+
+    for _i in 0..2 {
+        let a_exp_pub = E::Fr::rand(rng);
+        let b_exp_pub = E::Fr::rand(rng);
+        let a_pub = g.pow(a_exp_pub.into_repr());
+        let b_pub = g.pow(b_exp_pub.into_repr());
+        let a = mul_field::MulFieldShare::<E::Fqk, E::Fr>::from_public(a_pub);
+        let b = mul_field::MulFieldShare::<E::Fqk, E::Fr>::from_public(b_pub);
+        let c = a.mul(b, &mut PanicBeaverSource::default());
+        let c_pub = mul_field::open_mul_field(&c);
+        assert_eq!(c_pub, a_pub * b_pub);
+    }
+}
+
 fn test_group<G: Group>() {
     let rng = &mut ark_std::test_rng();
     let (a, b) = group::double_rand::<G, NaiveMsm<G>>();
@@ -80,6 +99,7 @@ fn main() {
     test_group::<ark_bls12_377::G2Projective>();
     test_group::<ark_bls12_377::G1Affine>();
     test_group::<ark_bls12_377::G2Affine>();
+    test_mul_field::<ark_bls12_377::Bls12_377>();
 
     debug!("Done");
     multi::uninit();

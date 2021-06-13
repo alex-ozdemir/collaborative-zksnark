@@ -3,7 +3,7 @@ use derivative::Derivative;
 use rand::Rng;
 
 use ark_ec::group::Group;
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::bytes::{FromBytes, ToBytes};
 use ark_ff::prelude::*;
 use ark_poly::UVPolynomial;
@@ -26,9 +26,9 @@ use super::field::{
     DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare, SparsePolynomial,
 };
 use super::group::GroupShare;
-use super::msm::Msm;
 use super::pairing::{AffProjShare, PairingShare};
 use super::BeaverSource;
+use crate::msm::*;
 use crate::Reveal;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -477,8 +477,9 @@ macro_rules! groups_share {
 
         impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
             type FrShare = AdditiveFieldShare<E::Fr>;
-            type AffineShare = AdditiveGroupShare<E::$affine, AdditiveAffineMsm<E::$affine>>;
-            type ProjectiveShare = AdditiveGroupShare<E::$proj, AdditiveProjectiveMsm<E::$proj>>;
+            type AffineShare = AdditiveGroupShare<E::$affine, crate::msm::AffineMsm<E::$affine>>;
+            type ProjectiveShare =
+                AdditiveGroupShare<E::$proj, crate::msm::ProjectiveMsm<E::$proj>>;
 
             fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
                 g.map_homo(|s| s.into())
@@ -495,7 +496,10 @@ macro_rules! groups_share {
                 a.val.add_assign_mixed(&o.val);
                 a
             }
-            fn add_sh_proj_pub_aff(mut a: Self::ProjectiveShare, o: &E::$affine) -> Self::ProjectiveShare {
+            fn add_sh_proj_pub_aff(
+                mut a: Self::ProjectiveShare,
+                o: &E::$affine,
+            ) -> Self::ProjectiveShare {
                 if mpc_net::am_first() {
                     a.val.add_assign_mixed(&o);
                 }
@@ -528,51 +532,12 @@ impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
     type FqeShare = AdditiveExtFieldShare<E::Fqe>;
     // Not a typo. We want a multiplicative subgroup.
     type FqkShare = MulExtFieldShare<E::Fqk>;
-    type G1AffineShare = AdditiveGroupShare<E::G1Affine, AdditiveAffineMsm<E::G1Affine>>;
-    type G2AffineShare = AdditiveGroupShare<E::G2Affine, AdditiveAffineMsm<E::G2Affine>>;
+    type G1AffineShare = AdditiveGroupShare<E::G1Affine, crate::msm::AffineMsm<E::G1Affine>>;
+    type G2AffineShare = AdditiveGroupShare<E::G2Affine, crate::msm::AffineMsm<E::G2Affine>>;
     type G1ProjectiveShare =
-        AdditiveGroupShare<E::G1Projective, AdditiveProjectiveMsm<E::G1Projective>>;
+        AdditiveGroupShare<E::G1Projective, crate::msm::ProjectiveMsm<E::G1Projective>>;
     type G2ProjectiveShare =
-        AdditiveGroupShare<E::G2Projective, AdditiveProjectiveMsm<E::G2Projective>>;
+        AdditiveGroupShare<E::G2Projective, crate::msm::ProjectiveMsm<E::G2Projective>>;
     type G1 = AdditiveG1Share<E>;
     type G2 = AdditiveG2Share<E>;
-}
-
-#[derive(Debug, Derivative)]
-#[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
-pub struct NaiveMsm<G: Group>(pub PhantomData<G>);
-
-impl<G: Group> Msm<G, G::ScalarField> for NaiveMsm<G> {
-    fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
-        bases
-            .iter()
-            .zip(scalars.iter())
-            .map(|(b, s)| {
-                let mut b = b.clone();
-                b *= *s;
-                b
-            })
-            .fold(G::zero(), |a, b| a + b)
-    }
-}
-
-#[derive(Debug, Derivative)]
-#[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
-pub struct AdditiveAffineMsm<G: AffineCurve>(pub PhantomData<G>);
-
-impl<G: AffineCurve> Msm<G, G::ScalarField> for AdditiveAffineMsm<G> {
-    fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
-        G::multi_scalar_mul(bases, scalars).into()
-    }
-}
-
-#[derive(Debug, Derivative)]
-#[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
-pub struct AdditiveProjectiveMsm<G: ProjectiveCurve>(pub PhantomData<G>);
-
-impl<G: ProjectiveCurve> Msm<G, G::ScalarField> for AdditiveProjectiveMsm<G> {
-    fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
-        let bases: Vec<G::Affine> = bases.iter().map(|s| s.clone().into()).collect();
-        <G::Affine as AffineCurve>::multi_scalar_mul(&bases, scalars)
-    }
 }

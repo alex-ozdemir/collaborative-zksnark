@@ -14,6 +14,7 @@ pub use wire::*;
 pub mod honest_but_curious {
     use super::{
         share::add::*,
+        share::msm::NaiveMsm,
         wire::{field, group, pairing},
     };
     pub type MpcField<F> = field::MpcField<F, AdditiveFieldShare<F>>;
@@ -29,7 +30,7 @@ pub mod honest_but_curious {
 
 pub mod malicious_majority {
     use super::{
-        share::add::NaiveMsm,
+        share::msm::NaiveMsm,
         share::spdz::*,
         wire::{field, group, pairing},
     };
@@ -46,7 +47,7 @@ pub mod malicious_majority {
 
 pub mod honest_majority {
     use super::{
-        share::add::NaiveMsm,
+        share::msm::NaiveMsm,
         share::gsz20::{field::GszFieldShare, group::GszGroupShare},
         wire::{field, group},
     };
