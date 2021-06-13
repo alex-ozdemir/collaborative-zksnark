@@ -19,10 +19,10 @@ use crate::channel;
 use mpc_net;
 
 use super::add::{
-    AdditiveAffineMsm, AdditiveGroupShare, AdditiveProjectiveMsm, AdditiveScalarShare,
-    MulScalarShare,
+    AdditiveAffineMsm, AdditiveGroupShare, AdditiveProjectiveMsm, AdditiveFieldShare,
+    MulFieldShare,
 };
-use super::field::{DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, ScalarShare};
+use super::field::{DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare};
 use super::group::GroupShare;
 use super::msm::Msm;
 use super::pairing::{PairingShare, AffProjShare};
@@ -64,9 +64,9 @@ pub fn mac<F: Field>() -> F {
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SpdzScalarShare<T> {
-    sh: AdditiveScalarShare<T>,
-    mac: AdditiveScalarShare<T>,
+pub struct SpdzFieldShare<T> {
+    sh: AdditiveFieldShare<T>,
+    mac: AdditiveFieldShare<T>,
 }
 
 macro_rules! impl_basics_spdz {
@@ -131,9 +131,9 @@ macro_rules! impl_basics_spdz {
         }
     };
 }
-impl_basics_spdz!(SpdzScalarShare, Field);
+impl_basics_spdz!(SpdzFieldShare, Field);
 
-impl<F: Field> Reveal for SpdzScalarShare<F> {
+impl<F: Field> Reveal for SpdzFieldShare<F> {
     type Base = F;
 
     fn reveal(self) -> F {
@@ -160,7 +160,7 @@ impl<F: Field> Reveal for SpdzScalarShare<F> {
     }
 }
 
-impl<F: Field> ScalarShare<F> for SpdzScalarShare<F> {
+impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let (s_vals, macs): (Vec<F>, Vec<F>) =
             selfs.into_iter().map(|s| (s.sh.val, s.mac.val)).unzip();
@@ -224,8 +224,8 @@ impl<F: Field> ScalarShare<F> for SpdzScalarShare<F> {
                 (Err(num_sh), Err(num_mac))
             }
         };
-        let (q_sh, r_sh) = AdditiveScalarShare::univariate_div_qr(num_sh, den.clone()).unwrap();
-        let (q_mac, r_mac) = AdditiveScalarShare::univariate_div_qr(num_mac, den).unwrap();
+        let (q_sh, r_sh) = AdditiveFieldShare::univariate_div_qr(num_sh, den.clone()).unwrap();
+        let (q_mac, r_mac) = AdditiveFieldShare::univariate_div_qr(num_mac, den).unwrap();
         Some((
             q_sh.into_iter()
                 .zip(q_mac)
@@ -360,7 +360,7 @@ macro_rules! impl_spdz_basics_2_param {
 impl_spdz_basics_2_param!(SpdzGroupShare, Group);
 
 impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M> {
-    type ScalarShare = SpdzScalarShare<G::ScalarField>;
+    type FieldShare = SpdzFieldShare<G::ScalarField>;
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
         let (s_vals, macs): (Vec<G>, Vec<G>) =
@@ -406,7 +406,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
         self
     }
 
-    fn scale_pub_group(base: G, scalar: &Self::ScalarShare) -> Self {
+    fn scale_pub_group(base: G, scalar: &Self::FieldShare) -> Self {
         let sh = AdditiveGroupShare::scale_pub_group(base, &scalar.sh);
         let mac = AdditiveGroupShare::scale_pub_group(base, &scalar.mac);
         Self { sh, mac }
@@ -422,7 +422,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
         self
     }
 
-    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::ScalarShare]) -> Self {
+    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
         let shares: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.sh.val.clone()).collect();
         let macs: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.sh.val.clone()).collect();
         let sh = AdditiveGroupShare::from_add_shared(M::msm(bases, &shares));
@@ -441,14 +441,14 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
     Ord(bound = "T: Ord"),
     Hash(bound = "T: Hash")
 )]
-pub struct SpdzMulScalarShare<T, S> {
-    sh: MulScalarShare<T>,
-    mac: MulScalarShare<T>,
+pub struct SpdzMulFieldShare<T, S> {
+    sh: MulFieldShare<T>,
+    mac: MulFieldShare<T>,
     _phants: PhantomData<S>,
 }
-impl_spdz_basics_2_param!(SpdzMulScalarShare, Field);
+impl_spdz_basics_2_param!(SpdzMulFieldShare, Field);
 
-impl<F: Field, S: PrimeField> Reveal for SpdzMulScalarShare<F, S> {
+impl<F: Field, S: PrimeField> Reveal for SpdzMulFieldShare<F, S> {
     type Base = F;
 
     fn reveal(self) -> F {
@@ -477,9 +477,9 @@ impl<F: Field, S: PrimeField> Reveal for SpdzMulScalarShare<F, S> {
     }
 }
 
-impl<F: Field, S: PrimeField> ScalarShare<F> for SpdzMulScalarShare<F, S> {
+impl<F: Field, S: PrimeField> FieldShare<F> for SpdzMulFieldShare<F, S> {
     fn add(&mut self, _other: &Self) -> &mut Self {
-        unimplemented!("add for SpdzMulScalarShare")
+        unimplemented!("add for SpdzMulFieldShare")
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
@@ -491,7 +491,7 @@ impl<F: Field, S: PrimeField> ScalarShare<F> for SpdzMulScalarShare<F, S> {
     }
 
     fn shift(&mut self, _other: &F) -> &mut Self {
-        unimplemented!("add for SpdzMulScalarShare")
+        unimplemented!("add for SpdzMulFieldShare")
     }
 
     fn mul<S2: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S2) -> Self {
@@ -537,8 +537,8 @@ impl<F: Field, S: PrimeField> ScalarShare<F> for SpdzMulScalarShare<F, S> {
 pub struct SpdzMulExtFieldShare<F: Field, S>(pub PhantomData<(F, S)>);
 
 impl<F: Field, S: PrimeField> ExtFieldShare<F> for SpdzMulExtFieldShare<F, S> {
-    type Ext = SpdzMulScalarShare<F, S>;
-    type Base = SpdzMulScalarShare<F::BasePrimeField, S>;
+    type Ext = SpdzMulFieldShare<F, S>;
+    type Base = SpdzMulFieldShare<F::BasePrimeField, S>;
 }
 
 #[derive(Debug, Derivative)]
@@ -553,8 +553,8 @@ impl<F: Field, S: PrimeField> ExtFieldShare<F> for SpdzMulExtFieldShare<F, S> {
 pub struct SpdzExtFieldShare<F: Field>(pub PhantomData<F>);
 
 impl<F: Field> ExtFieldShare<F> for SpdzExtFieldShare<F> {
-    type Ext = AdditiveScalarShare<F>;
-    type Base = AdditiveScalarShare<F::BasePrimeField>;
+    type Ext = AdditiveFieldShare<F>;
+    type Base = AdditiveFieldShare<F::BasePrimeField>;
 }
 
 macro_rules! groups_share {
@@ -562,7 +562,7 @@ macro_rules! groups_share {
         pub struct $struct_name<E: PairingEngine>(pub PhantomData<E>);
 
         impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
-            type FrShare = SpdzScalarShare<E::Fr>;
+            type FrShare = SpdzFieldShare<E::Fr>;
             type AffineShare = SpdzGroupShare<E::$affine, AdditiveAffineMsm<E::$affine>>;
             type ProjectiveShare = SpdzGroupShare<E::$proj, AdditiveProjectiveMsm<E::$proj>>;
 
@@ -617,8 +617,8 @@ groups_share!(SpdzG2Share, G2Affine, G2Projective);
 pub struct SpdzPairingShare<E: PairingEngine>(pub PhantomData<E>);
 
 impl<E: PairingEngine> PairingShare<E> for SpdzPairingShare<E> {
-    type FrShare = SpdzScalarShare<E::Fr>;
-    type FqShare = SpdzScalarShare<E::Fq>;
+    type FrShare = SpdzFieldShare<E::Fr>;
+    type FqShare = SpdzFieldShare<E::Fq>;
     type FqeShare = SpdzExtFieldShare<E::Fqe>;
     // Not a typo. We want a multiplicative subgroup.
     type FqkShare = SpdzMulExtFieldShare<E::Fqk, E::Fr>;

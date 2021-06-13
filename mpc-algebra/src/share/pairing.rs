@@ -3,7 +3,7 @@ use ark_ff::Field;
 
 use std::fmt::Debug;
 
-use super::field::{ExtFieldShare, ScalarShare};
+use super::field::{ExtFieldShare, FieldShare};
 use super::group::GroupShare;
 
 pub trait AffProjShare<
@@ -12,9 +12,9 @@ pub trait AffProjShare<
     P: ProjectiveCurve<Affine = A>,
 >
 {
-    type FrShare: ScalarShare<Fr>;
-    type AffineShare: GroupShare<A, ScalarShare = Self::FrShare>;
-    type ProjectiveShare: GroupShare<P, ScalarShare = Self::FrShare>;
+    type FrShare: FieldShare<Fr>;
+    type AffineShare: GroupShare<A, FieldShare = Self::FrShare>;
+    type ProjectiveShare: GroupShare<P, FieldShare = Self::FrShare>;
     fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare;
     fn sh_proj_to_aff(g: Self::ProjectiveShare) -> Self::AffineShare;
     fn add_sh_proj_sh_aff(
@@ -34,16 +34,16 @@ pub trait AffProjShare<
 pub trait PairingShare<E: PairingEngine>:
     Clone + Copy + Debug + 'static + Send + Sync + PartialEq + Eq
 {
-    type FrShare: ScalarShare<E::Fr>;
-    type FqShare: ScalarShare<E::Fq>;
+    type FrShare: FieldShare<E::Fr>;
+    type FqShare: FieldShare<E::Fq>;
     type FqeShare: ExtFieldShare<E::Fqe>;
     // TODO: wrong. Need to fix the PairingEngine interface though..
     type FqkShare: ExtFieldShare<E::Fqk>;
-    //type FqkShare: GroupShare<MulFieldGroup<E::Fqk, E::Fr>, ScalarShare = Self::FrShare>;
-    type G1AffineShare: GroupShare<E::G1Affine, ScalarShare = Self::FrShare>;
-    type G2AffineShare: GroupShare<E::G2Affine, ScalarShare = Self::FrShare>;
-    type G1ProjectiveShare: GroupShare<E::G1Projective, ScalarShare = Self::FrShare>;
-    type G2ProjectiveShare: GroupShare<E::G2Projective, ScalarShare = Self::FrShare>;
+    //type FqkShare: GroupShare<MulFieldGroup<E::Fqk, E::Fr>, FieldShare = Self::FrShare>;
+    type G1AffineShare: GroupShare<E::G1Affine, FieldShare = Self::FrShare>;
+    type G2AffineShare: GroupShare<E::G2Affine, FieldShare = Self::FrShare>;
+    type G1ProjectiveShare: GroupShare<E::G1Projective, FieldShare = Self::FrShare>;
+    type G2ProjectiveShare: GroupShare<E::G2Projective, FieldShare = Self::FrShare>;
     type G1: AffProjShare<
         E::Fr,
         E::G1Affine,

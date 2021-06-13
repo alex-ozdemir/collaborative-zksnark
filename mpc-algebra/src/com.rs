@@ -9,7 +9,7 @@ use mpc_trait::MpcWire;
 use crate::{channel, Reveal};
 use mpc_net;
 use crate::wire::field::MpcField;
-use crate::share::field::ScalarShare;
+use crate::share::field::FieldShare;
 
 /// Vector-Commitable Field
 pub trait ComField: FftField + MpcWire {
@@ -22,7 +22,7 @@ pub trait ComField: FftField + MpcWire {
     fn check_opening(c: &Self::Commitment, p: Self::OpeningProof, i: usize, v: Self) -> bool;
 }
 
-impl<Fr: PrimeField, S: ScalarShare<Fr>>  ComField for MpcField<Fr, S> {
+impl<Fr: PrimeField, S: FieldShare<Fr>>  ComField for MpcField<Fr, S> {
     type Commitment = (Vec<u8>, Vec<u8>);
     type Key = Vec<Vec<Vec<u8>>>;
     type OpeningProof = (

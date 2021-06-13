@@ -16,7 +16,7 @@ use crate::ahp::prover::*;
 use ark_poly::EvaluationDomain;
 use ark_std::{end_timer, start_timer};
 
-impl<F: PrimeField, S: ScalarShare<F>> Reveal for ProverMsg<MpcField<F, S>> {
+impl<F: PrimeField, S: FieldShare<F>> Reveal for ProverMsg<MpcField<F, S>> {
     type Base = ProverMsg<F>;
 
     fn reveal(self) -> Self::Base {
@@ -71,7 +71,7 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
     struct_reveal_simp_impl!(Proof; commitments, evaluations, prover_messages, pc_proof);
 }
 
-impl<F: PrimeField, S: ScalarShare<F>> Reveal for ahp::indexer::IndexInfo<MpcField<F, S>> {
+impl<F: PrimeField, S: FieldShare<F>> Reveal for ahp::indexer::IndexInfo<MpcField<F, S>> {
     type Base = ahp::indexer::IndexInfo<F>;
     struct_reveal_simp_impl!(ahp::indexer::IndexInfo;
         num_variables,
@@ -136,7 +136,7 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
     >;
     struct_reveal_simp_impl!(IndexVerifierKey; index_comms, verifier_key, index_info);
 }
-//impl<F: PrimeField, S: ScalarShare<F>> Reveal for ahp::indexer::Matrix<MpcField<F, S>> {
+//impl<F: PrimeField, S: FieldShare<F>> Reveal for ahp::indexer::Matrix<MpcField<F, S>> {
 //    type Base = ahp::indexer::Matrix<F>;
 //    struct_reveal_simp_impl!(ahp::indexer::Matrix;
 //        num_variables,
@@ -156,7 +156,7 @@ impl<E: PairingEngine, S: PairingShare<E>> Reveal
 //         })
 //         .collect()
 // }
-impl<E: PrimeField, S: ScalarShare<E>> Reveal for ahp::indexer::Index<MpcField<E, S>> {
+impl<E: PrimeField, S: FieldShare<E>> Reveal for ahp::indexer::Index<MpcField<E, S>> {
     type Base = ahp::indexer::Index<E>;
     struct_reveal_simp_impl!(ahp::indexer::Index; index_info, a, b, c, a_star_arith, b_star_arith, c_star_arith);
 }
@@ -208,13 +208,13 @@ impl<E: PrimeField, S: ScalarShare<E>> Reveal for ahp::indexer::Index<MpcField<E
 //         val: lift_evals(mat.val),
 //     }
 // }
-impl<E: PrimeField, S: ScalarShare<E>> Reveal
+impl<E: PrimeField, S: FieldShare<E>> Reveal
     for ahp::constraint_systems::MatrixEvals<MpcField<E, S>>
 {
     type Base = ahp::constraint_systems::MatrixEvals<E>;
     struct_reveal_simp_impl!(ahp::constraint_systems::MatrixEvals; row, col, val);
 }
-impl<E: PrimeField, S: ScalarShare<E>> Reveal
+impl<E: PrimeField, S: FieldShare<E>> Reveal
     for ahp::constraint_systems::MatrixArithmetization<MpcField<E, S>>
 {
     type Base = ahp::constraint_systems::MatrixArithmetization<E>;

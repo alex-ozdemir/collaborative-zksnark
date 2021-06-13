@@ -2,7 +2,7 @@ use ark_ec::group::Group;
 use ark_ff::{FftField, UniformRand};
 use log::debug;
 use mpc_algebra::gsz20::group::GszGroupShare;
-use mpc_algebra::{add::NaiveMsm, share::gsz20::*, Reveal, share::field::ScalarShare};
+use mpc_algebra::{add::NaiveMsm, share::gsz20::*, Reveal, share::field::FieldShare};
 use mpc_net::multi;
 
 use std::path::PathBuf;

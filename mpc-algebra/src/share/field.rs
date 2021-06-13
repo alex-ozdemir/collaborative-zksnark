@@ -13,7 +13,7 @@ use std::hash::Hash;
 use super::BeaverSource;
 use crate::Reveal;
 
-pub trait ScalarShare<F: Field>:
+pub trait FieldShare<F: Field>:
     Clone
     + Copy
     + Display
@@ -37,7 +37,7 @@ pub trait ScalarShare<F: Field>:
         <Self as Reveal>::reveal(*self)
     }
 
-    fn map_homo<FF: Field, SS: ScalarShare<FF>, Fun: Fn(F) -> FF>(self, f: Fun) -> SS {
+    fn map_homo<FF: Field, SS: FieldShare<FF>, Fun: Fn(F) -> FF>(self, f: Fun) -> SS {
         SS::from_add_shared(f(self.unwrap_as_public()))
     }
 
@@ -200,6 +200,6 @@ pub type DenseOrSparsePolynomial<T> = Result<DensePolynomial<T>, SparsePolynomia
 pub trait ExtFieldShare<F: Field>:
     Clone + Copy + Debug + 'static + Send + Sync + PartialEq + Eq
 {
-    type Base: ScalarShare<F::BasePrimeField>;
-    type Ext: ScalarShare<F>;
+    type Base: FieldShare<F::BasePrimeField>;
+    type Ext: FieldShare<F>;
 }

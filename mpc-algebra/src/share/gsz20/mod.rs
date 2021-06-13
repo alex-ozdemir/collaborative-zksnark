@@ -27,7 +27,7 @@ use std::marker::PhantomData;
 use derivative::Derivative;
 use rand::Rng;
 
-use super::field::ScalarShare;
+use super::field::FieldShare;
 use super::BeaverSource;
 use crate::share::pairing::{PairingShare, AffProjShare};
 use crate::share::group::GroupShare;
@@ -78,7 +78,7 @@ pub mod field {
         }
     }
 
-    impl<F: FftField> ScalarShare<F> for GszFieldShare<F> {
+    impl<F: FftField> FieldShare<F> for GszFieldShare<F> {
         fn add(&mut self, other: &Self) -> &mut Self {
             self.val += other.val;
             self
@@ -339,7 +339,7 @@ pub mod group {
     }
 
     impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for GszGroupShare<G, M> {
-        type ScalarShare = GszFieldShare<G::ScalarField>;
+        type FieldShare = GszFieldShare<G::ScalarField>;
 
         fn add(&mut self, other: &Self) -> &mut Self {
             self.val += &other.val;
@@ -356,7 +356,7 @@ pub mod group {
             self
         }
 
-        fn scale_pub_group(mut base: G, scalar: &Self::ScalarShare) -> Self {
+        fn scale_pub_group(mut base: G, scalar: &Self::FieldShare) -> Self {
             base *= scalar.val;
             Self {
                 val: base,
@@ -370,7 +370,7 @@ pub mod group {
             self
         }
 
-        fn multi_scale_pub_group(bases: &[G], scalars: &[Self::ScalarShare]) -> Self {
+        fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
             let scalars: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.val.clone()).collect();
             Self::from_add_shared(M::msm(bases, &scalars))
         }

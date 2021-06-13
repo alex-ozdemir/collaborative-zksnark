@@ -23,7 +23,7 @@ use crate::channel;
 use mpc_net;
 
 use super::field::{
-    DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, ScalarShare, SparsePolynomial,
+    DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare, SparsePolynomial,
 };
 use super::group::GroupShare;
 use super::msm::Msm;
@@ -32,11 +32,11 @@ use super::BeaverSource;
 use crate::Reveal;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AdditiveScalarShare<T> {
+pub struct AdditiveFieldShare<T> {
     pub val: T,
 }
 
-impl<F: Field> AdditiveScalarShare<F> {
+impl<F: Field> AdditiveFieldShare<F> {
     fn poly_share<'a>(
         p: DenseOrSparsePolynomial<Self>,
     ) -> ark_poly::univariate::DenseOrSparsePolynomial<'a, F> {
@@ -79,7 +79,7 @@ impl<F: Field> AdditiveScalarShare<F> {
     }
 }
 
-impl<F: Field> Reveal for AdditiveScalarShare<F> {
+impl<F: Field> Reveal for AdditiveFieldShare<F> {
     type Base = F;
 
     fn reveal(self) -> F {
@@ -99,7 +99,7 @@ impl<F: Field> Reveal for AdditiveScalarShare<F> {
     }
 }
 
-impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
+impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let mut self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
         let other_val = channel::exchange(&self_vec);
@@ -182,7 +182,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
 }
 
 impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G, M> {
-    type ScalarShare = AdditiveScalarShare<G::ScalarField>;
+    type FieldShare = AdditiveFieldShare<G::ScalarField>;
 
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
         let mut self_vec: Vec<G> = selfs.into_iter().map(|s| s.val).collect();
@@ -208,7 +208,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
         self
     }
 
-    fn scale_pub_group(mut base: G, scalar: &Self::ScalarShare) -> Self {
+    fn scale_pub_group(mut base: G, scalar: &Self::FieldShare) -> Self {
         base *= scalar.val;
         Self {
             val: base,
@@ -223,7 +223,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
         self
     }
 
-    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::ScalarShare]) -> Self {
+    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
         let scalars: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.val.clone()).collect();
         Self::from_add_shared(M::msm(bases, &scalars))
     }
@@ -354,7 +354,7 @@ macro_rules! impl_basics_2_param {
     };
 }
 
-impl_basics!(AdditiveScalarShare, Field);
+impl_basics!(AdditiveFieldShare, Field);
 impl_basics_2_param!(AdditiveGroupShare, Group);
 
 #[derive(Debug, Derivative)]
@@ -369,16 +369,16 @@ impl_basics_2_param!(AdditiveGroupShare, Group);
 pub struct AdditiveExtFieldShare<F: Field>(pub PhantomData<F>);
 
 impl<F: Field> ExtFieldShare<F> for AdditiveExtFieldShare<F> {
-    type Ext = AdditiveScalarShare<F>;
-    type Base = AdditiveScalarShare<F::BasePrimeField>;
+    type Ext = AdditiveFieldShare<F>;
+    type Base = AdditiveFieldShare<F::BasePrimeField>;
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MulScalarShare<T> {
+pub struct MulFieldShare<T> {
     pub val: T,
 }
 
-impl<F: Field> Reveal for MulScalarShare<F> {
+impl<F: Field> Reveal for MulFieldShare<F> {
     type Base = F;
 
     fn reveal(self) -> F {
@@ -398,8 +398,8 @@ impl<F: Field> Reveal for MulScalarShare<F> {
     }
 }
 
-impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
-    fn map_homo<FF: Field, SS: ScalarShare<FF>, Fun: Fn(F) -> FF>(self, _f: Fun) -> SS {
+impl<F: Field> FieldShare<F> for MulFieldShare<F> {
+    fn map_homo<FF: Field, SS: FieldShare<FF>, Fun: Fn(F) -> FF>(self, _f: Fun) -> SS {
         unimplemented!()
     }
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
@@ -412,7 +412,7 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
     }
 
     fn add(&mut self, _other: &Self) -> &mut Self {
-        unimplemented!("add for MulScalarShare")
+        unimplemented!("add for MulFieldShare")
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
@@ -423,7 +423,7 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
     }
 
     fn shift(&mut self, _other: &F) -> &mut Self {
-        unimplemented!("add for MulScalarShare")
+        unimplemented!("add for MulFieldShare")
     }
 
     fn mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S) -> Self {
@@ -465,18 +465,18 @@ impl<F: Field> ScalarShare<F> for MulScalarShare<F> {
 pub struct MulExtFieldShare<F: Field>(pub PhantomData<F>);
 
 impl<F: Field> ExtFieldShare<F> for MulExtFieldShare<F> {
-    type Ext = MulScalarShare<F>;
-    type Base = MulScalarShare<F::BasePrimeField>;
+    type Ext = MulFieldShare<F>;
+    type Base = MulFieldShare<F::BasePrimeField>;
 }
 
-impl_basics!(MulScalarShare, Field);
+impl_basics!(MulFieldShare, Field);
 
 macro_rules! groups_share {
     ($struct_name:ident, $affine:ident, $proj:ident) => {
         pub struct $struct_name<E: PairingEngine>(pub PhantomData<E>);
 
         impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
-            type FrShare = AdditiveScalarShare<E::Fr>;
+            type FrShare = AdditiveFieldShare<E::Fr>;
             type AffineShare = AdditiveGroupShare<E::$affine, AdditiveAffineMsm<E::$affine>>;
             type ProjectiveShare = AdditiveGroupShare<E::$proj, AdditiveProjectiveMsm<E::$proj>>;
 
@@ -523,8 +523,8 @@ groups_share!(AdditiveG2Share, G2Affine, G2Projective);
 pub struct AdditivePairingShare<E: PairingEngine>(pub PhantomData<E>);
 
 impl<E: PairingEngine> PairingShare<E> for AdditivePairingShare<E> {
-    type FrShare = AdditiveScalarShare<E::Fr>;
-    type FqShare = AdditiveScalarShare<E::Fq>;
+    type FrShare = AdditiveFieldShare<E::Fr>;
+    type FqShare = AdditiveFieldShare<E::Fq>;
     type FqeShare = AdditiveExtFieldShare<E::Fqe>;
     // Not a typo. We want a multiplicative subgroup.
     type FqkShare = MulExtFieldShare<E::Fqk>;

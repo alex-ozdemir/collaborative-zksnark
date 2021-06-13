@@ -10,7 +10,7 @@ use core::ops::*;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-use super::field::ScalarShare;
+use super::field::FieldShare;
 use super::BeaverSource;
 use crate::Reveal;
 
@@ -34,7 +34,7 @@ pub trait GroupShare<G: Group>:
     + 'static
     + Reveal<Base = G>
 {
-    type ScalarShare: ScalarShare<G::ScalarField>;
+    type FieldShare: FieldShare<G::ScalarField>;
 
     fn open(&self) -> G {
         <Self as Reveal>::reveal(*self)
@@ -63,13 +63,13 @@ pub trait GroupShare<G: Group>:
 
     fn scale_pub_scalar(&mut self, scalar: &G::ScalarField) -> &mut Self;
 
-    fn scale_pub_group(base: G, scalar: &Self::ScalarShare) -> Self;
+    fn scale_pub_group(base: G, scalar: &Self::FieldShare) -> Self;
 
     fn shift(&mut self, other: &G) -> &mut Self;
 
-    fn scale<S: BeaverSource<Self, Self::ScalarShare, Self>>(
+    fn scale<S: BeaverSource<Self, Self::FieldShare, Self>>(
         self,
-        other: Self::ScalarShare,
+        other: Self::FieldShare,
         source: &mut S,
     ) -> Self {
         let timer = start_timer!(|| "SS scalar multiplication");
@@ -110,7 +110,7 @@ pub trait GroupShare<G: Group>:
 
     /// Compute \sum_i (s_i * g_i)
     /// where the s_i are shared and the g_i are public.
-    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::ScalarShare]) -> Self {
+    fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
         bases
             .into_iter()
             .zip(scalars.into_iter())

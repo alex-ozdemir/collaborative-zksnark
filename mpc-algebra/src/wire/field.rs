@@ -18,27 +18,27 @@ use std::iter::{Product, Sum};
 use std::marker::PhantomData;
 use std::ops::*;
 
-use super::super::share::field::ScalarShare;
+use super::super::share::field::FieldShare;
 use super::super::share::BeaverSource;
 use crate::Reveal;
 use mpc_net;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MpcField<F: Field, S: ScalarShare<F>> {
+pub enum MpcField<F: Field, S: FieldShare<F>> {
     Public(F),
     Shared(S),
 }
 
-impl_basics_2!(ScalarShare, Field, MpcField);
+impl_basics_2!(FieldShare, Field, MpcField);
 
 #[derive(Derivative)]
 #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
-pub struct DummyScalarTripleSource<T, S> {
+pub struct DummyFieldTripleSource<T, S> {
     _scalar: PhantomData<T>,
     _share: PhantomData<S>,
 }
 
-impl<T: Field, S: ScalarShare<T>> BeaverSource<S, S, S> for DummyScalarTripleSource<T, S> {
+impl<T: Field, S: FieldShare<T>> BeaverSource<S, S, S> for DummyFieldTripleSource<T, S> {
     #[inline]
     fn triple(&mut self) -> (S, S, S) {
         (
@@ -76,13 +76,13 @@ impl<T: Field, S: ScalarShare<T>> BeaverSource<S, S, S> for DummyScalarTripleSou
     }
 }
 
-impl<T: Field, S: ScalarShare<T>> MpcField<T, S> {
+impl<T: Field, S: FieldShare<T>> MpcField<T, S> {
     #[inline]
     pub fn inv(self) -> Option<Self> {
         match self {
             Self::Public(x) => x.inverse().map(MpcField::Public),
             Self::Shared(x) => Some(MpcField::Shared(
-                x.inv(&mut DummyScalarTripleSource::default()),
+                x.inv(&mut DummyFieldTripleSource::default()),
             )),
         }
     }
@@ -104,7 +104,7 @@ impl<T: Field, S: ScalarShare<T>> MpcField<T, S> {
         }
     }
 }
-impl<'a, T: Field, S: ScalarShare<T>> MulAssign<&'a MpcField<T, S>> for MpcField<T, S> {
+impl<'a, T: Field, S: FieldShare<T>> MulAssign<&'a MpcField<T, S>> for MpcField<T, S> {
     #[inline]
     fn mul_assign(&mut self, other: &Self) {
         match self {
@@ -125,33 +125,33 @@ impl<'a, T: Field, S: ScalarShare<T>> MulAssign<&'a MpcField<T, S>> for MpcField
                     x.scale(y);
                 }
                 MpcField::Shared(y) => {
-                    let t = x.mul(*y, &mut DummyScalarTripleSource::default());
+                    let t = x.mul(*y, &mut DummyFieldTripleSource::default());
                     *self = MpcField::Shared(t);
                 }
             },
         }
     }
 }
-impl<T: Field, S: ScalarShare<T>> One for MpcField<T, S> {
+impl<T: Field, S: FieldShare<T>> One for MpcField<T, S> {
     #[inline]
     fn one() -> Self {
         MpcField::Public(T::one())
     }
 }
-impl<T: Field, S: ScalarShare<T>> Product for MpcField<T, S> {
+impl<T: Field, S: FieldShare<T>> Product for MpcField<T, S> {
     #[inline]
     fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::one(), Mul::mul)
     }
 }
-impl<'a, T: Field, S: ScalarShare<T> + 'a> Product<&'a MpcField<T, S>> for MpcField<T, S> {
+impl<'a, T: Field, S: FieldShare<T> + 'a> Product<&'a MpcField<T, S>> for MpcField<T, S> {
     #[inline]
     fn product<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
         iter.fold(Self::one(), |x, y| x.mul(y.clone()))
     }
 }
 
-impl<'a, T: Field, S: ScalarShare<T>> DivAssign<&'a MpcField<T, S>> for MpcField<T, S> {
+impl<'a, T: Field, S: FieldShare<T>> DivAssign<&'a MpcField<T, S>> for MpcField<T, S> {
     #[inline]
     fn div_assign(&mut self, other: &Self) {
         match self {
@@ -162,7 +162,7 @@ impl<'a, T: Field, S: ScalarShare<T>> DivAssign<&'a MpcField<T, S>> for MpcField
                     *x /= y;
                 }
                 MpcField::Shared(y) => {
-                    let mut t = y.inv(&mut DummyScalarTripleSource::default());
+                    let mut t = y.inv(&mut DummyFieldTripleSource::default());
                     t.scale(&x);
                     *self = MpcField::Shared(t);
                 }
@@ -172,7 +172,7 @@ impl<'a, T: Field, S: ScalarShare<T>> DivAssign<&'a MpcField<T, S>> for MpcField
                     x.scale(&y.inverse().unwrap());
                 }
                 MpcField::Shared(y) => {
-                    let src = &mut DummyScalarTripleSource::default();
+                    let src = &mut DummyFieldTripleSource::default();
                     *x = x.div(*y, src);
                 }
             },
@@ -186,7 +186,7 @@ impl_ref_ops!(
     mul,
     mul_assign,
     Field,
-    ScalarShare,
+    FieldShare,
     MpcField
 );
 impl_ref_ops!(
@@ -195,7 +195,7 @@ impl_ref_ops!(
     add,
     add_assign,
     Field,
-    ScalarShare,
+    FieldShare,
     MpcField
 );
 impl_ref_ops!(
@@ -204,7 +204,7 @@ impl_ref_ops!(
     div,
     div_assign,
     Field,
-    ScalarShare,
+    FieldShare,
     MpcField
 );
 impl_ref_ops!(
@@ -213,11 +213,11 @@ impl_ref_ops!(
     sub,
     sub_assign,
     Field,
-    ScalarShare,
+    FieldShare,
     MpcField
 );
 
-impl<T: Field, S: ScalarShare<T>> MpcWire for MpcField<T, S> {
+impl<T: Field, S: FieldShare<T>> MpcWire for MpcField<T, S> {
     #[inline]
     fn publicize(&mut self) {
         match self {
@@ -245,7 +245,7 @@ impl<T: Field, S: ScalarShare<T>> MpcWire for MpcField<T, S> {
     }
 }
 
-impl<T: Field, S: ScalarShare<T>> Reveal for MpcField<T, S> {
+impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
     type Base = T;
     #[inline]
     fn reveal(self) -> Self::Base {
@@ -273,14 +273,14 @@ impl<T: Field, S: ScalarShare<T>> Reveal for MpcField<T, S> {
     }
 }
 
-from_prim!(bool, Field, ScalarShare, MpcField);
-from_prim!(u8, Field, ScalarShare, MpcField);
-from_prim!(u16, Field, ScalarShare, MpcField);
-from_prim!(u32, Field, ScalarShare, MpcField);
-from_prim!(u64, Field, ScalarShare, MpcField);
-from_prim!(u128, Field, ScalarShare, MpcField);
+from_prim!(bool, Field, FieldShare, MpcField);
+from_prim!(u8, Field, FieldShare, MpcField);
+from_prim!(u16, Field, FieldShare, MpcField);
+from_prim!(u32, Field, FieldShare, MpcField);
+from_prim!(u64, Field, FieldShare, MpcField);
+from_prim!(u128, Field, FieldShare, MpcField);
 
-impl<T: PrimeField, S: ScalarShare<T>> std::str::FromStr for MpcField<T, S> {
+impl<T: PrimeField, S: FieldShare<T>> std::str::FromStr for MpcField<T, S> {
     type Err = T::Err;
     #[inline]
     fn from_str(s: &str) -> Result<Self, T::Err> {
@@ -288,7 +288,7 @@ impl<T: PrimeField, S: ScalarShare<T>> std::str::FromStr for MpcField<T, S> {
     }
 }
 
-impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
+impl<F: PrimeField, S: FieldShare<F>> Field for MpcField<F, S> {
     type BasePrimeField = Self;
     #[inline]
     fn extension_degree() -> u64 {
@@ -367,7 +367,7 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
-            let nshares = S::batch_mul(sshares, oshares, &mut DummyScalarTripleSource::default());
+            let nshares = S::batch_mul(sshares, oshares, &mut DummyFieldTripleSource::default());
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -403,7 +403,7 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
                     Self::Public(_) => unreachable!(),
                 })
                 .collect();
-            let nshares = S::batch_div(sshares, oshares, &mut DummyScalarTripleSource::default());
+            let nshares = S::batch_div(sshares, oshares, &mut DummyFieldTripleSource::default());
             for (self_, new) in selfs.iter_mut().zip(nshares.into_iter()) {
                 *self_ = Self::Shared(new);
             }
@@ -428,7 +428,7 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
                 })
                 .collect();
             for (self_, new) in selfs.iter_mut().zip(
-                S::partial_products(sshares, &mut DummyScalarTripleSource::default()).into_iter(),
+                S::partial_products(sshares, &mut DummyFieldTripleSource::default()).into_iter(),
             ) {
                 *self_ = Self::Shared(new);
             }
@@ -483,7 +483,7 @@ impl<F: PrimeField, S: ScalarShare<F>> Field for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: ScalarShare<F>> FftField for MpcField<F, S> {
+impl<F: PrimeField, S: FieldShare<F>> FftField for MpcField<F, S> {
     type FftParams = F::FftParams;
     #[inline]
     fn two_adic_root_of_unity() -> Self {
@@ -499,7 +499,7 @@ impl<F: PrimeField, S: ScalarShare<F>> FftField for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: ScalarShare<F>> PrimeField for MpcField<F, S> {
+impl<F: PrimeField, S: FieldShare<F>> PrimeField for MpcField<F, S> {
     type Params = F::Params;
     type BigInt = F::BigInt;
     #[inline]
@@ -515,7 +515,7 @@ impl<F: PrimeField, S: ScalarShare<F>> PrimeField for MpcField<F, S> {
     }
 }
 
-impl<F: PrimeField, S: ScalarShare<F>> SquareRootField for MpcField<F, S> {
+impl<F: PrimeField, S: FieldShare<F>> SquareRootField for MpcField<F, S> {
     #[inline]
     fn legendre(&self) -> ark_ff::LegendreSymbol {
         todo!()
@@ -540,12 +540,12 @@ mod poly_impl {
     use ark_poly::evaluations::univariate::Evaluations;
     use ark_poly::univariate::DensePolynomial;
 
-    impl<E: PrimeField, S: ScalarShare<E>> Reveal for DensePolynomial<MpcField<E, S>> {
+    impl<E: PrimeField, S: FieldShare<E>> Reveal for DensePolynomial<MpcField<E, S>> {
         type Base = DensePolynomial<E>;
         struct_reveal_simp_impl!(DensePolynomial; coeffs);
     }
 
-    impl<F: PrimeField, S: ScalarShare<F>> Reveal for Evaluations<MpcField<F, S>> {
+    impl<F: PrimeField, S: FieldShare<F>> Reveal for Evaluations<MpcField<F, S>> {
         type Base = Evaluations<F>;
 
         fn reveal(self) -> Self::Base {

@@ -16,7 +16,7 @@ pub mod honest_but_curious {
         share::add::*,
         wire::{field, group, pairing},
     };
-    pub type MpcField<F> = field::MpcField<F, AdditiveScalarShare<F>>;
+    pub type MpcField<F> = field::MpcField<F, AdditiveFieldShare<F>>;
     pub type MpcGroup<G> = group::MpcGroup<G, AdditiveGroupShare<G, NaiveMsm<G>>>;
     pub type MpcG1Affine<E> = pairing::MpcG1Affine<E, AdditivePairingShare<E>>;
     pub type MpcG2Affine<E> = pairing::MpcG2Affine<E, AdditivePairingShare<E>>;
@@ -33,7 +33,7 @@ pub mod malicious_majority {
         share::spdz::*,
         wire::{field, group, pairing},
     };
-    pub type MpcField<F> = field::MpcField<F, SpdzScalarShare<F>>;
+    pub type MpcField<F> = field::MpcField<F, SpdzFieldShare<F>>;
     pub type MpcGroup<G> = group::MpcGroup<G, SpdzGroupShare<G, NaiveMsm<G>>>;
     pub type MpcG1Affine<E> = pairing::MpcG1Affine<E, SpdzPairingShare<E>>;
     pub type MpcG2Affine<E> = pairing::MpcG2Affine<E, SpdzPairingShare<E>>;

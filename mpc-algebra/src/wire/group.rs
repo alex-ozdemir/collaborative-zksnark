@@ -39,14 +39,14 @@ pub struct DummyGroupTripleSource<T, S> {
     _share: PhantomData<S>,
 }
 
-impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::ScalarShare, S>
+impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::FieldShare, S>
     for DummyGroupTripleSource<T, S>
 {
     #[inline]
-    fn triple(&mut self) -> (S, S::ScalarShare, S) {
+    fn triple(&mut self) -> (S, S::FieldShare, S) {
         (
             S::from_add_shared(T::zero()),
-            <S::ScalarShare as Reveal>::from_add_shared(if mpc_net::am_first() {
+            <S::FieldShare as Reveal>::from_add_shared(if mpc_net::am_first() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
@@ -55,14 +55,14 @@ impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::ScalarShare, S>
         )
     }
     #[inline]
-    fn inv_pair(&mut self) -> (S::ScalarShare, S::ScalarShare) {
+    fn inv_pair(&mut self) -> (S::FieldShare, S::FieldShare) {
         (
-            <S::ScalarShare as Reveal>::from_add_shared(if mpc_net::am_first() {
+            <S::FieldShare as Reveal>::from_add_shared(if mpc_net::am_first() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
             }),
-            <S::ScalarShare as Reveal>::from_add_shared(if mpc_net::am_first() {
+            <S::FieldShare as Reveal>::from_add_shared(if mpc_net::am_first() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
@@ -130,38 +130,38 @@ impl<T: Group, S: GroupShare<T>> Reveal for MpcGroup<T, S> {
     }
 }
 
-impl<T: Group, S: GroupShare<T>> Mul<MpcField<T::ScalarField, S::ScalarShare>> for MpcGroup<T, S> {
+impl<T: Group, S: GroupShare<T>> Mul<MpcField<T::ScalarField, S::FieldShare>> for MpcGroup<T, S> {
     type Output = Self;
     #[inline]
-    fn mul(mut self, other: MpcField<T::ScalarField, S::ScalarShare>) -> Self::Output {
+    fn mul(mut self, other: MpcField<T::ScalarField, S::FieldShare>) -> Self::Output {
         self *= &other;
         self
     }
 }
 
-impl<'a, T: Group, S: GroupShare<T>> Mul<&'a MpcField<T::ScalarField, S::ScalarShare>>
+impl<'a, T: Group, S: GroupShare<T>> Mul<&'a MpcField<T::ScalarField, S::FieldShare>>
     for MpcGroup<T, S>
 {
     type Output = Self;
     #[inline]
-    fn mul(mut self, other: &MpcField<T::ScalarField, S::ScalarShare>) -> Self::Output {
+    fn mul(mut self, other: &MpcField<T::ScalarField, S::FieldShare>) -> Self::Output {
         self *= other;
         self
     }
 }
-impl<T: Group, S: GroupShare<T>> MulAssign<MpcField<T::ScalarField, S::ScalarShare>>
+impl<T: Group, S: GroupShare<T>> MulAssign<MpcField<T::ScalarField, S::FieldShare>>
     for MpcGroup<T, S>
 {
     #[inline]
-    fn mul_assign(&mut self, other: MpcField<T::ScalarField, S::ScalarShare>) {
+    fn mul_assign(&mut self, other: MpcField<T::ScalarField, S::FieldShare>) {
         *self *= &other;
     }
 }
-impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::ScalarShare>>
+impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::FieldShare>>
     for MpcGroup<T, S>
 {
     #[inline]
-    fn mul_assign(&mut self, other: &MpcField<T::ScalarField, S::ScalarShare>) {
+    fn mul_assign(&mut self, other: &MpcField<T::ScalarField, S::FieldShare>) {
         match self {
             // for some reason, a two-stage match (rather than a tuple match) avoids moving
             // self
@@ -188,7 +188,7 @@ impl<'a, T: Group, S: GroupShare<T>> MulAssign<&'a MpcField<T::ScalarField, S::S
 }
 
 impl<T: Group, S: GroupShare<T>> Group for MpcGroup<T, S> {
-    type ScalarField = MpcField<T::ScalarField, S::ScalarShare>;
+    type ScalarField = MpcField<T::ScalarField, S::FieldShare>;
 }
 impl<T: Group, S: GroupShare<T>> MpcGroup<T, S> {
     pub fn unwrap_as_public_or_add_shared(self) -> T {
