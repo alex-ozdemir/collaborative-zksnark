@@ -6,6 +6,7 @@ use ark_ff::{
     prelude::*,
     FftField,
 };
+use ark_ec::{ProjectiveCurve, AffineCurve, PairingEngine};
 use ark_poly::{
     domain::{EvaluationDomain, GeneralEvaluationDomain},
     univariate::DensePolynomial,
@@ -21,12 +22,16 @@ use std::cmp::Ord;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::io::{self, Read, Write};
+use std::marker::PhantomData;
 
 use derivative::Derivative;
 use rand::Rng;
 
 use super::field::ScalarShare;
 use super::BeaverSource;
+use crate::share::pairing::{PairingShare, AffProjShare};
+use crate::share::group::GroupShare;
+use crate::msm::Msm;
 use crate::channel::multi as alg_net;
 use crate::Reveal;
 
@@ -489,3 +494,66 @@ pub mod group {
         shift_res
     }
 }
+
+pub use group::GszGroupShare;
+
+// #[derive(Debug, Derivative)]
+// #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+// pub struct AdditiveAffineMsm<G: AffineCurve>(pub PhantomData<G>);
+// 
+// impl<G: AffineCurve> Msm<G, G::ScalarField> for AdditiveAffineMsm<G> {
+//     fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
+//         G::multi_scalar_mul(bases, scalars).into()
+//     }
+// }
+// 
+// #[derive(Debug, Derivative)]
+// #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+// pub struct AdditiveProjectiveMsm<G: ProjectiveCurve>(pub PhantomData<G>);
+// 
+// impl<G: ProjectiveCurve> Msm<G, G::ScalarField> for AdditiveProjectiveMsm<G> {
+//     fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
+//         let bases: Vec<G::Affine> = bases.iter().map(|s| s.clone().into()).collect();
+//         <G::Affine as AffineCurve>::multi_scalar_mul(&bases, scalars)
+//     }
+// }
+
+macro_rules! groups_share {
+    ($struct_name:ident, $affine:ident, $proj:ident) => {
+        pub struct $struct_name<E: PairingEngine>(pub PhantomData<E>);
+
+        impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
+            type FrShare = GszFieldShare<E::Fr>;
+            type AffineShare = GszGroupShare<E::$affine, super::add::AdditiveAffineMsm<E::$affine>>;
+            type ProjectiveShare = GszGroupShare<E::$proj, super::add::AdditiveProjectiveMsm<E::$proj>>;
+
+            fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
+                g.map_homo(|s| s.into())
+            }
+
+            fn sh_proj_to_aff(g: Self::ProjectiveShare) -> Self::AffineShare {
+                g.map_homo(|s| s.into())
+            }
+
+            fn add_sh_proj_sh_aff(
+                mut a: Self::ProjectiveShare,
+                o: &Self::AffineShare,
+            ) -> Self::ProjectiveShare {
+                a.val.add_assign_mixed(&o.val);
+                a
+            }
+            fn add_sh_proj_pub_aff(mut a: Self::ProjectiveShare, o: &E::$affine) -> Self::ProjectiveShare {
+                if mpc_net::am_first() {
+                    a.val.add_assign_mixed(&o);
+                }
+                a
+            }
+            fn add_pub_proj_sh_aff(_a: &E::$proj, _o: Self::AffineShare) -> Self::ProjectiveShare {
+                unimplemented!()
+            }
+        }
+    };
+}
+
+groups_share!(GszG1Share, G1Affine, G1Projective);
+groups_share!(GszG2Share, G2Affine, G2Projective);

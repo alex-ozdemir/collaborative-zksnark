@@ -98,6 +98,7 @@ impl<F: Field> Reveal for AdditiveScalarShare<F> {
         self.val
     }
 }
+
 impl<F: Field> ScalarShare<F> for AdditiveScalarShare<F> {
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let mut self_vec: Vec<F> = selfs.into_iter().map(|s| s.val).collect();
