@@ -122,10 +122,10 @@ where
     let a_acc_time = start_timer!(|| "Compute A");
     let r_g1 = pk.delta_g1.scalar_mul(r);
     debug!("r_g1: {}", r_g1);
-    debug!("Assignment:");
-    for (i, a) in assignment.iter().enumerate() {
-        debug!("  a[{}]: {}", i, a);
-    }
+    // debug!("Assignment:");
+    // for (i, a) in assignment.iter().enumerate() {
+    //     debug!("  a[{}]: {}", i, a);
+    // }
 
     let g_a = calculate_coeff(r_g1, &pk.a_query, pk.vk.alpha_g1, &assignment);
     debug!("g_a: {}", g_a);
@@ -220,19 +220,11 @@ fn calculate_coeff<G: AffineCurve>(
     let el = query[0];
     let t = start_timer!(|| "MSM");
     let acc = G::multi_scalar_mul(&query[1..], assignment);
-    debug!("MSM acc: {}", acc);
     end_timer!(t);
-
-    debug!("coeff initial: {}", initial);
-    debug!("coeff el: {}", el);
-    debug!("coeff vk_param: {}", vk_param);
     let mut res = initial;
     res.add_assign_mixed(&el);
-    debug!("res1: {}", res);
     res += &acc;
-    debug!("res2: {}", res);
     res.add_assign_mixed(&vk_param);
-    debug!("res3: {}", res);
 
     res
 }

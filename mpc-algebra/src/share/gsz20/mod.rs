@@ -9,7 +9,6 @@ use ark_ff::{
 };
 use ark_poly::{
     domain::{EvaluationDomain, GeneralEvaluationDomain},
-    univariate::DensePolynomial,
     Polynomial, UVPolynomial,
 };
 use ark_serialize::{
@@ -18,21 +17,59 @@ use ark_serialize::{
 };
 use mpc_net::multi as net;
 
+use std::any::{type_name, Any, TypeId};
 use std::cmp::Ord;
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
+use std::sync::Mutex;
+use std::borrow::Cow;
 
 use derivative::Derivative;
+use lazy_static::lazy_static;
+use log::debug;
 use rand::Rng;
 
-use super::field::{ExtFieldShare, FieldShare};
+use super::field::{
+    DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare, SparsePolynomial,
+};
 use super::BeaverSource;
 use crate::channel::multi as alg_net;
 use crate::msm::*;
 use crate::share::pairing::{AffProjShare, PairingShare};
 use crate::Reveal;
+
+lazy_static! {
+    static ref TYPE_LISTS: Mutex<HashMap<TypeId, Vec<Box<dyn Any + Send>>>> =
+        Mutex::new(HashMap::new());
+}
+
+fn take_types<T: Any + Send>() -> Vec<T> {
+    let mut lists = TYPE_LISTS.lock().unwrap();
+    let type_id = TypeId::of::<T>();
+    let list = lists.remove(&type_id).unwrap_or_else(|| Vec::new());
+    list.into_iter()
+        .map(|x| *x.downcast::<T>().unwrap())
+        .collect()
+}
+fn add_type<T: Any + Send>(t: T) {
+    let mut lists = TYPE_LISTS.lock().unwrap();
+    let type_id = TypeId::of::<T>();
+    use std::collections::hash_map::Entry;
+    match lists.entry(type_id) {
+        Entry::Occupied(o) => o.into_mut().push(Box::new(t)),
+        Entry::Vacant(v) => {
+            v.insert(vec![Box::new(t)]);
+        }
+    };
+}
+fn add_types<T: Any + Send>(ts: Vec<T>) {
+    for t in ts {
+        add_type(t);
+    }
+}
 
 /// Malicious degree
 pub fn t() -> usize {
@@ -152,6 +189,51 @@ pub mod field {
                 .collect()
         }
     }
+    impl<F: FftField> GszFieldShare<F> {
+        fn poly_share<'a>(
+            p: DenseOrSparsePolynomial<Self>,
+        ) -> ark_poly::univariate::DenseOrSparsePolynomial<'a, F> {
+            match p {
+                Ok(p) => ark_poly::univariate::DenseOrSparsePolynomial::DPolynomial(Cow::Owned(
+                    Self::d_poly_share(p),
+                )),
+                Err(p) => ark_poly::univariate::DenseOrSparsePolynomial::SPolynomial(Cow::Owned(
+                    Self::s_poly_share(p),
+                )),
+            }
+        }
+        fn d_poly_share(p: DensePolynomial<Self>) -> ark_poly::univariate::DensePolynomial<F> {
+            ark_poly::univariate::DensePolynomial::from_coefficients_vec(
+                p.into_iter().map(|s| s.val).collect(),
+            )
+        }
+        fn s_poly_share(p: SparsePolynomial<Self>) -> ark_poly::univariate::SparsePolynomial<F> {
+            ark_poly::univariate::SparsePolynomial::from_coefficients_vec(
+                p.into_iter().map(|(i, s)| (i, s.val)).collect(),
+            )
+        }
+        fn poly_share2<'a>(
+            p: DenseOrSparsePolynomial<F>,
+        ) -> ark_poly::univariate::DenseOrSparsePolynomial<'a, F> {
+            match p {
+                Ok(p) => ark_poly::univariate::DenseOrSparsePolynomial::DPolynomial(Cow::Owned(
+                    ark_poly::univariate::DensePolynomial::from_coefficients_vec(p),
+                )),
+                Err(p) => ark_poly::univariate::DenseOrSparsePolynomial::SPolynomial(Cow::Owned(
+                    ark_poly::univariate::SparsePolynomial::from_coefficients_vec(p),
+                )),
+            }
+        }
+        fn d_poly_unshare(p: ark_poly::univariate::DensePolynomial<F>, degree: usize) -> DensePolynomial<Self> {
+            p.coeffs
+                .into_iter()
+                .map(|val| Self {
+                    degree,
+                    val,
+                })
+                .collect()
+        }
+    }
 
     impl<F: FftField> FieldShare<F> for GszFieldShare<F> {
         fn add(&mut self, other: &Self) -> &mut Self {
@@ -198,6 +280,15 @@ pub mod field {
         fn inv<S: super::BeaverSource<Self, Self, Self>>(self, _source: &mut S) -> Self {
             todo!()
         }
+        fn univariate_div_qr<'a>(
+            num: DenseOrSparsePolynomial<Self>,
+            den: DenseOrSparsePolynomial<F>,
+        ) -> Option<(DensePolynomial<Self>, DensePolynomial<Self>)> {
+            let num = Self::poly_share(num);
+            let den = Self::poly_share2(den);
+            num.divide_with_q_and_r(&den)
+                .map(|(q, r)| (Self::d_poly_unshare(q, t()), Self::d_poly_unshare(r, t())))
+        }
     }
 
     /// Yields a t-share of a random r.
@@ -236,6 +327,8 @@ pub mod field {
 
     /// Open a t-share.
     pub fn open<F: FftField>(s: &GszFieldShare<F>) -> F {
+        let to_check = take_types::<GszFieldTriple<F>>();
+        debug!("Open Field: {} checks", to_check.len());
         let shares = alg_net::broadcast(&s.val);
         open_degree_vec(shares, s.degree)
     }
@@ -243,7 +336,7 @@ pub mod field {
     fn open_degree_vec<F: FftField>(mut shares: Vec<F>, d: usize) -> F {
         let domain = domain::<F>();
         domain.ifft_in_place(&mut shares);
-        let p = DensePolynomial::from_coefficients_vec(shares);
+        let p = ark_poly::univariate::DensePolynomial::from_coefficients_vec(shares);
         assert!(
             p.degree() <= d,
             "Polynomial\n{:?}\nhas degree {} (> degree bound {})",
@@ -327,15 +420,18 @@ pub mod field {
     /// Multiply shares, using king
     ///
     /// Protocol 8.
-    pub fn mult<F: FftField>(mut x: GszFieldShare<F>, y: &GszFieldShare<F>) -> GszFieldShare<F> {
+    pub fn mult<F: FftField>(x: GszFieldShare<F>, y: &GszFieldShare<F>) -> GszFieldShare<F> {
         let (r, r2) = double_rand::<F>();
-        x.val *= y.val;
-        x.degree *= 2;
-        x.val += r2.val;
+        let mut x_cp = x.clone();
+        x_cp.val *= y.val;
+        x_cp.degree *= 2;
+        x_cp.val += r2.val;
         // king just reduces the sharing degree
-        let mut shift_res = king_compute(&x, x.degree / 2, |r| r);
+        let mut shift_res = king_compute(&x_cp, x_cp.degree / 2, |r| r);
         // TODO: record triple
         shift_res.val -= r.val;
+        let triple = GszFieldTriple(x, y.clone(), shift_res);
+        add_type(triple);
         shift_res
     }
 
@@ -343,27 +439,41 @@ pub mod field {
     ///
     /// Protocol 8.
     pub fn batch_mult<F: FftField>(
-        mut x: Vec<GszFieldShare<F>>,
+        x: Vec<GszFieldShare<F>>,
         y: &[GszFieldShare<F>],
     ) -> Vec<GszFieldShare<F>> {
         let n = x.len();
         let d = x[0].degree;
         assert_eq!(x.len(), y.len());
         let (r, r2) = batch_double_rand::<F>(n);
-        for ((x, y), r2) in x.iter_mut().zip(y).zip(r2) {
+        let mut x_cp = x.clone();
+        for ((x, y), r2) in x_cp.iter_mut().zip(y).zip(r2) {
             assert_eq!(x.degree, d);
             x.val *= y.val;
             x.degree *= 2;
             x.val += r2.val;
         }
         // king just reduces the sharing degree
-        let mut shift_res = batch_king_compute(&x, x[0].degree / 2, |r| r);
+        let mut shift_res = batch_king_compute(&x_cp, x_cp[0].degree / 2, |r| r);
         for (shift_res, r) in shift_res.iter_mut().zip(r) {
             // TODO: record triple
             shift_res.val -= r.val;
         }
+        let triples: Vec<_> = x
+            .into_iter()
+            .zip(y)
+            .zip(&shift_res)
+            .map(|((x, y), z)| GszFieldTriple(x, y.clone(), z.clone()))
+            .collect();
+        add_types(triples);
         shift_res
     }
+
+    pub struct GszFieldTriple<F: Field>(
+        pub GszFieldShare<F>,
+        pub GszFieldShare<F>,
+        pub GszFieldShare<F>,
+    );
 }
 
 pub use field::GszFieldShare;
@@ -389,9 +499,66 @@ pub mod group {
         pub degree: usize,
         pub _phants: PhantomData<M>,
     }
-    impl_basics_2_param!(GszGroupShare, Group);
+    impl<T: Group, M> Display for GszGroupShare<T, M> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.val)
+        }
+    }
+    impl<T: Group, M> Debug for GszGroupShare<T, M> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            write!(f, "{:?}", self.val)
+        }
+    }
+    impl<T: Group, M> ToBytes for GszGroupShare<T, M> {
+        fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
+            unimplemented!("write")
+        }
+    }
+    impl<T: Group, M> FromBytes for GszGroupShare<T, M> {
+        fn read<R: Read>(_reader: R) -> io::Result<Self> {
+            unimplemented!("read")
+        }
+    }
+    impl<T: Group, M> CanonicalSerialize for GszGroupShare<T, M> {
+        fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
+            unimplemented!("serialize")
+        }
+        fn serialized_size(&self) -> usize {
+            unimplemented!("serialized_size")
+        }
+    }
+    impl<T: Group, M> CanonicalSerializeWithFlags for GszGroupShare<T, M> {
+        fn serialize_with_flags<W: Write, F: Flags>(
+            &self,
+            _writer: W,
+            _flags: F,
+        ) -> Result<(), SerializationError> {
+            unimplemented!("serialize_with_flags")
+        }
 
-    impl<G: Group, M> Reveal for GszGroupShare<G, M> {
+        fn serialized_size_with_flags<F: Flags>(&self) -> usize {
+            unimplemented!("serialized_size_with_flags")
+        }
+    }
+    impl<T: Group, M> CanonicalDeserialize for GszGroupShare<T, M> {
+        fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
+            unimplemented!("deserialize")
+        }
+    }
+    impl<T: Group, M> CanonicalDeserializeWithFlags for GszGroupShare<T, M> {
+        fn deserialize_with_flags<R: Read, F: Flags>(
+            _reader: R,
+        ) -> Result<(Self, F), SerializationError> {
+            unimplemented!("deserialize_with_flags")
+        }
+    }
+    impl<T: Group, M> UniformRand for GszGroupShare<T, M> {
+        fn rand<R: Rng + ?Sized>(_rng: &mut R) -> Self {
+            todo!()
+        }
+    }
+
+    impl<G: Group, M: Send + 'static> Reveal for GszGroupShare<G, M> {
         type Base = G;
 
         fn reveal(self) -> G {
@@ -474,7 +641,11 @@ pub mod group {
         }
 
         fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
-            let degree = if scalars.len() > 0 { scalars[0].degree } else { 0 };
+            let degree = if scalars.len() > 0 {
+                scalars[0].degree
+            } else {
+                0
+            };
             assert!(scalars.iter().all(|s| s.degree == degree));
             let scalars: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.val.clone()).collect();
             Self {
@@ -518,8 +689,18 @@ pub mod group {
         )
     }
 
+    pub struct GszGroupTriple<G: Group, M>(
+        pub GszFieldShare<G::ScalarField>,
+        pub GszGroupShare<G, M>,
+        pub GszGroupShare<G, M>,
+    );
+
     /// Open a t-share.
-    pub fn open<G: Group, M>(s: &GszGroupShare<G, M>) -> G {
+    pub fn open<G: Group, M: Send + 'static>(s: &GszGroupShare<G, M>) -> G {
+        let to_check = take_types::<super::field::GszFieldTriple<G::ScalarField>>();
+        debug!("Open Group: {} field checks", to_check.len());
+        let to_check = take_types::<GszGroupTriple<G, M>>();
+        debug!("Open Group: {} group checks", to_check.len());
         let shares = alg_net::broadcast(&s.val);
         open_degree_vec(shares, s.degree)
     }
@@ -588,18 +769,21 @@ pub mod group {
     /// Multiply shares, using king
     ///
     /// Protocol 8.
-    pub fn mult<G: Group, M>(
+    pub fn mult<G: Group, M: Send + 'static>(
         x: &GszFieldShare<G::ScalarField>,
-        mut y: GszGroupShare<G, M>,
+        y: GszGroupShare<G, M>,
     ) -> GszGroupShare<G, M> {
+        let mut y_cp = y.clone();
         let (r, r2) = double_rand::<G, M>();
-        y.val *= x.val;
-        y.degree *= 2;
-        y.val += r2.val;
+        y_cp.val *= x.val;
+        y_cp.degree *= 2;
+        y_cp.val += r2.val;
         // king just reduces the sharing degree
-        let mut shift_res = king_compute(&y, x.degree / 2, |r| r);
+        let mut shift_res = king_compute(&y_cp, x.degree / 2, |r| r);
         // TODO: record triple
         shift_res.val -= r.val;
+        let t = GszGroupTriple(x.clone(), y, shift_res);
+        add_type(t);
         shift_res
     }
 }
