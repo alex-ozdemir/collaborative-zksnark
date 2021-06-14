@@ -28,23 +28,28 @@ case $proof in
 esac
 
 case $infra in
-    hbc)
-        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 0 > /dev/null &
-        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 0 &
+    hbc|spdz|gsz|local|ark-local)
+        ;;
+    *)
+        usage
+esac
+
+case $infra in
+    hbc|spdz)
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 0 --alg $infra > /dev/null &
         pid0=$!
-        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 1 | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
-        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 1 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 1 --alg $infra | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
         pid1=$!
         wait $pid0 $pid1
     ;;
-    spdz)
-        $BIN -p $proof -c squaring --computation-size $size mpc --spdz --hosts data/2 --party 0 > /dev/null &
-        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 0 &
+    gsz)
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/3 --party 0 --alg $infra > /dev/null &
         pid0=$!
-        $BIN -p $proof -c squaring --computation-size $size mpc --spdz --hosts data/2 --party 1 | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
-        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 1 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/3 --party 1 --alg $infra > /dev/null &
         pid1=$!
-        wait $pid0 $pid1
+        RUST_BACKTRACE=1 $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/3 --party 2 --alg $infra
+        pid2=$!
+        wait $pid0 $pid1 $pid2
     ;;
     local)
         $BIN -p $proof -c squaring --computation-size $size local | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s'

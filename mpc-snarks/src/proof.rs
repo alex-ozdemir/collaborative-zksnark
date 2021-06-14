@@ -9,10 +9,10 @@ use ark_relations::{
 };
 use ark_std::test_rng;
 use ark_std::{end_timer, start_timer};
-use mpc_algebra::{channel, Reveal, PairingShare, MpcPairingEngine};
 use blake2::Blake2s;
 use clap::arg_enum;
 use log::debug;
+use mpc_algebra::{channel, MpcPairingEngine, PairingShare, Reveal};
 use structopt::StructOpt;
 
 use std::path::PathBuf;
@@ -128,13 +128,9 @@ mod squarings {
                 mpc_net::reset_stats();
                 let timer = start_timer!(|| timer_label);
                 let proof = channel::without_cheating(|| {
-                    create_random_proof::<MpcPairingEngine<E, S>, _, _>(
-                        circ_data,
-                        &mpc_params,
-                        rng,
-                    )
-                    .unwrap()
-                    .reveal()
+                    create_random_proof::<MpcPairingEngine<E, S>, _, _>(circ_data, &mpc_params, rng)
+                        .unwrap()
+                        .reveal()
                 });
                 end_timer!(timer);
 
@@ -371,16 +367,26 @@ struct ShareInfo {
 
     /// Use spdz?
     #[structopt(long)]
-    spdz: bool,
+    alg: MpcAlg,
 }
 
 impl ShareInfo {
     fn setup(&self) {
-        mpc_net::init_from_path(self.hosts.to_str().unwrap(), self.party as usize);
+        match self.alg {
+            MpcAlg::Spdz | MpcAlg::Hbc => {
+                mpc_net::init_from_path(self.hosts.to_str().unwrap(), self.party as usize)
+            }
+            MpcAlg::Gsz => {
+                mpc_net::multi::init_from_path(self.hosts.to_str().unwrap(), self.party as usize)
+            }
+        }
     }
     fn teardown(&self) {
         debug!("Stats: {:#?}", mpc_net::stats());
-        mpc_net::deinit();
+        match self.alg {
+            MpcAlg::Spdz | MpcAlg::Hbc => mpc_net::deinit(),
+            MpcAlg::Gsz => mpc_net::multi::uninit(),
+        }
     }
     fn run<E: PairingEngine, B: SnarkBench>(
         &self,
@@ -390,17 +396,30 @@ impl ShareInfo {
         timed_label: &str,
     ) {
         match computation {
-            Computation::Squaring => {
-                if self.spdz {
-                    B::mpc::<E, mpc_algebra::share::spdz::SpdzPairingShare<E>>(computation_size, timed_label)
-                } else {
-                    B::mpc::<E, mpc_algebra::share::add::AdditivePairingShare<E>>(
-                        computation_size,
-                        timed_label,
-                    )
-                }
-            }
+            Computation::Squaring => match self.alg {
+                MpcAlg::Spdz => B::mpc::<E, mpc_algebra::share::spdz::SpdzPairingShare<E>>(
+                    computation_size,
+                    timed_label,
+                ),
+                MpcAlg::Hbc => B::mpc::<E, mpc_algebra::share::add::AdditivePairingShare<E>>(
+                    computation_size,
+                    timed_label,
+                ),
+                MpcAlg::Gsz => B::mpc::<E, mpc_algebra::share::gsz20::GszPairingShare<E>>(
+                    computation_size,
+                    timed_label,
+                ),
+            },
         }
+    }
+}
+
+arg_enum! {
+    #[derive(PartialEq, Debug, Clone, Copy)]
+    pub enum MpcAlg {
+        Spdz,
+        Hbc,
+        Gsz,
     }
 }
 
