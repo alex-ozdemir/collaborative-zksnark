@@ -246,6 +246,11 @@ pub fn init_from_path(path: &str, id: usize) {
 }
 
 #[inline]
+pub fn party_number() -> usize {
+    get_ch!().id
+}
+
+#[inline]
 pub fn broadcast(bytes_out: &[u8]) -> Vec<Vec<u8>> {
     get_ch!().broadcast(bytes_out)
 }

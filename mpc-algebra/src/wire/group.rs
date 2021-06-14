@@ -128,6 +128,14 @@ impl<T: Group, S: GroupShare<T>> Reveal for MpcGroup<T, S> {
             Self::Public(s) => s,
         }
     }
+    #[inline]
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        Self::Shared(S::king_share(f, rng))
+    }
+    #[inline]
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        S::king_share_batch(f, rng).into_iter().map(Self::Shared).collect()
+    }
 }
 
 impl<T: Group, S: GroupShare<T>> Mul<MpcField<T::ScalarField, S::FieldShare>> for MpcGroup<T, S> {

@@ -97,6 +97,23 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
     fn unwrap_as_public(self) -> F {
         self.val
     }
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        let r = F::rand(rng);
+        let share0 = f - r;
+        let share1 = r;
+        let share1 = channel::exchange(&share1);
+        Self::from_add_shared(if mpc_net::am_first() { share0 } else { share1 })
+    }
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        let r: Vec<Self::Base> = (0..f.len()).map(|_| F::rand(rng)).collect();
+        let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
+        let share1 = r;
+        let share1 = channel::exchange(&share1);
+        (if mpc_net::am_first() { share0 } else { share1 })
+            .into_iter()
+            .map(Self::from_add_shared)
+            .collect()
+    }
 }
 
 impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
@@ -178,6 +195,23 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
     }
     fn unwrap_as_public(self) -> G {
         self.val
+    }
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        let r = Self::Base::rand(rng);
+        let share0 = f - r;
+        let share1 = r;
+        let share1 = channel::exchange(&share1);
+        Self::from_add_shared(if mpc_net::am_first() { share0 } else { share1 })
+    }
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        let r: Vec<Self::Base> = (0..f.len()).map(|_| Self::Base::rand(rng)).collect();
+        let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
+        let share1 = r;
+        let share1 = channel::exchange(&share1);
+        (if mpc_net::am_first() { share0 } else { share1 })
+            .into_iter()
+            .map(Self::from_add_shared)
+            .collect()
     }
 }
 

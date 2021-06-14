@@ -11,13 +11,27 @@ use std::fmt::Display;
 pub fn check_eq<T: CanonicalSerialize + CanonicalDeserialize + Clone + Eq + Display>(t: T) {
     debug_assert!({
         use log::debug;
-        let other = channel::exchange(&t);
-        if t == other {
-            debug!("Consistency check passed");
-            true
+        if mpc_net::is_init() {
+            let other = channel::exchange(&t);
+            if t == other {
+                debug!("Consistency check passed");
+                true
+            } else {
+                println!("\nConsistency check failed\n{}\nvs\n{}", t, other);
+                false
+            }
         } else {
-            println!("\nConsistency check failed\n{}\nvs\n{}", t, other);
-            false
+            debug!("Consistency check");
+            let others = channel::multi::broadcast(&t);
+            let mut result = true;
+            for (i, other_t) in others.iter().enumerate() {
+                if &t != other_t {
+                    println!("\nConsistency check failed\nI (party {}) have {}\nvs\n  (party {}) has  {}", mpc_net::multi::party_number(), t, i, other_t);
+                    result = false;
+                    break;
+                }
+            }
+            result
         }
     })
 }

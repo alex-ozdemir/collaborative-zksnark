@@ -31,7 +31,6 @@ use super::field::{ExtFieldShare, FieldShare};
 use super::BeaverSource;
 use crate::channel::multi as alg_net;
 use crate::msm::*;
-use crate::share::group::GroupShare;
 use crate::share::pairing::{AffProjShare, PairingShare};
 use crate::Reveal;
 
@@ -59,7 +58,64 @@ pub mod field {
         pub degree: usize,
     }
 
-    impl_basics!(GszFieldShare, FftField);
+    impl<T: FftField> Display for GszFieldShare<T> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.val)
+        }
+    }
+    impl<T: FftField> Debug for GszFieldShare<T> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            write!(f, "{:?}", self.val)
+        }
+    }
+    impl<T: FftField> ToBytes for GszFieldShare<T> {
+        fn write<W: Write>(&self, _writer: W) -> io::Result<()> {
+            unimplemented!("write")
+        }
+    }
+    impl<T: FftField> FromBytes for GszFieldShare<T> {
+        fn read<R: Read>(_reader: R) -> io::Result<Self> {
+            unimplemented!("read")
+        }
+    }
+    impl<T: FftField> CanonicalSerialize for GszFieldShare<T> {
+        fn serialize<W: Write>(&self, _writer: W) -> Result<(), SerializationError> {
+            unimplemented!("serialize")
+        }
+        fn serialized_size(&self) -> usize {
+            unimplemented!("serialized_size")
+        }
+    }
+    impl<T: FftField> CanonicalSerializeWithFlags for GszFieldShare<T> {
+        fn serialize_with_flags<W: Write, F: Flags>(
+            &self,
+            _writer: W,
+            _flags: F,
+        ) -> Result<(), SerializationError> {
+            unimplemented!("serialize_with_flags")
+        }
+
+        fn serialized_size_with_flags<F: Flags>(&self) -> usize {
+            unimplemented!("serialized_size_with_flags")
+        }
+    }
+    impl<T: FftField> CanonicalDeserialize for GszFieldShare<T> {
+        fn deserialize<R: Read>(_reader: R) -> Result<Self, SerializationError> {
+            unimplemented!("deserialize")
+        }
+    }
+    impl<T: FftField> CanonicalDeserializeWithFlags for GszFieldShare<T> {
+        fn deserialize_with_flags<R: Read, F: Flags>(
+            _reader: R,
+        ) -> Result<(Self, F), SerializationError> {
+            unimplemented!("deserialize_with_flags")
+        }
+    }
+    impl<T: FftField> UniformRand for GszFieldShare<T> {
+        fn rand<R: Rng + ?Sized>(_rng: &mut R) -> Self {
+            rand()
+        }
+    }
 
     impl<F: FftField> Reveal for GszFieldShare<F> {
         type Base = F;
@@ -75,6 +131,25 @@ pub mod field {
         }
         fn unwrap_as_public(self) -> F {
             self.val
+        }
+        fn king_share<R: Rng>(f: Self::Base, _rng: &mut R) -> Self {
+            let fs = vec![f; net::n_parties()];
+            let king_f = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            Self {
+                val: king_f,
+                degree: t(),
+            }
+        }
+        fn king_share_batch<R: Rng>(f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
+            let fs = vec![f; net::n_parties()];
+            let king_fs = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            king_fs
+                .into_iter()
+                .map(|king_f| Self {
+                    val: king_f,
+                    degree: t(),
+                })
+                .collect()
         }
     }
 
@@ -335,6 +410,27 @@ pub mod group {
         fn unwrap_as_public(self) -> G {
             self.val
         }
+        fn king_share<R: Rng>(f: Self::Base, _rng: &mut R) -> Self {
+            let fs = vec![f; net::n_parties()];
+            let king_f = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            Self {
+                val: king_f,
+                degree: t(),
+                _phants: Default::default(),
+            }
+        }
+        fn king_share_batch<R: Rng>(f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
+            let fs = vec![f; net::n_parties()];
+            let king_fs = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            king_fs
+                .into_iter()
+                .map(|king_f| Self {
+                    val: king_f,
+                    degree: t(),
+                    _phants: Default::default(),
+                })
+                .collect()
+        }
     }
 
     impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for GszGroupShare<G, M> {
@@ -369,9 +465,23 @@ pub mod group {
             self
         }
 
+        fn scale<S: BeaverSource<Self, Self::FieldShare, Self>>(
+            self,
+            other: Self::FieldShare,
+            _source: &mut S,
+        ) -> Self {
+            mult(&other, self)
+        }
+
         fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
+            let degree = if scalars.len() > 0 { scalars[0].degree } else { 0 };
+            assert!(scalars.iter().all(|s| s.degree == degree));
             let scalars: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.val.clone()).collect();
-            Self::from_add_shared(M::msm(bases, &scalars))
+            Self {
+                val: M::msm(bases, &scalars),
+                degree,
+                _phants: Default::default(),
+            }
         }
     }
 
@@ -527,11 +637,19 @@ macro_rules! groups_share {
             type ProjectiveShare = GszGroupShare<E::$proj, ProjectiveMsm<E::$proj>>;
 
             fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
-                g.map_homo(|s| s.into())
+                GszGroupShare {
+                    val: g.val.into(),
+                    degree: g.degree,
+                    _phants: Default::default(),
+                }
             }
 
             fn sh_proj_to_aff(g: Self::ProjectiveShare) -> Self::AffineShare {
-                g.map_homo(|s| s.into())
+                GszGroupShare {
+                    val: g.val.into(),
+                    degree: g.degree,
+                    _phants: Default::default(),
+                }
             }
 
             fn add_sh_proj_sh_aff(

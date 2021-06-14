@@ -43,13 +43,15 @@ case $infra in
         wait $pid0 $pid1
     ;;
     gsz)
-        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/3 --party 0 --alg $infra > /dev/null &
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 0 --alg $infra > /dev/null &
         pid0=$!
-        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/3 --party 1 --alg $infra > /dev/null &
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 1 --alg $infra > /dev/null &
         pid1=$!
-        RUST_BACKTRACE=1 $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/3 --party 2 --alg $infra
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 2 --alg $infra > /dev/null &
         pid2=$!
-        wait $pid0 $pid1 $pid2
+        RUST_BACKTRACE=1 $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 3 --alg $infra
+        pid3=$!
+        wait $pid0 $pid1 $pid2 $pid3
     ;;
     local)
         $BIN -p $proof -c squaring --computation-size $size local | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s'

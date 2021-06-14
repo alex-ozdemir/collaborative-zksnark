@@ -225,6 +225,11 @@ pub fn exchange_bytes(bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
 }
 
 #[inline]
+pub fn is_init() -> bool {
+    get_ch!().stream.is_some()
+}
+
+#[inline]
 pub fn stats() -> ChannelStats {
     CH.lock().expect("Poisoned FieldChannel").stats()
 }

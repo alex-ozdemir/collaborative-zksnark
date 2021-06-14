@@ -271,6 +271,14 @@ impl<T: Field, S: FieldShare<T>> Reveal for MpcField<T, S> {
             Self::Public(s) => s,
         }
     }
+    #[inline]
+    fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+        Self::Shared(S::king_share(f, rng))
+    }
+    #[inline]
+    fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        S::king_share_batch(f, rng).into_iter().map(Self::Shared).collect()
+    }
 }
 
 from_prim!(bool, Field, FieldShare, MpcField);

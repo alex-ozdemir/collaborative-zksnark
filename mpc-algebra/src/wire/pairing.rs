@@ -435,6 +435,14 @@ macro_rules! impl_ext_field_wrapper {
             fn unwrap_as_public(self) -> Self::Base {
                 self.val.unwrap_as_public()
             }
+            #[inline]
+            fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+                Self::wrap($wrapped::king_share(f, rng))
+            }
+            #[inline]
+            fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+                $wrapped::king_share_batch(f, rng).into_iter().map(Self::wrap).collect()
+            }
         }
         from_prim!(bool, Field, ExtFieldShare, $wrap);
         from_prim!(u8, Field, ExtFieldShare, $wrap);
@@ -567,6 +575,14 @@ macro_rules! impl_pairing_curve_wrapper {
             #[inline]
             fn unwrap_as_public(self) -> Self::Base {
                 self.val.unwrap_as_public()
+            }
+            #[inline]
+            fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
+                Self { val: $wrapped::king_share(f, rng) }
+            }
+            #[inline]
+            fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+                $wrapped::king_share_batch(f, rng).into_iter().map(|val| Self { val }).collect()
             }
         }
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);

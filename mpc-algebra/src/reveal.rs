@@ -1,5 +1,6 @@
 #![macro_use]
 use ark_std::{collections::BTreeMap, marker::PhantomData, rc::Rc};
+use rand::Rng;
 
 pub trait Reveal: Sized {
     type Base;
@@ -8,6 +9,14 @@ pub trait Reveal: Sized {
     fn from_public(b: Self::Base) -> Self;
     fn unwrap_as_public(self) -> Self::Base {
         unimplemented!("No unwrap as public for {}", std::any::type_name::<Self>())
+    }
+    /// Have the king share their `b` value, and send shares to all parties.
+    fn king_share<R: Rng>(_b: Self::Base, _rng: &mut R) -> Self {
+        unimplemented!("No king share for {}", std::any::type_name::<Self>())
+    }
+    /// Have the king share their `b` values, and send shares to all parties.
+    fn king_share_batch<R: Rng>(bs: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
+        bs.into_iter().map(|b| Self::king_share(b, rng)).collect()
     }
 }
 
@@ -29,6 +38,10 @@ impl Reveal for usize {
     fn unwrap_as_public(self) -> Self::Base {
         self
     }
+
+    fn king_share<R: Rng>(b: Self::Base, _rng: &mut R) -> Self {
+        b
+    }
 }
 
 impl<T: Reveal> Reveal for PhantomData<T> {
@@ -46,6 +59,9 @@ impl<T: Reveal> Reveal for PhantomData<T> {
         PhantomData::default()
     }
     fn unwrap_as_public(self) -> Self::Base {
+        PhantomData::default()
+    }
+    fn king_share<R: Rng>(_b: Self::Base, _rng: &mut R) -> Self {
         PhantomData::default()
     }
 }
@@ -72,6 +88,9 @@ impl<T: Reveal> Reveal for Vec<T> {
             .into_iter()
             .map(|x| <T as Reveal>::unwrap_as_public(x))
             .collect()
+    }
+    fn king_share<R: Rng>(b: Self::Base, rng: &mut R) -> Self {
+        T::king_share_batch(b, rng)
     }
 }
 

@@ -295,34 +295,13 @@ mod squarings {
         start: Fr,
         squarings: usize,
     ) -> RepeatedSquaringCircuit<MFr> {
-        let rng = &mut test_rng();
         let raw_chain: Vec<Fr> = std::iter::successors(Some(start), |a| Some(a.square()))
             .take(squarings + 1)
             .collect();
-        let randomness: Vec<Fr> = std::iter::repeat_with(|| Fr::rand(rng))
-            .take(squarings + 1)
-            .collect();
-        let first_shares: Vec<Fr> = randomness
-            .iter()
-            .zip(raw_chain.into_iter())
-            .map(|(r, v)| v + r)
-            .collect();
-        let second_shares: Vec<Fr> = randomness.into_iter().map(|r| -r).collect();
-
-        let my_shares = if mpc_net::am_first() {
-            channel::exchange(&second_shares);
-            first_shares
-        } else {
-            let zeros: Vec<Fr> = std::iter::repeat_with(|| Fr::from(0u64))
-                .take(squarings + 1)
-                .collect();
-            channel::exchange(&zeros)
-        };
+        let rng = &mut test_rng();
+        let chain_shares = MFr::king_share_batch(raw_chain, rng);
         RepeatedSquaringCircuit {
-            chain: my_shares
-                .into_iter()
-                .map(|s| Some(MFr::from_add_shared(s)))
-                .collect(),
+            chain: chain_shares.into_iter().map(Some).collect(),
         }
     }
 
