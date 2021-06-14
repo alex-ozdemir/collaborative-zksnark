@@ -663,9 +663,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if mpc_net::am_first() {
-                    a.val.add_assign_mixed(&o);
-                }
+                a.val.add_assign_mixed(&o);
                 a
             }
             fn add_pub_proj_sh_aff(_a: &E::$proj, _o: Self::AffineShare) -> Self::ProjectiveShare {

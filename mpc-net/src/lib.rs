@@ -231,16 +231,20 @@ pub fn is_init() -> bool {
 
 #[inline]
 pub fn stats() -> ChannelStats {
-    CH.lock().expect("Poisoned FieldChannel").stats()
+    let ch = get_ch!();
+    ch.stats()
 }
 
 #[inline]
 pub fn reset_stats() {
-    CH.lock().expect("Poisoned FieldChannel").reset_stats()
+    let mut ch = get_ch!();
+    ch.reset_stats();
 }
 
 /// Are you the first party in the MPC?
 #[inline]
 pub fn am_first() -> bool {
-    get_ch!().talk_first
+    let ch = get_ch!();
+    assert!(ch.stream.is_some(), "uninit channel");
+    ch.talk_first
 }

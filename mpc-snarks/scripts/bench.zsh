@@ -49,7 +49,7 @@ case $infra in
         pid1=$!
         $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 2 --alg $infra > /dev/null &
         pid2=$!
-        RUST_BACKTRACE=1 $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 3 --alg $infra
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 3 --alg $infra | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
         pid3=$!
         wait $pid0 $pid1 $pid2 $pid3
     ;;
