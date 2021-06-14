@@ -1,8 +1,11 @@
-use ark_ec::{AffineCurve, PairingEngine, group::Group};
-use ark_ff::{FftField, UniformRand, Field, PrimeField};
+use ark_ec::{group::Group, AffineCurve, PairingEngine};
+use ark_ff::{FftField, Field, PrimeField, UniformRand};
 use log::debug;
 use mpc_algebra::gsz20::group::GszGroupShare;
-use mpc_algebra::{msm::NaiveMsm, share::gsz20::*, Reveal, share::field::FieldShare};
+use mpc_algebra::{
+    msm::NaiveMsm, share::field::FieldShare, share::group::GroupShare, share::gsz20::*,
+    share::pairing::PairingShare, Reveal,
+};
 use mpc_net::multi;
 
 use std::path::PathBuf;
@@ -40,8 +43,14 @@ fn test<F: FftField>() {
     let size = 1000;
     let a_pubs: Vec<F> = (0..size).map(|_| F::rand(rng)).collect();
     let b_pubs: Vec<F> = (0..size).map(|_| F::rand(rng)).collect();
-    let a: Vec<_> = a_pubs.iter().map(|a| GszFieldShare::from_public(*a)).collect();
-    let b: Vec<_> = b_pubs.iter().map(|b| GszFieldShare::from_public(*b)).collect();
+    let a: Vec<_> = a_pubs
+        .iter()
+        .map(|a| GszFieldShare::from_public(*a))
+        .collect();
+    let b: Vec<_> = b_pubs
+        .iter()
+        .map(|b| GszFieldShare::from_public(*b))
+        .collect();
     let c = field::batch_mult(a, &b);
     let c_pub = GszFieldShare::batch_open(c.clone());
     for i in 0..c.len() {
@@ -52,8 +61,10 @@ fn test<F: FftField>() {
 fn test_mul_field<E: PairingEngine>() {
     use mpc_algebra::share::spdz::PanicBeaverSource;
     let rng = &mut ark_std::test_rng();
-    let g = E::pairing(E::G1Affine::prime_subgroup_generator(), 
-    E::G2Affine::prime_subgroup_generator());
+    let g = E::pairing(
+        E::G1Affine::prime_subgroup_generator(),
+        E::G2Affine::prime_subgroup_generator(),
+    );
 
     for _i in 0..2 {
         let a_exp_pub = E::Fr::rand(rng);
@@ -84,6 +95,47 @@ fn test_group<G: Group>() {
         let c_pub = group::open(&c);
         assert_eq!(c_pub, b_pub.mul(&a_pub));
     }
+
+    let s1_pub = G::ScalarField::rand(rng);
+    let s2_pub = G::ScalarField::rand(rng);
+    let s2 = GszFieldShare::from_public(s1_pub);
+    let mut a = a;
+    <GszGroupShare<G, NaiveMsm<G>> as GroupShare<G>>::scale_pub_scalar(&mut a, &s1_pub);
+    let as1s2 = <GszGroupShare<G, NaiveMsm<G>> as GroupShare<G>>::scale(
+        a,
+        s2,
+        &mut mpc_algebra::wire::group::DummyGroupTripleSource::default(),
+    );
+    let as1s2_pub = group::open(&as1s2);
+    assert_eq!(as1s2_pub, a_pub.mul(&s1_pub).mul(&s2_pub));
+}
+
+fn test_pairing<E: PairingEngine, S: PairingShare<E>>() {
+    use mpc_algebra::wire::group::DummyGroupTripleSource;
+    let gp1_src = &mut DummyGroupTripleSource::default();
+    let gp2_src = &mut DummyGroupTripleSource::default();
+    let rng = &mut ark_std::test_rng();
+    let g1 = E::G1Affine::prime_subgroup_generator();
+    let g2 = E::G2Affine::prime_subgroup_generator();
+
+    for _i in 0..2 {
+        let a_pub = E::Fr::rand(rng);
+        let b_pub = E::Fr::rand(rng);
+        let a = S::FrShare::from_public(a_pub);
+        let b = S::FrShare::from_public(b_pub);
+        let g1a = <S::G1AffineShare as GroupShare<E::G1Affine>>::scale_pub_group(g1, &a);
+        let g2b = <S::G2AffineShare as GroupShare<E::G2Affine>>::scale_pub_group(g2, &b);
+        let g1ab = <S::G1AffineShare as GroupShare<E::G1Affine>>::scale(g1a, b, gp1_src);
+        let g2ab = <S::G2AffineShare as GroupShare<E::G2Affine>>::scale(g2b, a, gp2_src);
+        let g1ab_pub = g1ab.reveal();
+        let g2ab_pub = g2ab.reveal();
+        assert_eq!(g1ab_pub, Group::mul(&Group::mul(&g1, &a_pub), &b_pub));
+        assert_eq!(g2ab_pub, Group::mul(&Group::mul(&g2, &a_pub), &b_pub));
+        let g1a_plus_b = <S::G1AffineShare as GroupShare<E::G1Affine>>::multi_scale_pub_group(&[g1, g1], &[a, b]).reveal();
+        assert_eq!(g1a_plus_b, Group::mul(&g1, &(a_pub + b_pub)));
+        let g2a_plus_b = <S::G2AffineShare as GroupShare<E::G2Affine>>::multi_scale_pub_group(&[g2, g2], &[a, b]).reveal();
+        assert_eq!(g2a_plus_b, Group::mul(&g2, &(a_pub + b_pub)));
+    }
 }
 
 fn main() {
@@ -100,6 +152,7 @@ fn main() {
     test_group::<ark_bls12_377::G1Affine>();
     test_group::<ark_bls12_377::G2Affine>();
     test_mul_field::<ark_bls12_377::Bls12_377>();
+    test_pairing::<ark_bls12_377::Bls12_377, GszPairingShare<ark_bls12_377::Bls12_377>>();
 
     debug!("Done");
     multi::uninit();
