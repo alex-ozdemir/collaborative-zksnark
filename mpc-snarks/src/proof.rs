@@ -15,7 +15,7 @@ use clap::arg_enum;
 use log::debug;
 use structopt::StructOpt;
 
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::path::PathBuf;
 
 mod groth;
 mod marlin;
@@ -361,21 +361,9 @@ mod squarings {
 
 #[derive(Debug, StructOpt)]
 struct ShareInfo {
-    /// Your host
-    #[structopt(long, default_value = "localhost")]
-    host: String,
-
-    /// Your port
-    #[structopt(long, default_value = "8000")]
-    port: u16,
-
-    /// Peer host
-    #[structopt(long, default_value = "localhost")]
-    peer_host: String,
-
-    /// Peer port
-    #[structopt(long, default_value = "8000")]
-    peer_port: u16,
+    /// File with list of hosts
+    #[structopt(long, parse(from_os_str))]
+    hosts: PathBuf,
 
     /// Which party are you? 0 or 1?
     #[structopt(long, default_value = "0")]
@@ -388,19 +376,7 @@ struct ShareInfo {
 
 impl ShareInfo {
     fn setup(&self) {
-        let self_addr = (self.host.clone(), self.port)
-            .to_socket_addrs()
-            .unwrap()
-            .filter(SocketAddr::is_ipv4)
-            .next()
-            .unwrap();
-        let peer_addr = (self.peer_host.clone(), self.peer_port)
-            .to_socket_addrs()
-            .unwrap()
-            .filter(SocketAddr::is_ipv4)
-            .next()
-            .unwrap();
-        mpc_net::init(self_addr, peer_addr, self.party == 0);
+        mpc_net::init_from_path(self.hosts.to_str().unwrap(), self.party as usize);
     }
     fn teardown(&self) {
         debug!("Stats: {:#?}", mpc_net::stats());

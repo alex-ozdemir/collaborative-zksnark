@@ -13,7 +13,7 @@ use ark_poly_commit::PolynomialCommitment;
 use ark_serialize::CanonicalSerialize;
 use ark_std::rand::SeedableRng;
 use std::borrow::Cow;
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::path::PathBuf;
 
 use mpc_algebra::com::ComField;
 use mpc_algebra::honest_but_curious as hbc;
@@ -80,21 +80,9 @@ struct Opt {
     #[structopt(short, long)]
     debug: bool,
 
-    /// Your host
-    #[structopt(long, default_value = "localhost")]
-    host: String,
-
-    /// Your port
-    #[structopt(long, default_value = "8000")]
-    port: u16,
-
-    /// Peer host
-    #[structopt(long)]
-    peer_host: String,
-
-    /// Peer port
-    #[structopt(long, default_value = "8000")]
-    peer_port: u16,
+    /// File with list of hosts
+    #[structopt(long, parse(from_os_str))]
+    hosts: PathBuf,
 
     /// Which party are you? 0 or 1?
     #[structopt(long, default_value = "0")]
@@ -883,19 +871,7 @@ fn main() -> () {
         env_logger::init();
     }
     let domain = opt.domain();
-    let self_addr = (opt.host, opt.port)
-        .to_socket_addrs()
-        .unwrap()
-        .filter(SocketAddr::is_ipv4)
-        .next()
-        .unwrap();
-    let peer_addr = (opt.peer_host, opt.peer_port)
-        .to_socket_addrs()
-        .unwrap()
-        .filter(SocketAddr::is_ipv4)
-        .next()
-        .unwrap();
-    mpc_net::init(self_addr, peer_addr, opt.party == 0);
+    mpc_net::init_from_path(opt.hosts.to_str().unwrap(), opt.party as usize);
     debug!("Start");
     if opt.spdz {
         let inputs = opt

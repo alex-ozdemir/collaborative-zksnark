@@ -1,6 +1,8 @@
 #!/usr/bin/env zsh
 set -e
 
+exit "This file is broken b/c of the host config change. Fix it."
+
 self=$1
 other=$2
 party=$3

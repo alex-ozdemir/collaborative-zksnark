@@ -1,10 +1,11 @@
 use lazy_static::lazy_static;
 use log::debug;
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Mutex;
 
-use ark_std::{start_timer, end_timer};
+use ark_std::{end_timer, start_timer};
 
 pub mod multi;
 
@@ -47,18 +48,30 @@ impl std::default::Default for FieldChannel {
 }
 
 impl FieldChannel {
+    fn init_from_path(&mut self, path: &str, id: usize) {
+        let f = BufReader::new(File::open(path).expect("host configuration path"));
+        let mut addrs = Vec::new();
+        for line in f.lines() {
+            let line = line.unwrap();
+            let trimmed = line.trim();
+            if trimmed.len() > 0 {
+                let addr: SocketAddr = trimmed
+                    .parse()
+                    .unwrap_or_else(|e| panic!("bad socket address: {}:\n{}", trimmed, e));
+                addrs.push(addr);
+            }
+        }
+        assert_eq!(addrs.len(), 2);
+        assert!(id < addrs.len());
+        self.self_addr = addrs[id];
+        self.other_addr = addrs[1 - id];
+        self.talk_first = id == 0;
+    }
+
     #[inline]
-    pub fn connect<A1: ToSocketAddrs, A2: ToSocketAddrs>(
-        &mut self,
-        self_addr: A1,
-        other_addr: A2,
-        talk_first: bool,
-    ) {
-        self.self_addr = self_addr.to_socket_addrs().unwrap().next().unwrap();
-        self.other_addr = other_addr.to_socket_addrs().unwrap().next().unwrap();
-        self.talk_first = talk_first;
+    pub fn connect(&mut self) {
         debug!("I am {}, connecting to {}", self.self_addr, self.other_addr);
-        self.stream = Some(if talk_first {
+        self.stream = Some(if self.talk_first {
             debug!("Attempting to contact peer");
             loop {
                 let mut ms_waited = 0;
@@ -181,13 +194,15 @@ impl FieldChannel {
 
 #[inline]
 /// Initialize the MPC
-pub fn init<A1: ToSocketAddrs, A2: ToSocketAddrs>(self_: A1, peer: A2, talk_first: bool) {
+pub fn init_from_path(path: &str, id: usize) {
     let mut ch = get_ch!();
     assert!(
         ch.stream.is_none(),
         "FieldChannel should no be re-intialized. Did you call init(..) twice?"
     );
-    ch.connect(self_, peer, talk_first);
+    ch.init_from_path(path, id);
+    ch.connect();
+    debug!("Connected");
 }
 
 #[inline]
@@ -204,7 +219,9 @@ pub struct ChannelStats {
 
 #[inline]
 pub fn exchange_bytes(bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
-    CH.lock().expect("Poisoned FieldChannel").exchange_bytes(bytes_out)
+    CH.lock()
+        .expect("Poisoned FieldChannel")
+        .exchange_bytes(bytes_out)
 }
 
 #[inline]

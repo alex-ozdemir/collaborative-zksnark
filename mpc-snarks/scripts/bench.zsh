@@ -29,20 +29,20 @@ esac
 
 case $infra in
     hbc)
-        $BIN -p $proof -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 > /dev/null &
-        #$BIN -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 0 > /dev/null &
+        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 0 &
         pid0=$!
-        $BIN -p $proof -c squaring --computation-size $size mpc --port 8000 --peer-port 8001 --party 1 | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
-        #$BIN -c squaring --computation-size $size mpc --port 8000 --peer-port 8001 --party 1 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 1 | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
+        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 1 &
         pid1=$!
         wait $pid0 $pid1
     ;;
     spdz)
-        $BIN -p $proof -c squaring --computation-size $size mpc --spdz --port 8001 --peer-port 8000 --party 0 > /dev/null &
-        #$BIN -c squaring --computation-size $size mpc --port 8001 --peer-port 8000 --party 0 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --spdz --hosts data/2 --party 0 > /dev/null &
+        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 0 &
         pid0=$!
-        $BIN -p $proof -c squaring --computation-size $size mpc --spdz --port 8000 --peer-port 8001 --party 1 | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
-        #$BIN -c squaring --computation-size $size mpc --port 8000 --peer-port 8001 --party 1 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --spdz --hosts data/2 --party 1 | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s' &
+        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 1 &
         pid1=$!
         wait $pid0 $pid1
     ;;
