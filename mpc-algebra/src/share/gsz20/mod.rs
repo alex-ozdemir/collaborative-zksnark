@@ -341,10 +341,25 @@ pub mod field {
         (0..n).map(|_| double_rand()).unzip()
     }
 
+    pub fn check_accumulated_field_products<F: FftField>() {
+        let to_check = take_types::<GszFieldTriple<F>>();
+        if to_check.len() > 0 {
+            debug!("Open Field: {} checks", to_check.len());
+            let mut xs = Vec::new();
+            let mut ys = Vec::new();
+            let mut zs = Vec::new();
+            for GszFieldTriple(x, y, z) in to_check {
+                xs.push(x);
+                ys.push(y);
+                zs.push(z);
+            }
+            hadamard_check(xs, ys, zs);
+        }
+    }
+
     /// Open a t-share.
     pub fn open<F: FftField>(s: &GszFieldShare<F>) -> F {
-        let to_check = take_types::<GszFieldTriple<F>>();
-        debug!("Open Field: {} checks", to_check.len());
+        check_accumulated_field_products::<F>();
         let shares = alg_net::broadcast(&s.val);
         open_degree_vec(shares, s.degree)
     }
@@ -485,6 +500,9 @@ pub mod field {
         shift_res
     }
 
+    /// Convert a hadamard check into an IP check
+    ///
+    /// Protocol 13.
     pub fn hadamard_check<F: FftField>(
         mut xs: Vec<GszFieldShare<F>>,
         ys: Vec<GszFieldShare<F>>,
@@ -618,21 +636,19 @@ pub mod field {
         (xs_r, ys_r, ip_r)
     }
 
+    /// Check an IP, recursively shrinking it
+    ///
+    /// Protocols 14, 15
     pub fn ip_check<F: FftField>(
         mut xs: Vec<GszFieldShare<F>>,
         mut ys: Vec<GszFieldShare<F>>,
-        ip: GszFieldShare<F>,
+        mut ip: GszFieldShare<F>,
     ) {
         // print_list!(xs);
         // print_list!(ys);
         // dd!(ip);
         debug_assert_eq!(xs.len(), ys.len());
-        if xs.len() == 1 {
-            let x = open(&xs[0]);
-            let y = open(&ys[0]);
-            let z = open(&ip);
-            assert_eq!(x * &y, z);
-        } else {
+        while xs.len() > 1 {
             if xs.len() % 2 == 1 {
                 xs.push(GszFieldShare::from_public(F::zero()));
                 ys.push(GszFieldShare::from_public(F::zero()));
@@ -648,16 +664,22 @@ pub mod field {
                 t.sub(&ip_l);
                 t
             };
-        //     print_list!(xs_l);
-        //     print_list!(ys_l);
-        //     dd!(ip_l);
-        //     print_list!(xs_r);
-        //     print_list!(ys_r);
-        //     dd!(ip_r);
+            //     print_list!(xs_l);
+            //     print_list!(ys_l);
+            //     dd!(ip_l);
+            //     print_list!(xs_r);
+            //     print_list!(ys_r);
+            //     dd!(ip_r);
             let (compressed_xs, compressed_ys, compressed_ip) =
                 ip_compress(xs_l, ys_l, ip_l, xs_r, ys_r, ip_r);
-            ip_check(compressed_xs, compressed_ys, compressed_ip)
+            xs = compressed_xs;
+            ys = compressed_ys;
+            ip = compressed_ip;
         }
+        let x = open(&xs[0]);
+        let y = open(&ys[0]);
+        let z = open(&ip);
+        assert_eq!(x * &y, z);
     }
 
     pub fn ip_compute<F: FftField>(
