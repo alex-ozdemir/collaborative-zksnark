@@ -1,6 +1,22 @@
 //! Implementation based on ["Malicious Security Comes Free in Honest-Majority
 //! MPC"](https://ia.cr/2020/134) by Goyal and Song.
 
+#[allow(unused_macros)]
+macro_rules! print_list {
+    ($list:expr) => {
+        println!("{}:", std::stringify!($list));
+        for (i, j) in (&$list).into_iter().enumerate() {
+            println!("  {}: {}", i, j);
+        }
+    };
+}
+#[allow(unused_macros)]
+macro_rules! dd {
+    ($list:expr) => {
+        println!("{}: {}", std::stringify!($list), $list);
+    };
+}
+
 use ark_ec::{PairingEngine, ProjectiveCurve};
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
@@ -17,7 +33,8 @@ use ark_serialize::{
 };
 use mpc_net::multi as net;
 
-use std::any::{type_name, Any, TypeId};
+use std::any::{Any, TypeId};
+use std::borrow::Cow;
 use std::cmp::Ord;
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -25,7 +42,6 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 use std::sync::Mutex;
-use std::borrow::Cow;
 
 use derivative::Derivative;
 use lazy_static::lazy_static;
@@ -224,13 +240,13 @@ pub mod field {
                 )),
             }
         }
-        fn d_poly_unshare(p: ark_poly::univariate::DensePolynomial<F>, degree: usize) -> DensePolynomial<Self> {
+        fn d_poly_unshare(
+            p: ark_poly::univariate::DensePolynomial<F>,
+            degree: usize,
+        ) -> DensePolynomial<Self> {
             p.coeffs
                 .into_iter()
-                .map(|val| Self {
-                    degree,
-                    val,
-                })
+                .map(|val| Self { degree, val })
                 .collect()
         }
     }
@@ -467,6 +483,202 @@ pub mod field {
             .collect();
         add_types(triples);
         shift_res
+    }
+
+    pub fn hadamard_check<F: FftField>(
+        mut xs: Vec<GszFieldShare<F>>,
+        ys: Vec<GszFieldShare<F>>,
+        zs: Vec<GszFieldShare<F>>,
+    ) {
+        let r = coin::<F>();
+        let mut rzs_sum = GszFieldShare::from_public(F::zero());
+        let mut r_i = F::one();
+        for (x, mut z) in xs.iter_mut().zip(zs) {
+            x.scale(&r_i);
+            z.scale(&r_i);
+            rzs_sum.add(&z);
+            r_i *= &r;
+        }
+        ip_check(xs, ys, rzs_sum);
+    }
+
+    /// Compress two inner product checks into one.
+    ///
+    /// Protocol 12.
+    pub fn ip_compress<F: FftField>(
+        xs1: Vec<GszFieldShare<F>>,
+        ys1: Vec<GszFieldShare<F>>,
+        ip1: GszFieldShare<F>,
+        xs2: Vec<GszFieldShare<F>>,
+        ys2: Vec<GszFieldShare<F>>,
+        ip2: GszFieldShare<F>,
+    ) -> (
+        Vec<GszFieldShare<F>>,
+        Vec<GszFieldShare<F>>,
+        GszFieldShare<F>,
+    ) {
+        let n = xs1.len();
+        debug_assert_eq!(n, xs1.len());
+        debug_assert_eq!(n, xs2.len());
+        debug_assert_eq!(n, ys1.len());
+        debug_assert_eq!(n, ys2.len());
+        // View xs1 as a vector of polynomials evaluated at 1
+        // View xs2 as a vector the same polynomials evaluated at 2
+        // This is a vector of lines.
+        // xs_m holds the slopes.
+        // xs_b holds the y intercepts.
+        let xs_m: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                let mut t = xs2[i];
+                t.sub(&xs1[i]);
+                t
+            })
+            .collect();
+        let xs_b: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                let mut t = xs1[i];
+                t.sub(&xs_m[i]);
+                t
+            })
+            .collect();
+        // Compute xs3 as a vector of the lines evaluated at 3
+        let xs3: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                // x3 = m + x2
+                let mut t = xs2[i];
+                t.add(&xs_m[i]);
+                t
+            })
+            .collect();
+
+        // Same for ys...
+        let ys_m: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                let mut t = ys2[i];
+                t.sub(&ys1[i]);
+                t
+            })
+            .collect();
+        let ys_b: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                let mut t = ys1[i];
+                t.sub(&ys_m[i]);
+                t
+            })
+            .collect();
+        let ys3: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                // y3 = m + y2
+                let mut t = ys2[i];
+                t.add(&ys_m[i]);
+                t
+            })
+            .collect();
+
+        // Compute ip3 from scratch.
+        let ip3 = ip_compute(&xs3, &ys3);
+
+        let r = coin::<F>();
+
+        // Now, we want to evaluat the x-functions, y-functions, and ip-function at r.
+        // The x-functions and y-functions are defined as above (lines)
+        let xs_r: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                let mut t = xs_m[i];
+                t.scale(&r);
+                t.add(&xs_b[i]);
+                t
+            })
+            .collect();
+        let ys_r: Vec<GszFieldShare<F>> = (0..n)
+            .map(|i| {
+                let mut t = ys_m[i];
+                t.scale(&r);
+                t.add(&ys_b[i]);
+                t
+            })
+            .collect();
+        // The ip-function is a parabola
+        // We need the lagrange basis on 1, 2, 3. It is:
+        // f_1(X) = (X-2)(X-3)/2
+        // f_2(X) = (X-1)(X-3)/-1
+        // f_3(X) = (X-1)(X-2)/2
+        let ip_r = {
+            // evaluate basis polynomials at 1, 2, 3
+            let f_1 = (r - F::from(2u8)) * (r - F::from(3u8)) / F::from(2u8);
+            let f_2 = -(r - F::from(1u8)) * (r - F::from(3u8));
+            let f_3 = (r - F::from(1u8)) * (r - F::from(2u8)) / F::from(2u8);
+            debug_assert_eq!(ip1.degree, ip2.degree);
+            debug_assert_eq!(ip2.degree, ip3.degree);
+            GszFieldShare {
+                degree: ip1.degree,
+                val: f_1 * ip1.val + f_2 * ip2.val + f_3 * ip3.val,
+            }
+        };
+        (xs_r, ys_r, ip_r)
+    }
+
+    pub fn ip_check<F: FftField>(
+        mut xs: Vec<GszFieldShare<F>>,
+        mut ys: Vec<GszFieldShare<F>>,
+        ip: GszFieldShare<F>,
+    ) {
+        // print_list!(xs);
+        // print_list!(ys);
+        // dd!(ip);
+        debug_assert_eq!(xs.len(), ys.len());
+        if xs.len() == 1 {
+            let x = open(&xs[0]);
+            let y = open(&ys[0]);
+            let z = open(&ip);
+            assert_eq!(x * &y, z);
+        } else {
+            if xs.len() % 2 == 1 {
+                xs.push(GszFieldShare::from_public(F::zero()));
+                ys.push(GszFieldShare::from_public(F::zero()));
+            }
+            let n = xs.len() / 2;
+            let xs_r = xs.split_off(n);
+            let xs_l = xs;
+            let ys_r = ys.split_off(n);
+            let ys_l = ys;
+            let ip_l = ip_compute(&xs_l, &ys_l);
+            let ip_r = {
+                let mut t = ip;
+                t.sub(&ip_l);
+                t
+            };
+        //     print_list!(xs_l);
+        //     print_list!(ys_l);
+        //     dd!(ip_l);
+        //     print_list!(xs_r);
+        //     print_list!(ys_r);
+        //     dd!(ip_r);
+            let (compressed_xs, compressed_ys, compressed_ip) =
+                ip_compress(xs_l, ys_l, ip_l, xs_r, ys_r, ip_r);
+            ip_check(compressed_xs, compressed_ys, compressed_ip)
+        }
+    }
+
+    pub fn ip_compute<F: FftField>(
+        xs: &[GszFieldShare<F>],
+        ys: &[GszFieldShare<F>],
+    ) -> GszFieldShare<F> {
+        debug_assert!(xs.iter().all(|x| x.degree <= t()));
+        debug_assert!(ys.iter().all(|x| x.degree <= t()));
+        assert_eq!(xs.len(), ys.len());
+        let mut acc = F::zero();
+        let mut degree = 0;
+        for (x, y) in xs.iter().zip(ys) {
+            acc += x.val * &y.val;
+            degree = std::cmp::max(degree, 2 * std::cmp::max(x.degree, y.degree));
+        }
+        let (r, r2) = double_rand::<F>();
+        acc += r2.val;
+        let acc_share = GszFieldShare { val: acc, degree };
+        let mut shifted_result = king_compute(&acc_share, degree / 2, |r| r);
+        shifted_result.sub(&r);
+        shifted_result
     }
 
     pub struct GszFieldTriple<F: Field>(

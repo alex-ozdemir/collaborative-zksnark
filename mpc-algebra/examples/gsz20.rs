@@ -22,6 +22,34 @@ struct Opt {
     input: PathBuf,
 }
 
+fn test_ip<F: FftField>() {
+    let rng = &mut ark_std::test_rng();
+    let iters = 4;
+    let size = 100;
+    for _iter in 0..iters {
+        let a_pubs: Vec<F> = (0..size).map(|_| F::rand(rng)).collect();
+        let b_pubs: Vec<F> = (0..size).map(|_| F::rand(rng)).collect();
+        //let a_pubs: Vec<F> = (0..size).map(|i| F::from(i as u32)).collect();
+        //let b_pubs: Vec<F> = (0..size).map(|i| F::from(i as u32)).collect();
+        //let a_pubs: Vec<F> = vec![2u8, 1u8].into_iter().map(F::from).collect();
+        //let b_pubs: Vec<F> = vec![2u8, 1u8].into_iter().map(F::from).collect();
+        let ip_pub = a_pubs
+            .iter()
+            .zip(&b_pubs)
+            .fold(F::zero(), |x, (a, b)| x + *a * b);
+        let a: Vec<_> = a_pubs
+            .iter()
+            .map(|a| GszFieldShare::from_public(*a))
+            .collect();
+        let b: Vec<_> = b_pubs
+            .iter()
+            .map(|b| GszFieldShare::from_public(*b))
+            .collect();
+        let ip = GszFieldShare::from_public(ip_pub);
+        field::ip_check(a, b, ip);
+    }
+}
+
 fn test<F: FftField>() {
     let rng = &mut ark_std::test_rng();
     let (a, b) = field::double_rand::<F>();
@@ -131,9 +159,17 @@ fn test_pairing<E: PairingEngine, S: PairingShare<E>>() {
         let g2ab_pub = g2ab.reveal();
         assert_eq!(g1ab_pub, Group::mul(&Group::mul(&g1, &a_pub), &b_pub));
         assert_eq!(g2ab_pub, Group::mul(&Group::mul(&g2, &a_pub), &b_pub));
-        let g1a_plus_b = <S::G1AffineShare as GroupShare<E::G1Affine>>::multi_scale_pub_group(&[g1, g1], &[a, b]).reveal();
+        let g1a_plus_b = <S::G1AffineShare as GroupShare<E::G1Affine>>::multi_scale_pub_group(
+            &[g1, g1],
+            &[a, b],
+        )
+        .reveal();
         assert_eq!(g1a_plus_b, Group::mul(&g1, &(a_pub + b_pub)));
-        let g2a_plus_b = <S::G2AffineShare as GroupShare<E::G2Affine>>::multi_scale_pub_group(&[g2, g2], &[a, b]).reveal();
+        let g2a_plus_b = <S::G2AffineShare as GroupShare<E::G2Affine>>::multi_scale_pub_group(
+            &[g2, g2],
+            &[a, b],
+        )
+        .reveal();
         assert_eq!(g2a_plus_b, Group::mul(&g2, &(a_pub + b_pub)));
     }
 }
@@ -147,6 +183,7 @@ fn main() {
     multi::init_from_path(opt.input.to_str().unwrap(), opt.id);
 
     test::<ark_bls12_377::Fr>();
+    test_ip::<ark_bls12_377::Fr>();
     test_group::<ark_bls12_377::G1Projective>();
     test_group::<ark_bls12_377::G2Projective>();
     test_group::<ark_bls12_377::G1Affine>();

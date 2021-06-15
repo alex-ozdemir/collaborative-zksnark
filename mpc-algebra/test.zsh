@@ -15,7 +15,7 @@ do
     pid=$!
     PROCS[$i]=$pid
   else
-    RUST_LOG=gsz20 $BIN $i ./data/4 &
+    RUST_LOG=gsz20 $BIN $i ./data/4 > /dev/null &
     pid=$!
     PROCS[$i]=$pid
   fi
