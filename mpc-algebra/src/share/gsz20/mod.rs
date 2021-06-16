@@ -24,7 +24,7 @@ use ark_ff::{
     FftField,
 };
 use ark_poly::{
-    domain::{EvaluationDomain, GeneralEvaluationDomain, MixedRadixEvaluationDomain},
+    domain::{EvaluationDomain, MixedRadixEvaluationDomain},
     Polynomial, UVPolynomial,
 };
 use ark_serialize::{
