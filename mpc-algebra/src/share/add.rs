@@ -20,7 +20,7 @@ use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
 use crate::channel;
-use mpc_net;
+use mpc_net::two as net_two;
 
 use super::field::{
     DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare, SparsePolynomial,
@@ -88,7 +88,7 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
     }
     fn from_public(f: F) -> Self {
         Self {
-            val: if mpc_net::am_first() { f } else { F::zero() },
+            val: if net_two::am_first() { f } else { F::zero() },
         }
     }
     fn from_add_shared(f: F) -> Self {
@@ -102,14 +102,14 @@ impl<F: Field> Reveal for AdditiveFieldShare<F> {
         let share0 = f - r;
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        Self::from_add_shared(if mpc_net::am_first() { share0 } else { share1 })
+        Self::from_add_shared(if net_two::am_first() { share0 } else { share1 })
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         let r: Vec<Self::Base> = (0..f.len()).map(|_| F::rand(rng)).collect();
         let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        (if mpc_net::am_first() { share0 } else { share1 })
+        (if net_two::am_first() { share0 } else { share1 })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -141,7 +141,7 @@ impl<F: Field> FieldShare<F> for AdditiveFieldShare<F> {
     }
 
     fn shift(&mut self, other: &F) -> &mut Self {
-        if mpc_net::am_first() {
+        if net_two::am_first() {
             self.val += other;
         }
         self
@@ -183,7 +183,7 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
     }
     fn from_public(f: G) -> Self {
         Self {
-            val: if mpc_net::am_first() { f } else { G::zero() },
+            val: if net_two::am_first() { f } else { G::zero() },
             _phants: PhantomData::default(),
         }
     }
@@ -201,14 +201,14 @@ impl<G: Group, M> Reveal for AdditiveGroupShare<G, M> {
         let share0 = f - r;
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        Self::from_add_shared(if mpc_net::am_first() { share0 } else { share1 })
+        Self::from_add_shared(if net_two::am_first() { share0 } else { share1 })
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         let r: Vec<Self::Base> = (0..f.len()).map(|_| Self::Base::rand(rng)).collect();
         let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        (if mpc_net::am_first() { share0 } else { share1 })
+        (if net_two::am_first() { share0 } else { share1 })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -251,7 +251,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for AdditiveGroupShare<G
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
-        if mpc_net::am_first() {
+        if net_two::am_first() {
             self.val += other;
         }
         self
@@ -421,7 +421,7 @@ impl<F: Field> Reveal for MulFieldShare<F> {
     }
     fn from_public(f: F) -> Self {
         Self {
-            val: if mpc_net::am_first() { f } else { F::one() },
+            val: if net_two::am_first() { f } else { F::one() },
         }
     }
     fn from_add_shared(f: F) -> Self {
@@ -450,7 +450,7 @@ impl<F: Field> FieldShare<F> for MulFieldShare<F> {
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
-        if mpc_net::am_first() {
+        if net_two::am_first() {
             self.val *= other;
         }
         self
@@ -534,7 +534,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if mpc_net::am_first() {
+                if net_two::am_first() {
                     a.val.add_assign_mixed(&o);
                 }
                 a

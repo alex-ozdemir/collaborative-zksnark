@@ -21,7 +21,7 @@ use std::ops::*;
 use super::super::share::field::FieldShare;
 use super::super::share::BeaverSource;
 use crate::Reveal;
-use mpc_net;
+use mpc_net::two as net_two;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: FieldShare<F>> {
@@ -42,17 +42,17 @@ impl<T: Field, S: FieldShare<T>> BeaverSource<S, S, S> for DummyFieldTripleSourc
     #[inline]
     fn triple(&mut self) -> (S, S, S) {
         (
-            S::from_add_shared(if mpc_net::am_first() {
+            S::from_add_shared(if net_two::am_first() {
                 T::one()
             } else {
                 T::zero()
             }),
-            S::from_add_shared(if mpc_net::am_first() {
+            S::from_add_shared(if net_two::am_first() {
                 T::one()
             } else {
                 T::zero()
             }),
-            S::from_add_shared(if mpc_net::am_first() {
+            S::from_add_shared(if net_two::am_first() {
                 T::one()
             } else {
                 T::zero()
@@ -62,12 +62,12 @@ impl<T: Field, S: FieldShare<T>> BeaverSource<S, S, S> for DummyFieldTripleSourc
     #[inline]
     fn inv_pair(&mut self) -> (S, S) {
         (
-            S::from_add_shared(if mpc_net::am_first() {
+            S::from_add_shared(if net_two::am_first() {
                 T::one()
             } else {
                 T::zero()
             }),
-            S::from_add_shared(if mpc_net::am_first() {
+            S::from_add_shared(if net_two::am_first() {
                 T::one()
             } else {
                 T::zero()

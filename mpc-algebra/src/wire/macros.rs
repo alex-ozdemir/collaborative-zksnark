@@ -11,7 +11,7 @@ use std::fmt::Display;
 pub fn check_eq<T: CanonicalSerialize + CanonicalDeserialize + Clone + Eq + Display>(t: T) {
     debug_assert!({
         use log::debug;
-        if mpc_net::is_init() {
+        if mpc_net::two::is_init() {
             let other = channel::exchange(&t);
             if t == other {
                 debug!("Consistency check passed");

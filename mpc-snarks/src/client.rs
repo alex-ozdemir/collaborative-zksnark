@@ -482,7 +482,7 @@ impl Computation {
             }
             c => unimplemented!("Cannot run_bls {:?}", c),
         };
-        println!("Stats: {:#?}", mpc_net::stats());
+        println!("Stats: {:#?}", mpc_net::two::stats());
         drop(inputs);
         println!("Outputs:");
         for (i, v) in outputs.iter().enumerate() {
@@ -871,7 +871,7 @@ fn main() -> () {
         env_logger::init();
     }
     let domain = opt.domain();
-    mpc_net::init_from_path(opt.hosts.to_str().unwrap(), opt.party as usize);
+    mpc_net::two::init_from_path(opt.hosts.to_str().unwrap(), opt.party as usize);
     debug!("Start");
     if opt.spdz {
         let inputs = opt
@@ -962,7 +962,7 @@ fn main() -> () {
             d => panic!("Bad domain: {:?}", d),
         }
     }
-    debug!("Stats: {:#?}", mpc_net::stats());
-    mpc_net::deinit();
+    debug!("Stats: {:#?}", mpc_net::two::stats());
+    mpc_net::two::deinit();
     debug!("Done");
 }

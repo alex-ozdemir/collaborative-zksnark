@@ -125,7 +125,7 @@ mod squarings {
                 >(a, n);
                 let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
                 end_timer!(computation_timer);
-                mpc_net::reset_stats();
+                mpc_net::two::reset_stats();
                 let timer = start_timer!(|| timer_label);
                 let proof = channel::without_cheating(|| {
                     create_random_proof::<MpcPairingEngine<E, S>, _, _>(circ_data, &mpc_params, rng)
@@ -353,7 +353,7 @@ impl ShareInfo {
     fn setup(&self) {
         match self.alg {
             MpcAlg::Spdz | MpcAlg::Hbc => {
-                mpc_net::init_from_path(self.hosts.to_str().unwrap(), self.party as usize)
+                mpc_net::two::init_from_path(self.hosts.to_str().unwrap(), self.party as usize)
             }
             MpcAlg::Gsz => {
                 mpc_net::multi::init_from_path(self.hosts.to_str().unwrap(), self.party as usize)
@@ -361,9 +361,9 @@ impl ShareInfo {
         }
     }
     fn teardown(&self) {
-        debug!("Stats: {:#?}", mpc_net::stats());
+        debug!("Stats: {:#?}", mpc_net::two::stats());
         match self.alg {
-            MpcAlg::Spdz | MpcAlg::Hbc => mpc_net::deinit(),
+            MpcAlg::Spdz | MpcAlg::Hbc => mpc_net::two::deinit(),
             MpcAlg::Gsz => mpc_net::multi::uninit(),
         }
     }
@@ -504,5 +504,5 @@ fn main() {
             TIMED_SECTION_LABEL,
         ),
     }
-    println!("Exchange stats: {:#?}", mpc_net::stats());
+    println!("Exchange stats: {:#?}", mpc_net::two::stats());
 }

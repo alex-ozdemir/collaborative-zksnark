@@ -736,25 +736,6 @@ macro_rules! impl_aff_proj {
                 todo!("AffineCurve::mul_by_cofactor_inv")
             }
             fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
-                // println!("Sizes: {} {}", bases.len(), scalars.len());
-                //println!("Scalars: {:#?}", scalars);
-                // let a = {
-                //     let bigint_scalars = cfg_into_iter!(scalars)
-                //         .map(|s| {
-                //             if s.is_shared() || mpc_net::am_first() {
-                //                 s.into_repr()
-                //             } else {
-                //                 Self::ScalarField::from(0u64).into_repr()
-                //             }
-                //         })
-                //         .collect::<Vec<_>>();
-                //     let t = start_timer!(|| "MSM inner");
-                //     let mut product = VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
-                //     end_timer!(t);
-                //     // This is shared because the big intergers are representations of a shared value.
-                //     product.cast_to_shared();
-                //     product
-                // };
                 let b = {
                     assert!(bases.iter().all(|b| !b.is_shared()));
                     let scalars_shared = scalars.first().map(|s| s.is_shared()).unwrap_or(true);
@@ -853,33 +834,6 @@ macro_rules! impl_aff_proj {
                     }),
                 };
                 self.val = new_self;
-                // let self_s = self.val.is_shared();
-                // let o_s = o.val.is_shared();
-                // match (self_s, o_s) {
-                //     (true, true) | (false, false) => {
-                //         let mut s = self.val.unwrap_as_public_or_add_shared();
-                //         let t = o.val.unwrap_as_public_or_add_shared();
-                //         s.add_assign_mixed(&t);
-                //         self.val = if self_s {
-                //             Reveal::from_add_shared(s)
-                //         } else {
-                //             Reveal::from_public(s)
-                //         };
-                //     }
-                //     (true, false) => {
-                //         if mpc_net::am_first() {
-                //             let mut s = self.val.unwrap_as_public_or_add_shared();
-                //             let t = o.val.unwrap_as_public_or_add_shared();
-                //             s.add_assign_mixed(&t);
-                //             self.val = Reveal::from_add_shared(s);
-                //             //self.val.add_assign_mixed(&o.val);
-                //         } else {
-                //         }
-                //     }
-                //     (false, true) => {
-                //         *self = o.clone().into();
-                //     }
-                // }
             }
             fn mul<S: AsRef<[u64]>>(self, _scalar_words: S) -> Self {
                 unimplemented!("mul by words")

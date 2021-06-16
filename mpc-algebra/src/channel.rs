@@ -4,7 +4,7 @@ use rand::RngCore;
 use sha2::Sha256;
 use std::cell::Cell;
 
-use mpc_net;
+use mpc_net::two as net_two;
 
 pub mod multi;
 
@@ -20,7 +20,7 @@ type CommitHash = Sha256;
 pub fn exchange<F: CanonicalSerialize + CanonicalDeserialize>(f: &F) -> F {
     let mut bytes_out = Vec::new();
     f.serialize(&mut bytes_out).unwrap();
-    let bytes_in = mpc_net::exchange_bytes(&bytes_out).unwrap();
+    let bytes_in = net_two::exchange_bytes(&bytes_out).unwrap();
     F::deserialize(&bytes_in[..]).unwrap()
 }
 
@@ -37,9 +37,9 @@ pub fn atomic_exchange<F: CanonicalSerialize + CanonicalDeserialize>(f: &F) -> F
     rand::thread_rng().fill_bytes(&mut bytes_out[ser_len..]);
     let commitment = CommitHash::new().chain(&bytes_out).finalize();
     // exchange commitments
-    let other_commitment = mpc_net::exchange_bytes(&commitment[..]).unwrap();
+    let other_commitment = net_two::exchange_bytes(&commitment[..]).unwrap();
     // exchange (data || randomness)
-    let other_bytes = mpc_net::exchange_bytes(&bytes_out).unwrap();
+    let other_bytes = net_two::exchange_bytes(&bytes_out).unwrap();
     // check other commitment
     assert_eq!(
         &other_commitment[..],

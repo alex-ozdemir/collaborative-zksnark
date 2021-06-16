@@ -17,7 +17,7 @@ use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
 use crate::channel;
-use mpc_net;
+use mpc_net::two as net_two;
 
 use super::add::{AdditiveFieldShare, AdditiveGroupShare, MulFieldShare};
 use super::field::{DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare};
@@ -29,7 +29,7 @@ use crate::Reveal;
 
 #[inline]
 pub fn mac_share<F: Field>() -> F {
-    if mpc_net::am_first() {
+    if net_two::am_first() {
         F::one()
     } else {
         F::zero()
@@ -146,14 +146,14 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
         let share0 = f - r;
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        Self::from_add_shared(if mpc_net::am_first() { share0 } else { share1 })
+        Self::from_add_shared(if net_two::am_first() { share0 } else { share1 })
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         let r: Vec<Self::Base> = (0..f.len()).map(|_| Self::Base::rand(rng)).collect();
         let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        (if mpc_net::am_first() { share0 } else { share1 })
+        (if net_two::am_first() { share0 } else { share1 })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -297,14 +297,14 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
         let share0 = f - r;
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        Self::from_add_shared(if mpc_net::am_first() { share0 } else { share1 })
+        Self::from_add_shared(if net_two::am_first() { share0 } else { share1 })
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
         let r: Vec<Self::Base> = (0..f.len()).map(|_| Self::Base::rand(rng)).collect();
         let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
         let share1 = r;
         let share1 = channel::exchange(&share1);
-        (if mpc_net::am_first() { share0 } else { share1 })
+        (if net_two::am_first() { share0 } else { share1 })
             .into_iter()
             .map(Self::from_add_shared)
             .collect()
@@ -430,7 +430,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
-        if mpc_net::am_first() {
+        if net_two::am_first() {
             self.sh.shift(other);
         }
         let mut other = other.clone();
@@ -500,7 +500,7 @@ impl<F: Field, S: PrimeField> FieldShare<F> for SpdzMulFieldShare<F, S> {
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
-        if mpc_net::am_first() {
+        if net_two::am_first() {
             self.sh.scale(other);
         }
         self.mac.scale(&other.pow(&mac_share::<S>().into_repr()));
@@ -609,7 +609,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if mpc_net::am_first() {
+                if net_two::am_first() {
                     a.sh.val.add_assign_mixed(&o);
                 }
                 a.mac.val += &o.scalar_mul(mac_share::<E::Fr>());

@@ -7,7 +7,7 @@ use ark_ff::FftField;
 use mpc_trait::MpcWire;
 
 use crate::{channel, Reveal};
-use mpc_net;
+use mpc_net::two as net_two;
 use crate::wire::field::MpcField;
 use crate::share::field::FieldShare;
 
@@ -58,8 +58,8 @@ impl<Fr: PrimeField, S: FieldShare<Fr>>  ComField for MpcField<Fr, S> {
             tree.push(std::mem::replace(&mut hashes, new));
         }
         let slf = hashes.pop().unwrap();
-        let other = mpc_net::exchange_bytes(&slf).unwrap();
-        if mpc_net::am_first() {
+        let other = net_two::exchange_bytes(&slf).unwrap();
+        if net_two::am_first() {
             (tree, (other, slf))
         } else {
             (tree, (slf, other))
@@ -76,16 +76,16 @@ impl<Fr: PrimeField, S: FieldShare<Fr>>  ComField for MpcField<Fr, S> {
         assert_eq!(i / 2, 0);
         let other: Vec<_> = siblings
             .iter()
-            .map(|s| mpc_net::exchange_bytes(s).unwrap())
+            .map(|s| net_two::exchange_bytes(s).unwrap())
             .collect();
-        let p = if mpc_net::am_first() {
+        let p = if net_two::am_first() {
             siblings.into_iter().zip(other.into_iter()).collect()
         } else {
             other.into_iter().zip(siblings.into_iter()).collect()
         };
         (
             MpcField::from_public(self_f + other_f),
-            if mpc_net::am_first() {
+            if net_two::am_first() {
                 (self_f, other_f, p)
             } else {
                 (other_f, self_f, p)
