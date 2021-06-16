@@ -108,9 +108,11 @@ impl FieldChannel {
     #[inline]
     pub fn send_slice(&mut self, v: &[u8]) {
         let s = self.stream();
+        s.set_nonblocking(false).unwrap();
         let bytes = (v.len() as u64).to_ne_bytes();
         s.write_all(&bytes[..]).unwrap();
         s.write_all(v).unwrap();
+        s.set_nonblocking(true).unwrap();
         self.stats.bytes_sent += bytes.len() + v.len();
     }
 
@@ -118,9 +120,11 @@ impl FieldChannel {
     pub fn recv_vec(&mut self) -> Vec<u8> {
         let s = self.stream();
         let mut len = [0u8; 8];
+        s.set_nonblocking(false).unwrap();
         s.read_exact(&mut len[..]).unwrap();
         let mut bytes = vec![0u8; u64::from_ne_bytes(len) as usize];
         s.read_exact(&mut bytes[..]).unwrap();
+        s.set_nonblocking(true).unwrap();
         self.stats.bytes_recv += bytes.len() + len.len();
         bytes
     }
