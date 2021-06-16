@@ -65,3 +65,5 @@ case $infra in
         usage
     ;;
 esac
+
+trap - INT TERM EXIT

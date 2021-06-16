@@ -157,4 +157,6 @@ $BIN --hosts data/2 marlin --party 1 & ; pid1=$!
 
 wait $pid0 $pid1
 
+trap - INT TERM EXIT
+
 ./bench_test.zsh
