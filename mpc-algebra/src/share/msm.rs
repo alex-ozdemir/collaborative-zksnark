@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 /// Multi-scalar multiplications
 pub trait Msm<G, S>: Send + Sync + 'static {
     fn msm(bases: &[G], scalars: &[S]) -> G;
+    fn pre_reveal_check() {}
 }
 
 #[derive(Debug, Derivative)]

@@ -17,7 +17,7 @@ macro_rules! dd {
     };
 }
 
-use ark_ec::{PairingEngine, ProjectiveCurve};
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
     prelude::*,
@@ -54,7 +54,7 @@ use super::field::{
 };
 use super::BeaverSource;
 use crate::channel::multi as alg_net;
-use crate::msm::*;
+use crate::msm::Msm;
 use crate::share::pairing::{AffProjShare, PairingShare};
 use crate::Reveal;
 
@@ -344,6 +344,9 @@ pub mod field {
 
     pub fn check_accumulated_field_products<F: FftField>() {
         let to_check = take_types::<GszFieldTriple<F>>();
+        check_field_products(to_check);
+    }
+    pub fn check_field_products<F: FftField>(to_check: Vec<GszFieldTriple<F>>) {
         if to_check.len() > 0 {
             let timer = start_timer!(|| format!("Product check: {}", to_check.len()));
             debug!("Open Field: {} checks", to_check.len());
@@ -636,10 +639,9 @@ pub mod field {
             let f_1 = (r - F::from(2u8)) * (r - F::from(3u8)) / F::from(2u8);
             let f_2 = -(r - F::from(1u8)) * (r - F::from(3u8));
             let f_3 = (r - F::from(1u8)) * (r - F::from(2u8)) / F::from(2u8);
-            debug_assert_eq!(ip1.degree, ip2.degree);
-            debug_assert_eq!(ip2.degree, ip3.degree);
+            let degree = (&[ip1.degree, ip2.degree, ip3.degree]).iter().max().unwrap().clone();
             GszFieldShare {
-                degree: ip1.degree,
+                degree,
                 val: f_1 * ip1.val + f_2 * ip2.val + f_3 * ip3.val,
             }
         };
@@ -810,10 +812,11 @@ pub mod group {
         }
     }
 
-    impl<G: Group, M: Send + 'static> Reveal for GszGroupShare<G, M> {
+    impl<G: Group, M: Send + 'static + Msm<G, G::ScalarField>> Reveal for GszGroupShare<G, M> {
         type Base = G;
 
         fn reveal(self) -> G {
+            M::pre_reveal_check();
             open(&self)
         }
         fn from_public(f: G) -> Self {
@@ -949,9 +952,6 @@ pub mod group {
 
     /// Open a t-share.
     pub fn open<G: Group, M: Send + 'static>(s: &GszGroupShare<G, M>) -> G {
-        field::check_accumulated_field_products::<G::ScalarField>();
-        let to_check = take_types::<GszGroupTriple<G, M>>();
-        debug!("Open Group: {} group checks", to_check.len());
         let shares = alg_net::broadcast(&s.val);
         open_degree_vec(shares, s.degree)
     }
@@ -1261,6 +1261,12 @@ pub mod group {
 
     pub fn check_accumulated_group_products<G: Group, M: Msm<G, G::ScalarField>>() {
         let to_check = take_types::<GszGroupTriple<G, M>>();
+        check_group_products(to_check);
+    }
+
+    pub fn check_group_products<G: Group, M: Msm<G, G::ScalarField>>(
+        to_check: Vec<GszGroupTriple<G, M>>,
+    ) {
         if to_check.len() > 0 {
             let timer = start_timer!(|| format!("Group product checks: {}", to_check.len()));
             debug!("Open Group: {} checks", to_check.len());
@@ -1302,13 +1308,13 @@ pub use group::GszGroupShare;
 // }
 
 macro_rules! groups_share {
-    ($struct_name:ident, $affine:ident, $proj:ident) => {
+    ($struct_name:ident, $affine:ident, $proj:ident, $aff_msm:ident, $proj_msm:ident) => {
         pub struct $struct_name<E: PairingEngine>(pub PhantomData<E>);
 
         impl<E: PairingEngine> AffProjShare<E::Fr, E::$affine, E::$proj> for $struct_name<E> {
             type FrShare = GszFieldShare<E::Fr>;
-            type AffineShare = GszGroupShare<E::$affine, AffineMsm<E::$affine>>;
-            type ProjectiveShare = GszGroupShare<E::$proj, ProjectiveMsm<E::$proj>>;
+            type AffineShare = GszGroupShare<E::$affine, msm::$aff_msm<E>>;
+            type ProjectiveShare = GszGroupShare<E::$proj, msm::$proj_msm<E>>;
 
             fn sh_aff_to_proj(g: Self::AffineShare) -> Self::ProjectiveShare {
                 GszGroupShare {
@@ -1347,8 +1353,8 @@ macro_rules! groups_share {
     };
 }
 
-groups_share!(GszG1Share, G1Affine, G1Projective);
-groups_share!(GszG2Share, G2Affine, G2Projective);
+groups_share!(GszG1Share, G1Affine, G1Projective, GszG1AffineMsm, GszG1ProjectiveMsm);
+groups_share!(GszG2Share, G2Affine, G2Projective, GszG2AffineMsm, GszG2ProjectiveMsm);
 
 pub mod mul_field {
     use super::*;
@@ -1590,16 +1596,95 @@ impl<F: Field> ExtFieldShare<F> for GszExtFieldShare<F> {
 )]
 pub struct GszPairingShare<E: PairingEngine>(pub PhantomData<E>);
 
+pub mod msm {
+    use super::*;
+
+    fn run_all_checks<E: PairingEngine>() {
+        let t = start_timer!(|| "All opening checks");
+        field::check_accumulated_field_products::<E::Fr>();
+        group::check_accumulated_group_products::<E::G1Affine, GszG1AffineMsm<E>>();
+        group::check_accumulated_group_products::<E::G2Affine, GszG2AffineMsm<E>>();
+        group::check_accumulated_group_products::<E::G1Projective, GszG1ProjectiveMsm<E>>();
+        group::check_accumulated_group_products::<E::G2Projective, GszG2ProjectiveMsm<E>>();
+        end_timer!(t);
+    }
+
+    #[derive(Debug, Derivative)]
+    #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+    /// An EC-based MSM with a pre-reveal check.
+    pub struct GszG1AffineMsm<E: PairingEngine>(pub PhantomData<E>);
+
+    impl<E: PairingEngine> Msm<E::G1Affine, E::Fr> for GszG1AffineMsm<E> {
+        fn msm(bases: &[E::G1Affine], scalars: &[E::Fr]) -> E::G1Affine {
+            E::G1Affine::multi_scalar_mul(bases, scalars).into()
+        }
+        fn pre_reveal_check() {
+            run_all_checks::<E>();
+        }
+    }
+    #[derive(Debug, Derivative)]
+    #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+    /// An EC-based MSM with a pre-reveal check.
+    pub struct GszG2AffineMsm<E: PairingEngine>(pub PhantomData<E>);
+    impl<E: PairingEngine> Msm<E::G2Affine, E::Fr> for GszG2AffineMsm<E> {
+        fn msm(bases: &[E::G2Affine], scalars: &[E::Fr]) -> E::G2Affine {
+            E::G2Affine::multi_scalar_mul(bases, scalars).into()
+        }
+        fn pre_reveal_check() {
+            run_all_checks::<E>();
+        }
+    }
+    #[derive(Debug, Derivative)]
+    #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+    /// An EC-based MSM with a pre-reveal check.
+    pub struct GszG1ProjectiveMsm<E: PairingEngine>(pub PhantomData<E>);
+
+    impl<E: PairingEngine> Msm<E::G1Projective, E::Fr> for GszG1ProjectiveMsm<E> {
+        fn msm(bases: &[E::G1Projective], scalars: &[E::Fr]) -> E::G1Projective {
+            let bases: Vec<E::G1Affine> = bases.iter().map(|s| s.clone().into()).collect();
+            <E::G1Affine as AffineCurve>::multi_scalar_mul(&bases, scalars)
+        }
+        fn pre_reveal_check() {
+            run_all_checks::<E>();
+        }
+    }
+    #[derive(Debug, Derivative)]
+    #[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+    /// An EC-based MSM with a pre-reveal check.
+    pub struct GszG2ProjectiveMsm<E: PairingEngine>(pub PhantomData<E>);
+    impl<E: PairingEngine> Msm<E::G2Projective, E::Fr> for GszG2ProjectiveMsm<E> {
+        fn msm(bases: &[E::G2Projective], scalars: &[E::Fr]) -> E::G2Projective {
+            let bases: Vec<E::G2Affine> = bases.iter().map(|s| s.clone().into()).collect();
+            <E::G2Affine as AffineCurve>::multi_scalar_mul(&bases, scalars)
+        }
+        fn pre_reveal_check() {
+            run_all_checks::<E>();
+        }
+    }
+}
+
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""), Clone(bound = ""), Copy(bound = ""))]
+/// An EC-based MSM with a pre-reveal check.
+pub struct GszProjectiveMsm<G: ProjectiveCurve>(pub PhantomData<G>);
+
+impl<G: ProjectiveCurve> Msm<G, G::ScalarField> for GszProjectiveMsm<G> {
+    fn msm(bases: &[G], scalars: &[G::ScalarField]) -> G {
+        let bases: Vec<G::Affine> = bases.iter().map(|s| s.clone().into()).collect();
+        <G::Affine as AffineCurve>::multi_scalar_mul(&bases, scalars)
+    }
+}
+
 impl<E: PairingEngine> PairingShare<E> for GszPairingShare<E> {
     type FrShare = GszFieldShare<E::Fr>;
     type FqShare = GszFieldShare<E::Fq>;
     type FqeShare = GszExtFieldShare<E::Fqe>;
     // Not a typo. We want a multiplicative subgroup.
     type FqkShare = GszMulExtFieldShare<E::Fqk, E::Fr>;
-    type G1AffineShare = GszGroupShare<E::G1Affine, AffineMsm<E::G1Affine>>;
-    type G2AffineShare = GszGroupShare<E::G2Affine, AffineMsm<E::G2Affine>>;
-    type G1ProjectiveShare = GszGroupShare<E::G1Projective, ProjectiveMsm<E::G1Projective>>;
-    type G2ProjectiveShare = GszGroupShare<E::G2Projective, ProjectiveMsm<E::G2Projective>>;
+    type G1AffineShare = GszGroupShare<E::G1Affine, msm::GszG1AffineMsm<E>>;
+    type G2AffineShare = GszGroupShare<E::G2Affine, msm::GszG2AffineMsm<E>>;
+    type G1ProjectiveShare = GszGroupShare<E::G1Projective, msm::GszG1ProjectiveMsm<E>>;
+    type G2ProjectiveShare = GszGroupShare<E::G2Projective, msm::GszG2ProjectiveMsm<E>>;
     type G1 = GszG1Share<E>;
     type G2 = GszG2Share<E>;
 }
