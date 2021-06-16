@@ -282,7 +282,7 @@ pub mod field {
         ///
         /// Protocol 8.
         fn mul<S: BeaverSource<Self, Self, Self>>(self, other: Self, _source: &mut S) -> Self {
-            mult(self, &other)
+            mult(self, &other, true)
         }
 
         /// Multiply many pairs of shares, consuming many double-shares.
@@ -291,7 +291,7 @@ pub mod field {
             ys: Vec<Self>,
             _source: &mut S,
         ) -> Vec<Self> {
-            batch_mult(xs, &ys)
+            batch_mult(xs, &ys, true)
         }
 
         fn inv<S: super::BeaverSource<Self, Self, Self>>(self, _source: &mut S) -> Self {
@@ -454,7 +454,11 @@ pub mod field {
     /// Multiply shares, using king
     ///
     /// Protocol 8.
-    pub fn mult<F: FftField>(x: GszFieldShare<F>, y: &GszFieldShare<F>) -> GszFieldShare<F> {
+    pub fn mult<F: FftField>(
+        x: GszFieldShare<F>,
+        y: &GszFieldShare<F>,
+        queue_check: bool,
+    ) -> GszFieldShare<F> {
         let (r, r2) = double_rand::<F>();
         let mut x_cp = x.clone();
         x_cp.val *= y.val;
@@ -462,10 +466,11 @@ pub mod field {
         x_cp.val += r2.val;
         // king just reduces the sharing degree
         let mut shift_res = king_compute(&x_cp, x_cp.degree / 2, |r| r);
-        // TODO: record triple
         shift_res.val -= r.val;
-        let triple = GszFieldTriple(x, y.clone(), shift_res);
-        add_type(triple);
+        if queue_check {
+            let triple = GszFieldTriple(x, y.clone(), shift_res);
+            add_type(triple);
+        }
         shift_res
     }
 
@@ -475,6 +480,7 @@ pub mod field {
     pub fn batch_mult<F: FftField>(
         x: Vec<GszFieldShare<F>>,
         y: &[GszFieldShare<F>],
+        queue_check: bool,
     ) -> Vec<GszFieldShare<F>> {
         let n = x.len();
         let d = x[0].degree;
@@ -490,16 +496,17 @@ pub mod field {
         // king just reduces the sharing degree
         let mut shift_res = batch_king_compute(&x_cp, x_cp[0].degree / 2, |r| r);
         for (shift_res, r) in shift_res.iter_mut().zip(r) {
-            // TODO: record triple
             shift_res.val -= r.val;
         }
-        let triples: Vec<_> = x
-            .into_iter()
-            .zip(y)
-            .zip(&shift_res)
-            .map(|((x, y), z)| GszFieldTriple(x, y.clone(), z.clone()))
-            .collect();
-        add_types(triples);
+        if queue_check {
+            let triples: Vec<_> = x
+                .into_iter()
+                .zip(y)
+                .zip(&shift_res)
+                .map(|((x, y), z)| GszFieldTriple(x, y.clone(), z.clone()))
+                .collect();
+            add_types(triples);
+        }
         shift_res
     }
 
@@ -679,9 +686,17 @@ pub mod field {
             ys = compressed_ys;
             ip = compressed_ip;
         }
-        let x = open(&xs[0]);
-        let y = open(&ys[0]);
-        let z = open(&ip);
+        let xr = rand::<F>();
+        let x = xs.pop().unwrap();
+        let yr = rand::<F>();
+        let y = ys.pop().unwrap();
+        let ip_r = mult(xr.clone(), &yr, false);
+        let x_blind = mult(x, &xr, false);
+        let y_blind = mult(y, &yr, false);
+        let ip_blind = mult(ip, &ip_r, false);
+        let x = open(&x_blind);
+        let y = open(&y_blind);
+        let z = open(&ip_blind);
         assert_eq!(x * &y, z);
     }
 
@@ -874,7 +889,7 @@ pub mod group {
             other: Self::FieldShare,
             _source: &mut S,
         ) -> Self {
-            mult(&other, self)
+            mult(&other, self, true)
         }
 
         fn multi_scale_pub_group(bases: &[G], scalars: &[Self::FieldShare]) -> Self {
@@ -1008,6 +1023,7 @@ pub mod group {
     pub fn mult<G: Group, M: Send + 'static>(
         x: &GszFieldShare<G::ScalarField>,
         y: GszGroupShare<G, M>,
+        queue_check: bool,
     ) -> GszGroupShare<G, M> {
         let mut y_cp = y.clone();
         let (r, r2) = double_rand::<G, M>();
@@ -1016,10 +1032,11 @@ pub mod group {
         y_cp.val += r2.val;
         // king just reduces the sharing degree
         let mut shift_res = king_compute(&y_cp, x.degree / 2, |r| r);
-        // TODO: record triple
         shift_res.val -= r.val;
-        let t = GszGroupTriple(x.clone(), y, shift_res);
-        add_type(t);
+        if queue_check {
+            let t = GszGroupTriple(x.clone(), y, shift_res);
+            add_type(t);
+        }
         shift_res
     }
 
@@ -1208,9 +1225,17 @@ pub mod group {
             ys = compressed_ys;
             ip = compressed_ip;
         }
-        let x = field::open(&xs[0]);
-        let y = open(&ys[0]);
-        let z = open(&ip);
+        let xr = field::rand::<G::ScalarField>();
+        let x = xs.pop().unwrap();
+        let yr = field::rand::<G::ScalarField>();
+        let y = ys.pop().unwrap();
+        let ip_r = field::mult(xr, &yr, false);
+        let x_blind = field::mult(x, &xr, false);
+        let y_blind = mult(&yr, y, false);
+        let ip_blind = mult(&ip_r, ip, false);
+        let x = field::open(&x_blind);
+        let y = open(&y_blind);
+        let z = open(&ip_blind);
         assert_eq!(y.mul(&x), z);
     }
 }

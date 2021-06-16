@@ -62,7 +62,7 @@ fn test<F: FftField>() {
         let b_pub = F::rand(rng);
         let a = GszFieldShare::from_public(a_pub);
         let b = GszFieldShare::from_public(b_pub);
-        let c = field::mult(a, &b);
+        let c = field::mult(a, &b, true);
         let c_pub = field::open(&c);
         assert_eq!(c_pub, a_pub * b_pub);
         assert_ne!(c_pub, a_pub * b_pub + F::one());
@@ -79,7 +79,7 @@ fn test<F: FftField>() {
         .iter()
         .map(|b| GszFieldShare::from_public(*b))
         .collect();
-    let c = field::batch_mult(a, &b);
+    let c = field::batch_mult(a, &b, true);
     let c_pub = GszFieldShare::batch_open(c.clone());
     for i in 0..c.len() {
         assert_eq!(c_pub[i], a_pubs[i] * b_pubs[i]);
@@ -119,7 +119,7 @@ fn test_group<G: Group>() {
         let b_pub = G::rand(rng);
         let a = GszFieldShare::from_public(a_pub);
         let b = GszGroupShare::<G, NaiveMsm<G>>::from_public(b_pub);
-        let c = group::mult(&a, b);
+        let c = group::mult(&a, b, true);
         let c_pub = group::open(&c);
         assert_eq!(c_pub, b_pub.mul(&a_pub));
     }
