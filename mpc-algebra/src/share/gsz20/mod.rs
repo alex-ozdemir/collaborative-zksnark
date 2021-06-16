@@ -31,6 +31,7 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
+use ark_std::{start_timer, end_timer};
 use mpc_net::multi as net;
 
 use std::any::{Any, TypeId};
@@ -344,6 +345,7 @@ pub mod field {
     pub fn check_accumulated_field_products<F: FftField>() {
         let to_check = take_types::<GszFieldTriple<F>>();
         if to_check.len() > 0 {
+            let timer = start_timer!(|| format!("Product check: {}", to_check.len()));
             debug!("Open Field: {} checks", to_check.len());
             let mut xs = Vec::new();
             let mut ys = Vec::new();
@@ -354,6 +356,7 @@ pub mod field {
                 zs.push(z);
             }
             hadamard_check(xs, ys, zs);
+            end_timer!(timer);
         }
     }
 
@@ -931,8 +934,7 @@ pub mod group {
 
     /// Open a t-share.
     pub fn open<G: Group, M: Send + 'static>(s: &GszGroupShare<G, M>) -> G {
-        let to_check = take_types::<super::field::GszFieldTriple<G::ScalarField>>();
-        debug!("Open Group: {} field checks", to_check.len());
+        field::check_accumulated_field_products::<G::ScalarField>();
         let to_check = take_types::<GszGroupTriple<G, M>>();
         debug!("Open Group: {} group checks", to_check.len());
         let shares = alg_net::broadcast(&s.val);

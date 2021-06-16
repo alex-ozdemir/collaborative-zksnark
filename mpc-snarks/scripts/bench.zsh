@@ -1,5 +1,7 @@
 #!/usr/bin/env zsh
 set -e
+trap "exit" INT TERM
+trap "kill 0" EXIT
 
 proof=$1
 infra=$2

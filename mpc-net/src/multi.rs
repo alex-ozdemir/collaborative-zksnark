@@ -5,7 +5,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Mutex;
-//use crossbeam::scope;
+
+use ark_std::{end_timer, start_timer};
 
 #[macro_use]
 lazy_static! {
@@ -75,6 +76,7 @@ impl Connections {
         self.id = id;
     }
     fn connect_to_all(&mut self) {
+        let timer = start_timer!(|| "Connecting");
         let n = self.peers.len();
         for from_id in 0..n {
             for to_id in (from_id + 1)..n {
@@ -132,22 +134,27 @@ impl Connections {
                 }
             }
         }
+        // Do a round with the king, to be sure everyone is ready
+        let from_all = self.send_to_king(&[self.id as u8]);
+        self.recv_from_king(from_all);
         for id in 0..n {
             if id != self.id {
                 assert!(self.peers[id].stream.is_some());
             }
         }
+        end_timer!(timer);
     }
     fn am_king(&self) -> bool {
         self.id == 0
     }
     fn broadcast(&mut self, bytes_out: &[u8]) -> Vec<Vec<u8>> {
+        let timer = start_timer!(|| format!("Broadcast {}", bytes_out.len()));
         let m = bytes_out.len();
         let own_id = self.id;
         self.stats.bytes_sent += ((self.peers.len() - 1) * m) as u64;
         self.stats.bytes_recv += ((self.peers.len() - 1) * m) as u64;
         self.stats.broadcasts += 1;
-        self.peers
+        let r = self.peers
             .par_iter_mut()
             .enumerate()
             .map(|(id, peer)| {
@@ -165,13 +172,16 @@ impl Connections {
                 };
                 bytes_in
             })
-            .collect()
+            .collect();
+        end_timer!(timer);
+        r
     }
     fn send_to_king(&mut self, bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
+        let timer = start_timer!(|| format!("To king {}", bytes_out.len()));
         let m = bytes_out.len();
         let own_id = self.id;
         self.stats.king_exchanges += 1;
-        if self.am_king() {
+        let r = if self.am_king() {
             self.stats.bytes_recv += ((self.peers.len() - 1) * m) as u64;
             Some(
                 self.peers
@@ -198,7 +208,9 @@ impl Connections {
                 .write_all(bytes_out)
                 .unwrap();
             None
-        }
+        };
+        end_timer!(timer);
+        r
     }
     fn recv_from_king(&mut self, bytes_out: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         let own_id = self.id;
@@ -206,6 +218,7 @@ impl Connections {
         if self.am_king() {
             let bytes_out = bytes_out.unwrap();
             let m = bytes_out[0].len();
+            let timer = start_timer!(|| format!("From king {}", m));
             let bytes_size = (m as u64).to_le_bytes();
             self.stats.bytes_sent += ((self.peers.len() - 1) * (m + 8)) as u64;
             self.peers
@@ -218,6 +231,7 @@ impl Connections {
                     stream.write_all(&bytes_size).unwrap();
                     stream.write_all(&bytes_out[id]).unwrap();
                 });
+            end_timer!(timer);
             bytes_out[own_id].clone()
         } else {
             let stream = self.peers[0].stream.as_mut().unwrap();

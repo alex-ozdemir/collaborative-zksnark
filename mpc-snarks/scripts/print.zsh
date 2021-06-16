@@ -1,19 +1,20 @@
 #!/usr/bin/env zsh
 set -e
+trap "exit" INT TERM
+trap "kill 0" EXIT
 
 proof=$1
 infra=$2
 size=$3
 if [[ -z $BIN ]]
 then
-    cargo build --release --bin proof
     BIN=./target/release/proof
 fi
 LABEL="timed section"
 
 
 function usage {
-  echo "Usage: $0 {groth16,marlin,plonk} {mpc,local,ark-local} N_SQUARINGS" >&2
+  echo "Usage: $0 {groth16,marlin,plonk} {hbc,spdz,local,ark-local} N_SQUARINGS" >&2
   exit 1
 }
 
@@ -29,20 +30,36 @@ case $proof in
 esac
 
 case $infra in
-    mpc)
-        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 0 &
-        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 0 &
+    hbc|spdz|gsz|local|ark-local)
+        ;;
+    *)
+        usage
+esac
+
+case $infra in
+    hbc|spdz)
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 0 --alg $infra > /dev/null &
         pid0=$!
-        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 1 &> /dev/null &
-        #$BIN -c squaring --computation-size $size mpc --hosts data/2 --party 1 &
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/2 --party 1 --alg $infra &
         pid1=$!
         wait $pid0 $pid1
+    ;;
+    gsz)
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 0 --alg $infra &
+        pid0=$!
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 1 --alg $infra > /dev/null &
+        pid1=$!
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 2 --alg $infra > /dev/null &
+        pid2=$!
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts data/4 --party 3 --alg $infra > /dev/null &
+        pid3=$!
+        wait $pid0 $pid1 $pid2 $pid3
     ;;
     local)
         $BIN -p $proof -c squaring --computation-size $size local
     ;;
     ark-local)
-        $BIN -p $proof -c squaring --computation-size $size ark-local | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s'
+        $BIN -p $proof -c squaring --computation-size $size ark-local
     ;;
     *)
         usage
