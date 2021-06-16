@@ -24,23 +24,8 @@ use super::field::{DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, Fiel
 use super::group::GroupShare;
 use super::msm::*;
 use super::pairing::{AffProjShare, PairingShare};
-use super::BeaverSource;
+use super::{BeaverSource, PanicBeaverSource};
 use crate::Reveal;
-
-#[derive(Derivative)]
-#[derivative(Default(bound = ""), Clone(bound = ""))]
-/// Panics if you ask it for triples.
-pub struct PanicBeaverSource<F>(PhantomData<F>);
-
-impl<F> BeaverSource<F, F, F> for PanicBeaverSource<F> {
-    fn triple(&mut self) -> (F, F, F) {
-        panic!("PanicBeaverSource")
-    }
-
-    fn inv_pair(&mut self) -> (F, F) {
-        panic!("PanicBeaverSource")
-    }
-}
 
 #[inline]
 pub fn mac_share<F: Field>() -> F {

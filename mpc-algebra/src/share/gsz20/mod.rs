@@ -31,7 +31,7 @@ use ark_serialize::{
     CanonicalDeserialize, CanonicalDeserializeWithFlags, CanonicalSerialize,
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
-use ark_std::{start_timer, end_timer};
+use ark_std::{end_timer, start_timer};
 use mpc_net::multi as net;
 
 use std::any::{Any, TypeId};
@@ -1021,6 +1021,197 @@ pub mod group {
         let t = GszGroupTriple(x.clone(), y, shift_res);
         add_type(t);
         shift_res
+    }
+
+    pub fn ip_compute<G: Group, M: Msm<G, G::ScalarField>>(
+        xs: &[GszFieldShare<G::ScalarField>],
+        ys: &[GszGroupShare<G, M>],
+    ) -> GszGroupShare<G, M> {
+        debug_assert!(xs.iter().all(|x| x.degree <= t()));
+        debug_assert!(ys.iter().all(|x| x.degree <= t()));
+        assert_eq!(xs.len(), ys.len());
+        let mut acc = G::zero();
+        let mut degree = 0;
+        for (x, y) in xs.iter().zip(ys) {
+            acc += y.val.mul(&x.val);
+            degree = std::cmp::max(degree, 2 * std::cmp::max(x.degree, y.degree));
+        }
+        let (r, r2) = double_rand::<G, M>();
+        acc += r2.val;
+        let acc_share = GszGroupShare {
+            val: acc,
+            degree,
+            _phants: Default::default(),
+        };
+        let mut shifted_result = king_compute(&acc_share, degree / 2, |r| r);
+        shifted_result.sub(&r);
+        shifted_result
+    }
+
+    /// Compress two inner product checks into one.
+    ///
+    /// Protocol 12.
+    pub fn ip_compress<G: Group, M: Msm<G, G::ScalarField>>(
+        xs1: Vec<GszFieldShare<G::ScalarField>>,
+        ys1: Vec<GszGroupShare<G, M>>,
+        ip1: GszGroupShare<G, M>,
+        xs2: Vec<GszFieldShare<G::ScalarField>>,
+        ys2: Vec<GszGroupShare<G, M>>,
+        ip2: GszGroupShare<G, M>,
+    ) -> (
+        Vec<GszFieldShare<G::ScalarField>>,
+        Vec<GszGroupShare<G, M>>,
+        GszGroupShare<G, M>,
+    ) {
+        let n = xs1.len();
+        debug_assert_eq!(n, xs1.len());
+        debug_assert_eq!(n, xs2.len());
+        debug_assert_eq!(n, ys1.len());
+        debug_assert_eq!(n, ys2.len());
+        // View xs1 as a vector of polynomials evaluated at 1
+        // View xs2 as a vector the same polynomials evaluated at 2
+        // This is a vector of lines.
+        // xs_m holds the slopes.
+        // xs_b holds the y intercepts.
+        let xs_m: Vec<GszFieldShare<G::ScalarField>> = (0..n)
+            .map(|i| {
+                let mut t = xs2[i];
+                t.sub(&xs1[i]);
+                t
+            })
+            .collect();
+        let xs_b: Vec<GszFieldShare<G::ScalarField>> = (0..n)
+            .map(|i| {
+                let mut t = xs1[i];
+                t.sub(&xs_m[i]);
+                t
+            })
+            .collect();
+        // Compute xs3 as a vector of the lines evaluated at 3
+        let xs3: Vec<GszFieldShare<G::ScalarField>> = (0..n)
+            .map(|i| {
+                // x3 = m + x2
+                let mut t = xs2[i];
+                t.add(&xs_m[i]);
+                t
+            })
+            .collect();
+
+        // Same for ys...
+        let ys_m: Vec<GszGroupShare<G, M>> = (0..n)
+            .map(|i| {
+                let mut t = ys2[i];
+                t.sub(&ys1[i]);
+                t
+            })
+            .collect();
+        let ys_b: Vec<GszGroupShare<G, M>> = (0..n)
+            .map(|i| {
+                let mut t = ys1[i];
+                t.sub(&ys_m[i]);
+                t
+            })
+            .collect();
+        let ys3: Vec<GszGroupShare<G, M>> = (0..n)
+            .map(|i| {
+                // y3 = m + y2
+                let mut t = ys2[i];
+                t.add(&ys_m[i]);
+                t
+            })
+            .collect();
+
+        // Compute ip3 from scratch.
+        let ip3 = ip_compute(&xs3, &ys3);
+
+        let r = field::coin::<G::ScalarField>();
+
+        // Now, we want to evaluat the x-functions, y-functions, and ip-function at r.
+        // The x-functions and y-functions are defined as above (lines)
+        let xs_r: Vec<GszFieldShare<G::ScalarField>> = (0..n)
+            .map(|i| {
+                let mut t = xs_m[i];
+                t.scale(&r);
+                t.add(&xs_b[i]);
+                t
+            })
+            .collect();
+        let ys_r: Vec<GszGroupShare<G, M>> = (0..n)
+            .map(|i| {
+                let mut t = ys_m[i];
+                t.scale_pub_scalar(&r);
+                t.add(&ys_b[i]);
+                t
+            })
+            .collect();
+        // The ip-function is a parabola
+        // We need the lagrange basis on 1, 2, 3. It is:
+        // f_1(X) = (X-2)(X-3)/2
+        // f_2(X) = (X-1)(X-3)/-1
+        // f_3(X) = (X-1)(X-2)/2
+        let ip_r = {
+            let one = G::ScalarField::from(1u8);
+            let two = G::ScalarField::from(2u8);
+            let three = G::ScalarField::from(3u8);
+            // evaluate basis polynomials at 1, 2, 3
+            let f_1 = (r - two) * (r - three) / two;
+            let f_2 = -(r - one) * (r - three);
+            let f_3 = (r - one) * (r - two) / two;
+            debug_assert_eq!(ip1.degree, ip2.degree);
+            debug_assert_eq!(ip2.degree, ip3.degree);
+            GszGroupShare {
+                degree: ip1.degree,
+                val: ip1.val.mul(&f_1) + ip2.val.mul(&f_2) + ip3.val.mul(&f_3),
+                _phants: Default::default(),
+            }
+        };
+        (xs_r, ys_r, ip_r)
+    }
+
+    /// Check an IP, recursively shrinking it
+    ///
+    /// Protocols 14, 15
+    pub fn ip_check<G: Group, M: Msm<G, G::ScalarField>>(
+        mut xs: Vec<GszFieldShare<G::ScalarField>>,
+        mut ys: Vec<GszGroupShare<G, M>>,
+        mut ip: GszGroupShare<G, M>,
+    ) {
+        // print_list!(xs);
+        // print_list!(ys);
+        // dd!(ip);
+        debug_assert_eq!(xs.len(), ys.len());
+        while xs.len() > 1 {
+            if xs.len() % 2 == 1 {
+                xs.push(GszFieldShare::from_public(G::ScalarField::zero()));
+                ys.push(GszGroupShare::from_public(G::zero()));
+            }
+            let n = xs.len() / 2;
+            let xs_r = xs.split_off(n);
+            let xs_l = xs;
+            let ys_r = ys.split_off(n);
+            let ys_l = ys;
+            let ip_l = ip_compute(&xs_l, &ys_l);
+            let ip_r = {
+                let mut t = ip;
+                t.sub(&ip_l);
+                t
+            };
+            //     print_list!(xs_l);
+            //     print_list!(ys_l);
+            //     dd!(ip_l);
+            //     print_list!(xs_r);
+            //     print_list!(ys_r);
+            //     dd!(ip_r);
+            let (compressed_xs, compressed_ys, compressed_ip) =
+                ip_compress(xs_l, ys_l, ip_l, xs_r, ys_r, ip_r);
+            xs = compressed_xs;
+            ys = compressed_ys;
+            ip = compressed_ip;
+        }
+        let x = field::open(&xs[0]);
+        let y = open(&ys[0]);
+        let z = open(&ip);
+        assert_eq!(y.mul(&x), z);
     }
 }
 

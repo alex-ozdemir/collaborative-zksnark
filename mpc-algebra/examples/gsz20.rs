@@ -87,7 +87,7 @@ fn test<F: FftField>() {
 }
 
 fn test_mul_field<E: PairingEngine>() {
-    use mpc_algebra::share::spdz::PanicBeaverSource;
+    use mpc_algebra::share::PanicBeaverSource;
     let rng = &mut ark_std::test_rng();
     let g = E::pairing(
         E::G1Affine::prime_subgroup_generator(),
@@ -136,6 +136,35 @@ fn test_group<G: Group>() {
     );
     let as1s2_pub = group::open(&as1s2);
     assert_eq!(as1s2_pub, a_pub.mul(&s1_pub).mul(&s2_pub));
+    test_group_ip::<G>();
+}
+
+fn test_group_ip<G: Group>() {
+    let rng = &mut ark_std::test_rng();
+    let iters = 2;
+    let size = 10;
+    for _iter in 0..iters {
+        let a_pubs: Vec<G::ScalarField> = (0..size).map(|_| G::ScalarField::rand(rng)).collect();
+        let b_pubs: Vec<G> = (0..size).map(|_| G::rand(rng)).collect();
+        //let a_pubs: Vec<F> = (0..size).map(|i| F::from(i as u32)).collect();
+        //let b_pubs: Vec<F> = (0..size).map(|i| F::from(i as u32)).collect();
+        //let a_pubs: Vec<F> = vec![2u8, 1u8].into_iter().map(F::from).collect();
+        //let b_pubs: Vec<F> = vec![2u8, 1u8].into_iter().map(F::from).collect();
+        let ip_pub = a_pubs
+            .iter()
+            .zip(&b_pubs)
+            .fold(G::zero(), |x, (a, b)| x + b.mul(a));
+        let a: Vec<_> = a_pubs
+            .iter()
+            .map(|a| GszFieldShare::from_public(*a))
+            .collect();
+        let b: Vec<_> = b_pubs
+            .iter()
+            .map(|b| GszGroupShare::<G, NaiveMsm<G>>::from_public(*b))
+            .collect();
+        let ip = GszGroupShare::from_public(ip_pub);
+        group::ip_check(a, b, ip);
+    }
 }
 
 fn test_pairing<E: PairingEngine, S: PairingShare<E>>() {
