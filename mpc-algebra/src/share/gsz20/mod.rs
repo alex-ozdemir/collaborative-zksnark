@@ -1238,6 +1238,44 @@ pub mod group {
         let z = open(&ip_blind);
         assert_eq!(y.mul(&x), z);
     }
+
+    /// Convert a hadamard check into an IP check
+    ///
+    /// Protocol 13.
+    pub fn hadamard_check<G: Group, M: Msm<G, G::ScalarField>>(
+        mut xs: Vec<GszFieldShare<G::ScalarField>>,
+        ys: Vec<GszGroupShare<G, M>>,
+        zs: Vec<GszGroupShare<G, M>>,
+    ) {
+        let r = field::coin::<G::ScalarField>();
+        let mut rzs_sum = GszGroupShare::from_public(G::zero());
+        let mut r_i = G::ScalarField::one();
+        for (x, mut z) in xs.iter_mut().zip(zs) {
+            x.scale(&r_i);
+            z.scale_pub_scalar(&r_i);
+            rzs_sum.add(&z);
+            r_i *= &r;
+        }
+        ip_check(xs, ys, rzs_sum);
+    }
+
+    pub fn check_accumulated_group_products<G: Group, M: Msm<G, G::ScalarField>>() {
+        let to_check = take_types::<GszGroupTriple<G, M>>();
+        if to_check.len() > 0 {
+            let timer = start_timer!(|| format!("Group product checks: {}", to_check.len()));
+            debug!("Open Group: {} checks", to_check.len());
+            let mut xs = Vec::new();
+            let mut ys = Vec::new();
+            let mut zs = Vec::new();
+            for GszGroupTriple(x, y, z) in to_check {
+                xs.push(x);
+                ys.push(y);
+                zs.push(z);
+            }
+            hadamard_check(xs, ys, zs);
+            end_timer!(timer);
+        }
+    }
 }
 
 pub use group::GszGroupShare;
