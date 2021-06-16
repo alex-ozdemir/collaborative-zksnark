@@ -24,7 +24,7 @@ use ark_ff::{
     FftField,
 };
 use ark_poly::{
-    domain::{EvaluationDomain, GeneralEvaluationDomain},
+    domain::{EvaluationDomain, GeneralEvaluationDomain, MixedRadixEvaluationDomain},
     Polynomial, UVPolynomial,
 };
 use ark_serialize::{
@@ -93,9 +93,10 @@ pub fn t() -> usize {
     (net::n_parties() - 1) / 2
 }
 
-pub fn domain<F: FftField>() -> GeneralEvaluationDomain<F> {
-    let d = GeneralEvaluationDomain::new(net::n_parties()).unwrap();
-    assert_eq!(d.size(), net::n_parties());
+pub fn domain<F: FftField>() -> impl EvaluationDomain<F> {
+    let d = MixedRadixEvaluationDomain::new(net::n_parties()).unwrap();
+    assert_eq!(d.size(), net::n_parties(),
+        "Attempted to build an evaluation domain of size {}, but could only get one of size {}.\nThis domain is needed in order to support Shamir shares for this many parties", net::n_parties(), d.size(), );
     d
 }
 
@@ -639,7 +640,11 @@ pub mod field {
             let f_1 = (r - F::from(2u8)) * (r - F::from(3u8)) / F::from(2u8);
             let f_2 = -(r - F::from(1u8)) * (r - F::from(3u8));
             let f_3 = (r - F::from(1u8)) * (r - F::from(2u8)) / F::from(2u8);
-            let degree = (&[ip1.degree, ip2.degree, ip3.degree]).iter().max().unwrap().clone();
+            let degree = (&[ip1.degree, ip2.degree, ip3.degree])
+                .iter()
+                .max()
+                .unwrap()
+                .clone();
             GszFieldShare {
                 degree,
                 val: f_1 * ip1.val + f_2 * ip2.val + f_3 * ip3.val,
@@ -1353,8 +1358,20 @@ macro_rules! groups_share {
     };
 }
 
-groups_share!(GszG1Share, G1Affine, G1Projective, GszG1AffineMsm, GszG1ProjectiveMsm);
-groups_share!(GszG2Share, G2Affine, G2Projective, GszG2AffineMsm, GszG2ProjectiveMsm);
+groups_share!(
+    GszG1Share,
+    G1Affine,
+    G1Projective,
+    GszG1AffineMsm,
+    GszG1ProjectiveMsm
+);
+groups_share!(
+    GszG2Share,
+    G2Affine,
+    G2Projective,
+    GszG2AffineMsm,
+    GszG2ProjectiveMsm
+);
 
 pub mod mul_field {
     use super::*;
