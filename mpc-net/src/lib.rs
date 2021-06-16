@@ -31,6 +31,8 @@ pub trait MpcNet {
     fn am_king() -> bool {
         Self::party_id() == 0
     }
+    /// How many parties are there?
+    fn n_parties() -> usize;
     /// What is my party number (0 to n-1)?
     fn party_id() -> usize;
     /// Initialize the network layer from a file.

@@ -17,6 +17,7 @@ macro_rules! dd {
     };
 }
 
+use crate::channel::MpcSerNet;
 use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
@@ -32,7 +33,7 @@ use ark_serialize::{
     CanonicalSerializeWithFlags, Flags, SerializationError,
 };
 use ark_std::{end_timer, start_timer};
-use mpc_net::multi as net;
+use mpc_net::{MpcMultiNet as Net, MpcNet};
 
 use std::any::{Any, TypeId};
 use std::borrow::Cow;
@@ -53,7 +54,6 @@ use super::field::{
     DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare, SparsePolynomial,
 };
 use super::BeaverSource;
-use crate::channel::multi as alg_net;
 use crate::msm::Msm;
 use crate::share::pairing::{AffProjShare, PairingShare};
 use crate::Reveal;
@@ -90,13 +90,13 @@ fn add_types<T: Any + Send>(ts: Vec<T>) {
 
 /// Malicious degree
 pub fn t() -> usize {
-    (net::n_parties() - 1) / 2
+    (Net::n_parties() - 1) / 2
 }
 
 pub fn domain<F: FftField>() -> impl EvaluationDomain<F> {
-    let d = MixedRadixEvaluationDomain::new(net::n_parties()).unwrap();
-    assert_eq!(d.size(), net::n_parties(),
-        "Attempted to build an evaluation domain of size {}, but could only get one of size {}.\nThis domain is needed in order to support Shamir shares for this many parties", net::n_parties(), d.size(), );
+    let d = MixedRadixEvaluationDomain::new(Net::n_parties()).unwrap();
+    assert_eq!(d.size(), Net::n_parties(),
+        "Attempted to build an evaluation domain of size {}, but could only get one of size {}.\nThis domain is needed in order to support Shamir shares for this many parties", Net::n_parties(), d.size(), );
     d
 }
 
@@ -188,16 +188,16 @@ pub mod field {
             self.val
         }
         fn king_share<R: Rng>(f: Self::Base, _rng: &mut R) -> Self {
-            let fs = vec![f; net::n_parties()];
-            let king_f = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            let fs = vec![f; Net::n_parties()];
+            let king_f = Net::recv_from_king(if Net::am_king() { Some(fs) } else { None });
             Self {
                 val: king_f,
                 degree: t(),
             }
         }
         fn king_share_batch<R: Rng>(f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
-            let fs = vec![f; net::n_parties()];
-            let king_fs = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            let fs = vec![f; Net::n_parties()];
+            let king_fs = Net::recv_from_king(if Net::am_king() { Some(fs) } else { None });
             king_fs
                 .into_iter()
                 .map(|king_f| Self {
@@ -367,7 +367,7 @@ pub mod field {
     /// Open a t-share.
     pub fn open<F: FftField>(s: &GszFieldShare<F>) -> F {
         check_accumulated_field_products::<F>();
-        let shares = alg_net::broadcast(&s.val);
+        let shares = Net::broadcast(&s.val);
         open_degree_vec(shares, s.degree)
     }
 
@@ -397,14 +397,14 @@ pub mod field {
         new_degree: usize,
         f: Func,
     ) -> GszFieldShare<F> {
-        let king_answer = alg_net::send_to_king(&share.val).map(|shares| {
+        let king_answer = Net::send_to_king(&share.val).map(|shares| {
             let n = shares.len();
             let value = open_degree_vec(shares, share.degree);
             let output = f(value);
             // TODO: randomize
             vec![output; n]
         });
-        let from_king = alg_net::recv_from_king(king_answer.as_ref());
+        let from_king = Net::recv_from_king(king_answer);
         GszFieldShare {
             degree: new_degree,
             val: from_king,
@@ -424,7 +424,7 @@ pub mod field {
         f: Func,
     ) -> Vec<GszFieldShare<F>> {
         let values: Vec<F> = shares.iter().map(|s| s.val).collect();
-        let king_answer = alg_net::send_to_king(&values).map(|all_shares| {
+        let king_answer = Net::send_to_king(&values).map(|all_shares| {
             let n = all_shares.len();
             let mut outputs = vec![Vec::new(); n];
             for i in 0..all_shares[0].len() {
@@ -438,7 +438,7 @@ pub mod field {
             assert_eq!(outputs[0].len(), all_shares[0].len());
             outputs
         });
-        let from_king = alg_net::recv_from_king(king_answer.as_ref());
+        let from_king = Net::recv_from_king(king_answer);
         from_king
             .into_iter()
             .map(|from_king| GszFieldShare {
@@ -838,8 +838,8 @@ pub mod group {
             self.val
         }
         fn king_share<R: Rng>(f: Self::Base, _rng: &mut R) -> Self {
-            let fs = vec![f; net::n_parties()];
-            let king_f = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            let fs = vec![f; Net::n_parties()];
+            let king_f = Net::recv_from_king(if Net::am_king() { Some(fs) } else { None });
             Self {
                 val: king_f,
                 degree: t(),
@@ -847,8 +847,8 @@ pub mod group {
             }
         }
         fn king_share_batch<R: Rng>(f: Vec<Self::Base>, _rng: &mut R) -> Vec<Self> {
-            let fs = vec![f; net::n_parties()];
-            let king_fs = alg_net::recv_from_king(if net::am_king() { Some(&fs) } else { None });
+            let fs = vec![f; Net::n_parties()];
+            let king_fs = Net::recv_from_king(if Net::am_king() { Some(fs) } else { None });
             king_fs
                 .into_iter()
                 .map(|king_f| Self {
@@ -957,13 +957,13 @@ pub mod group {
 
     /// Open a t-share.
     pub fn open<G: Group, M: Send + 'static>(s: &GszGroupShare<G, M>) -> G {
-        let shares = alg_net::broadcast(&s.val);
+        let shares = Net::broadcast(&s.val);
         open_degree_vec(shares, s.degree)
     }
 
     fn open_degree_vec<G: Group>(shares: Vec<G>, d: usize) -> G {
         let domain = domain::<G::ScalarField>();
-        let n = net::n_parties();
+        let n = Net::n_parties();
         let n_inv = G::ScalarField::from(n as u32).inverse().unwrap();
         let w = domain.element(1);
         let w_inv = w.inverse().unwrap();
@@ -1008,14 +1008,14 @@ pub mod group {
         new_degree: usize,
         f: Func,
     ) -> GszGroupShare<G, M> {
-        let king_answer = alg_net::send_to_king(&share.val).map(|shares| {
+        let king_answer = Net::send_to_king(&share.val).map(|shares| {
             let n = shares.len();
             let value = open_degree_vec(shares, share.degree);
             let output = f(value);
             // TODO: randomize
             vec![output; n]
         });
-        let from_king = alg_net::recv_from_king(king_answer.as_ref());
+        let from_king = Net::recv_from_king(king_answer);
         GszGroupShare {
             degree: new_degree,
             val: from_king,
@@ -1530,13 +1530,13 @@ pub mod mul_field {
 
     /// Open a t-share.
     pub fn open_mul_field<F: Field, S: PrimeField>(s: &MulFieldShare<F, S>) -> F {
-        let shares = alg_net::broadcast(&s.val);
+        let shares = Net::broadcast(&s.val);
         open_degree_vec::<F, S>(shares, s.degree)
     }
 
     fn open_degree_vec<F: Field, S: PrimeField>(shares: Vec<F>, d: usize) -> F {
         let domain = domain::<S>();
-        let n = net::n_parties();
+        let n = Net::n_parties();
         let n_inv = S::from(n as u32).inverse().unwrap();
         let w = domain.element(1);
         let w_inv = w.inverse().unwrap();

@@ -13,7 +13,7 @@ pub trait MpcSerNet: MpcNet {
     fn broadcast<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Vec<T> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
-        let bytes_in = Self::broadcast(&bytes_out);
+        let bytes_in = Self::broadcast_bytes(&bytes_out);
         bytes_in
             .into_iter()
             .map(|b| T::deserialize(&b[..]).unwrap())
@@ -24,7 +24,7 @@ pub trait MpcSerNet: MpcNet {
     fn send_to_king<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Option<Vec<T>> {
         let mut bytes_out = Vec::new();
         out.serialize(&mut bytes_out).unwrap();
-        Self::send_to_king(&bytes_out).map(|bytes_in| {
+        Self::send_bytes_to_king(&bytes_out).map(|bytes_in| {
             bytes_in
                 .into_iter()
                 .map(|b| T::deserialize(&b[..]).unwrap())
@@ -34,7 +34,7 @@ pub trait MpcSerNet: MpcNet {
 
     #[inline]
     fn recv_from_king<T: CanonicalDeserialize + CanonicalSerialize>(out: Option<Vec<T>>) -> T {
-        let bytes_in = Self::recv_from_king(out.map(|outs| {
+        let bytes_in = Self::recv_bytes_from_king(out.map(|outs| {
             outs.iter()
                 .map(|out| {
                     let mut bytes_out = Vec::new();
@@ -82,8 +82,6 @@ pub trait MpcSerNet: MpcNet {
 }
 
 impl<N: MpcNet> MpcSerNet for N {}
-
-pub mod multi;
 
 const ALLOW_CHEATING: Cell<bool> = Cell::new(true);
 

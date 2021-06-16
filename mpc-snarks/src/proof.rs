@@ -14,6 +14,7 @@ use clap::arg_enum;
 use log::debug;
 use mpc_algebra::{channel, MpcPairingEngine, PairingShare, Reveal};
 use structopt::StructOpt;
+use mpc_net::{MpcNet, MpcMultiNet, MpcTwoNet};
 
 use std::path::PathBuf;
 
@@ -356,7 +357,7 @@ impl ShareInfo {
                 mpc_net::two::init_from_path(self.hosts.to_str().unwrap(), self.party as usize)
             }
             MpcAlg::Gsz => {
-                mpc_net::multi::init_from_path(self.hosts.to_str().unwrap(), self.party as usize)
+                MpcMultiNet::init_from_file(self.hosts.to_str().unwrap(), self.party as usize)
             }
         }
     }
@@ -364,7 +365,7 @@ impl ShareInfo {
         debug!("Stats: {:#?}", mpc_net::two::stats());
         match self.alg {
             MpcAlg::Spdz | MpcAlg::Hbc => mpc_net::two::deinit(),
-            MpcAlg::Gsz => mpc_net::multi::uninit(),
+            MpcAlg::Gsz => MpcMultiNet::deinit(),
         }
     }
     fn run<E: PairingEngine, B: SnarkBench>(

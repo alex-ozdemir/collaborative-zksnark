@@ -246,6 +246,11 @@ impl MpcNet for MpcTwoNet {
     }
 
     #[inline]
+    fn n_parties() -> usize {
+        2
+    }
+
+    #[inline]
     fn init_from_file(path: &str, party_id: usize) {
         get_ch!().init_from_path(path, party_id);
     }

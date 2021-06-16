@@ -8,11 +8,11 @@ use std::sync::Mutex;
 
 use ark_std::{end_timer, start_timer};
 
-use super::{Stats, MpcNet};
+use super::{MpcNet, Stats};
 
 #[macro_use]
 lazy_static! {
-    pub static ref CONNECTIONS: Mutex<Connections> = Mutex::new(Connections::default());
+    static ref CONNECTIONS: Mutex<Connections> = Mutex::new(Connections::default());
 }
 
 /// Macro for locking the FieldChannel singleton in the current scope.
@@ -22,17 +22,18 @@ macro_rules! get_ch {
     };
 }
 
-pub struct Peer {
-    pub id: usize,
-    pub addr: SocketAddr,
-    pub stream: Option<TcpStream>,
+#[derive(Debug)]
+struct Peer {
+    id: usize,
+    addr: SocketAddr,
+    stream: Option<TcpStream>,
 }
 
-#[derive(Default)]
-pub struct Connections {
-    pub id: usize,
-    pub peers: Vec<Peer>,
-    pub stats: Stats,
+#[derive(Default, Debug)]
+struct Connections {
+    id: usize,
+    peers: Vec<Peer>,
+    stats: Stats,
 }
 
 impl std::default::Default for Peer {
@@ -148,7 +149,8 @@ impl Connections {
         self.stats.bytes_sent += (self.peers.len() - 1) * m;
         self.stats.bytes_recv += (self.peers.len() - 1) * m;
         self.stats.broadcasts += 1;
-        let r = self.peers
+        let r = self
+            .peers
             .par_iter_mut()
             .enumerate()
             .map(|(id, peer)| {
@@ -245,55 +247,6 @@ impl Connections {
     }
 }
 
-#[inline]
-pub fn init_from_path(path: &str, id: usize) {
-    let mut ch = get_ch!();
-    ch.init_from_path(path, id);
-    ch.connect_to_all();
-    debug!("Connected");
-}
-
-#[inline]
-pub fn party_number() -> usize {
-    get_ch!().id
-}
-
-#[inline]
-pub fn broadcast(bytes_out: &[u8]) -> Vec<Vec<u8>> {
-    get_ch!().broadcast(bytes_out)
-}
-
-#[inline]
-pub fn send_to_king(bytes_out: &[u8]) -> Option<Vec<Vec<u8>>> {
-    get_ch!().send_to_king(bytes_out)
-}
-
-#[inline]
-pub fn recv_from_king(bytes_out: Option<Vec<Vec<u8>>>) -> Vec<u8> {
-    get_ch!().recv_from_king(bytes_out)
-}
-
-#[inline]
-pub fn am_king() -> bool {
-    get_ch!().am_king()
-}
-
-#[inline]
-pub fn uninit() {
-    get_ch!().uninit();
-    debug!("Unconnected");
-}
-
-#[inline]
-pub fn stats() -> Stats {
-    get_ch!().stats.clone()
-}
-
-#[inline]
-pub fn n_parties() -> usize {
-    get_ch!().peers.len()
-}
-
 pub struct MpcMultiNet;
 
 impl MpcNet for MpcMultiNet {
@@ -303,13 +256,24 @@ impl MpcNet for MpcMultiNet {
     }
 
     #[inline]
+    fn n_parties() -> usize {
+        get_ch!().peers.len()
+    }
+
+    #[inline]
     fn init_from_file(path: &str, party_id: usize) {
-        get_ch!().init_from_path(path, party_id);
+        let mut ch = get_ch!();
+        ch.init_from_path(path, party_id);
+        ch.connect_to_all();
     }
 
     #[inline]
     fn is_init() -> bool {
-        get_ch!().peers.first().map(|p| p.stream.is_some()).unwrap_or(false)
+        get_ch!()
+            .peers
+            .first()
+            .map(|p| p.stream.is_some())
+            .unwrap_or(false)
     }
 
     #[inline]
