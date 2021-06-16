@@ -235,6 +235,7 @@ pub fn am_first() -> bool {
 pub struct MpcTwoNet;
 
 impl MpcNet for MpcTwoNet {
+    #[inline]
     fn party_id() -> usize {
         let first = get_ch!().talk_first;
         if first {
@@ -244,26 +245,32 @@ impl MpcNet for MpcTwoNet {
         }
     }
 
+    #[inline]
     fn init_from_file(path: &str, party_id: usize) {
         get_ch!().init_from_path(path, party_id);
     }
 
+    #[inline]
     fn is_init() -> bool {
         get_ch!().stream.is_some()
     }
 
+    #[inline]
     fn deinit() {
         get_ch!().stream = None;
     }
 
+    #[inline]
     fn reset_stats() {
         get_ch!().stats = Stats::default();
     }
 
+    #[inline]
     fn stats() -> crate::Stats {
         get_ch!().stats.clone()
     }
 
+    #[inline]
     fn broadcast_bytes(bytes: &[u8]) -> Vec<Vec<u8>> {
         let other = get_ch!().exchange_bytes(bytes).unwrap();
         if Self::am_king() {
@@ -273,6 +280,7 @@ impl MpcNet for MpcTwoNet {
         }
     }
 
+    #[inline]
     fn send_bytes_to_king(bytes: &[u8]) -> Option<Vec<Vec<u8>>> {
         let mut ch = get_ch!();
         ch.stats.to_king += 1;
@@ -286,6 +294,7 @@ impl MpcNet for MpcTwoNet {
         }
     }
 
+    #[inline]
     fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         let mut ch = get_ch!();
         ch.stats.from_king += 1;

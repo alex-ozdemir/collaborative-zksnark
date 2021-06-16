@@ -6,6 +6,83 @@ use std::cell::Cell;
 
 use mpc_net::two as net_two;
 
+use mpc_net::MpcNet;
+
+pub trait MpcSerNet: MpcNet {
+    #[inline]
+    fn broadcast<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Vec<T> {
+        let mut bytes_out = Vec::new();
+        out.serialize(&mut bytes_out).unwrap();
+        let bytes_in = Self::broadcast(&bytes_out);
+        bytes_in
+            .into_iter()
+            .map(|b| T::deserialize(&b[..]).unwrap())
+            .collect()
+    }
+
+    #[inline]
+    fn send_to_king<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Option<Vec<T>> {
+        let mut bytes_out = Vec::new();
+        out.serialize(&mut bytes_out).unwrap();
+        Self::send_to_king(&bytes_out).map(|bytes_in| {
+            bytes_in
+                .into_iter()
+                .map(|b| T::deserialize(&b[..]).unwrap())
+                .collect()
+        })
+    }
+
+    #[inline]
+    fn recv_from_king<T: CanonicalDeserialize + CanonicalSerialize>(out: Option<Vec<T>>) -> T {
+        let bytes_in = Self::recv_from_king(out.map(|outs| {
+            outs.iter()
+                .map(|out| {
+                    let mut bytes_out = Vec::new();
+                    out.serialize(&mut bytes_out).unwrap();
+                    bytes_out
+                })
+                .collect()
+        }));
+        T::deserialize(&bytes_in[..]).unwrap()
+    }
+
+    #[inline]
+    fn atomic_broadcast<T: CanonicalDeserialize + CanonicalSerialize>(out: &T) -> Vec<T> {
+        let mut bytes_out = Vec::new();
+        out.serialize(&mut bytes_out).unwrap();
+        let ser_len = bytes_out.len();
+        bytes_out.resize(ser_len + COMMIT_RAND_BYTES, 0);
+        rand::thread_rng().fill_bytes(&mut bytes_out[ser_len..]);
+        let commitment = CommitHash::new().chain(&bytes_out).finalize();
+        // exchange commitments
+        let all_commits = Self::broadcast_bytes(&commitment[..]);
+        // exchange (data || randomness)
+        let all_data = Self::broadcast_bytes(&bytes_out);
+        let self_id = Self::party_id();
+        for i in 0..all_commits.len() {
+            if i != self_id {
+                // check other commitment
+                assert_eq!(
+                    &all_commits[i][..],
+                    &CommitHash::new().chain(&all_data[i]).finalize()[..]
+                );
+            }
+        }
+        all_data
+            .into_iter()
+            .map(|d| T::deserialize(&d[..ser_len]).unwrap())
+            .collect()
+    }
+
+    #[inline]
+    fn king_compute<T: CanonicalDeserialize + CanonicalSerialize>(x: &T, f: impl Fn(Vec<T>) -> Vec<T>) -> T {
+        let king_response = Self::send_to_king(x).map(f);
+        Self::recv_from_king(king_response)
+    }
+}
+
+impl<N: MpcNet> MpcSerNet for N {}
+
 pub mod multi;
 
 const ALLOW_CHEATING: Cell<bool> = Cell::new(true);

@@ -297,38 +297,47 @@ pub fn n_parties() -> usize {
 pub struct MpcMultiNet;
 
 impl MpcNet for MpcMultiNet {
+    #[inline]
     fn party_id() -> usize {
         get_ch!().id
     }
 
+    #[inline]
     fn init_from_file(path: &str, party_id: usize) {
         get_ch!().init_from_path(path, party_id);
     }
 
+    #[inline]
     fn is_init() -> bool {
         get_ch!().peers.first().map(|p| p.stream.is_some()).unwrap_or(false)
     }
 
+    #[inline]
     fn deinit() {
         get_ch!().uninit()
     }
 
+    #[inline]
     fn reset_stats() {
         get_ch!().stats = Stats::default();
     }
 
+    #[inline]
     fn stats() -> crate::Stats {
         get_ch!().stats.clone()
     }
 
+    #[inline]
     fn broadcast_bytes(bytes: &[u8]) -> Vec<Vec<u8>> {
         get_ch!().broadcast(bytes)
     }
 
+    #[inline]
     fn send_bytes_to_king(bytes: &[u8]) -> Option<Vec<Vec<u8>>> {
         get_ch!().send_to_king(bytes)
     }
 
+    #[inline]
     fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         get_ch!().recv_from_king(bytes)
     }
