@@ -8,6 +8,8 @@ use std::sync::Mutex;
 
 use ark_std::{end_timer, start_timer};
 
+use super::{Stats, MpcNet};
+
 #[macro_use]
 lazy_static! {
     pub static ref CONNECTIONS: Mutex<Connections> = Mutex::new(Connections::default());
@@ -18,14 +20,6 @@ macro_rules! get_ch {
     () => {
         CONNECTIONS.lock().expect("Poisoned FieldChannel")
     };
-}
-
-#[derive(Default, Clone)]
-pub struct Stats {
-    pub bytes_sent: u64,
-    pub bytes_recv: u64,
-    pub king_exchanges: u64,
-    pub broadcasts: u64,
 }
 
 pub struct Peer {
@@ -151,8 +145,8 @@ impl Connections {
         let timer = start_timer!(|| format!("Broadcast {}", bytes_out.len()));
         let m = bytes_out.len();
         let own_id = self.id;
-        self.stats.bytes_sent += ((self.peers.len() - 1) * m) as u64;
-        self.stats.bytes_recv += ((self.peers.len() - 1) * m) as u64;
+        self.stats.bytes_sent += (self.peers.len() - 1) * m;
+        self.stats.bytes_recv += (self.peers.len() - 1) * m;
         self.stats.broadcasts += 1;
         let r = self.peers
             .par_iter_mut()
@@ -180,9 +174,9 @@ impl Connections {
         let timer = start_timer!(|| format!("To king {}", bytes_out.len()));
         let m = bytes_out.len();
         let own_id = self.id;
-        self.stats.king_exchanges += 1;
+        self.stats.to_king += 1;
         let r = if self.am_king() {
-            self.stats.bytes_recv += ((self.peers.len() - 1) * m) as u64;
+            self.stats.bytes_recv += (self.peers.len() - 1) * m;
             Some(
                 self.peers
                     .par_iter_mut()
@@ -200,7 +194,7 @@ impl Connections {
                     .collect(),
             )
         } else {
-            self.stats.bytes_sent += m as u64;
+            self.stats.bytes_sent += m;
             self.peers[0]
                 .stream
                 .as_mut()
@@ -214,13 +208,13 @@ impl Connections {
     }
     fn recv_from_king(&mut self, bytes_out: Option<Vec<Vec<u8>>>) -> Vec<u8> {
         let own_id = self.id;
-        self.stats.king_exchanges += 1;
+        self.stats.from_king += 1;
         if self.am_king() {
             let bytes_out = bytes_out.unwrap();
             let m = bytes_out[0].len();
             let timer = start_timer!(|| format!("From king {}", m));
             let bytes_size = (m as u64).to_le_bytes();
-            self.stats.bytes_sent += ((self.peers.len() - 1) * (m + 8)) as u64;
+            self.stats.bytes_sent += (self.peers.len() - 1) * (m + 8);
             self.peers
                 .par_iter_mut()
                 .enumerate()
@@ -238,7 +232,7 @@ impl Connections {
             let mut bytes_size = [0u8; 8];
             stream.read_exact(&mut bytes_size).unwrap();
             let m = u64::from_le_bytes(bytes_size) as usize;
-            self.stats.bytes_recv += m as u64;
+            self.stats.bytes_recv += m;
             let mut bytes_in = vec![0u8; m];
             stream.read_exact(&mut bytes_in).unwrap();
             bytes_in
@@ -298,4 +292,44 @@ pub fn stats() -> Stats {
 #[inline]
 pub fn n_parties() -> usize {
     get_ch!().peers.len()
+}
+
+pub struct MpcMultiNet;
+
+impl MpcNet for MpcMultiNet {
+    fn party_id() -> usize {
+        get_ch!().id
+    }
+
+    fn init_from_file(path: &str, party_id: usize) {
+        get_ch!().init_from_path(path, party_id);
+    }
+
+    fn is_init() -> bool {
+        get_ch!().peers.first().map(|p| p.stream.is_some()).unwrap_or(false)
+    }
+
+    fn deinit() {
+        get_ch!().uninit()
+    }
+
+    fn reset_stats() {
+        get_ch!().stats = Stats::default();
+    }
+
+    fn stats() -> crate::Stats {
+        get_ch!().stats.clone()
+    }
+
+    fn broadcast_bytes(bytes: &[u8]) -> Vec<Vec<u8>> {
+        get_ch!().broadcast(bytes)
+    }
+
+    fn send_bytes_to_king(bytes: &[u8]) -> Option<Vec<Vec<u8>>> {
+        get_ch!().send_to_king(bytes)
+    }
+
+    fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
+        get_ch!().recv_from_king(bytes)
+    }
 }

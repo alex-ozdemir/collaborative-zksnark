@@ -7,6 +7,8 @@ use std::sync::Mutex;
 
 use ark_std::{end_timer, start_timer};
 
+use super::{MpcNet, Stats};
+
 #[macro_use]
 lazy_static! {
     pub static ref CH: Mutex<FieldChannel> = Mutex::new(FieldChannel::default());
@@ -24,9 +26,7 @@ pub struct FieldChannel {
     pub stream: Option<TcpStream>,
     pub self_addr: SocketAddr,
     pub other_addr: SocketAddr,
-    pub bytes_sent: usize,
-    pub bytes_recv: usize,
-    pub exchanges: usize,
+    pub stats: Stats,
     pub talk_first: bool,
 }
 
@@ -37,9 +37,7 @@ impl std::default::Default for FieldChannel {
             stream: None,
             self_addr: "127.0.0.1:8000".parse().unwrap(),
             other_addr: "127.0.0.1:8000".parse().unwrap(),
-            bytes_sent: 0,
-            bytes_recv: 0,
-            exchanges: 0,
+            stats: Stats::default(),
             talk_first: false,
         }
     }
@@ -113,7 +111,7 @@ impl FieldChannel {
         let bytes = (v.len() as u64).to_ne_bytes();
         s.write_all(&bytes[..]).unwrap();
         s.write_all(v).unwrap();
-        self.bytes_sent += bytes.len() + v.len();
+        self.stats.bytes_sent += bytes.len() + v.len();
     }
 
     #[inline]
@@ -123,7 +121,7 @@ impl FieldChannel {
         s.read_exact(&mut len[..]).unwrap();
         let mut bytes = vec![0u8; u64::from_ne_bytes(len) as usize];
         s.read_exact(&mut bytes[..]).unwrap();
-        self.bytes_recv += bytes.len() + len.len();
+        self.stats.bytes_recv += bytes.len() + len.len();
         bytes
     }
 
@@ -166,27 +164,21 @@ impl FieldChannel {
                 }
             }
         }
-        self.exchanges += 1;
-        self.bytes_sent += n;
-        self.bytes_recv += n;
+        self.stats.broadcasts += 1;
+        self.stats.bytes_sent += n;
+        self.stats.bytes_recv += n;
         end_timer!(timer);
         Ok(bytes_in)
     }
 
     #[inline]
-    pub fn stats(&self) -> ChannelStats {
-        ChannelStats {
-            bytes_recv: self.bytes_recv,
-            bytes_sent: self.bytes_sent,
-            exchanges: self.exchanges,
-        }
+    pub fn stats(&self) -> Stats {
+        self.stats.clone()
     }
 
     #[inline]
     pub fn reset_stats(&mut self) {
-        self.bytes_recv = 0;
-        self.bytes_sent = 0;
-        self.exchanges = 0;
+        self.stats = Stats::default();
     }
 }
 
@@ -208,13 +200,6 @@ pub fn deinit() {
     CH.lock().expect("Poisoned FieldChannel").stream = None;
 }
 
-#[derive(Debug)]
-pub struct ChannelStats {
-    pub bytes_sent: usize,
-    pub bytes_recv: usize,
-    pub exchanges: usize,
-}
-
 #[inline]
 pub fn exchange_bytes(bytes_out: &[u8]) -> std::io::Result<Vec<u8>> {
     CH.lock()
@@ -228,7 +213,7 @@ pub fn is_init() -> bool {
 }
 
 #[inline]
-pub fn stats() -> ChannelStats {
+pub fn stats() -> Stats {
     let ch = get_ch!();
     ch.stats()
 }
@@ -245,4 +230,72 @@ pub fn am_first() -> bool {
     let ch = get_ch!();
     assert!(ch.stream.is_some(), "uninit channel");
     ch.talk_first
+}
+
+pub struct MpcTwoNet;
+
+impl MpcNet for MpcTwoNet {
+    fn party_id() -> usize {
+        let first = get_ch!().talk_first;
+        if first {
+            0
+        } else {
+            1
+        }
+    }
+
+    fn init_from_file(path: &str, party_id: usize) {
+        get_ch!().init_from_path(path, party_id);
+    }
+
+    fn is_init() -> bool {
+        get_ch!().stream.is_some()
+    }
+
+    fn deinit() {
+        get_ch!().stream = None;
+    }
+
+    fn reset_stats() {
+        get_ch!().stats = Stats::default();
+    }
+
+    fn stats() -> crate::Stats {
+        get_ch!().stats.clone()
+    }
+
+    fn broadcast_bytes(bytes: &[u8]) -> Vec<Vec<u8>> {
+        let other = get_ch!().exchange_bytes(bytes).unwrap();
+        if Self::am_king() {
+            vec![bytes.to_vec(), other]
+        } else {
+            vec![other, bytes.to_vec()]
+        }
+    }
+
+    fn send_bytes_to_king(bytes: &[u8]) -> Option<Vec<Vec<u8>>> {
+        let mut ch = get_ch!();
+        ch.stats.to_king += 1;
+        if ch.talk_first {
+            let other = ch.recv_vec();
+            debug_assert_eq!(bytes.len(), other.len());
+            Some(vec![bytes.to_vec(), other])
+        } else {
+            ch.send_slice(bytes);
+            None
+        }
+    }
+
+    fn recv_bytes_from_king(bytes: Option<Vec<Vec<u8>>>) -> Vec<u8> {
+        let mut ch = get_ch!();
+        ch.stats.from_king += 1;
+        if ch.talk_first {
+            let mut bytes = bytes.expect("king needs bytes");
+            assert_eq!(bytes.len(), 2);
+            ch.send_slice(&bytes.pop().unwrap());
+            bytes.pop().unwrap()
+        } else {
+            ch.recv_vec()
+        }
+    }
 }
