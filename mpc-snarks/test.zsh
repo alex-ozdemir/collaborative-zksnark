@@ -63,15 +63,15 @@ wait $pid0 $pid1
 # 
 # wait $pid0 $pid1
 # 
-$BIN --hosts data/2 -d merkle 1 2 3 4 --party 0 & ; pid0=$!
-$BIN --hosts data/2 -d merkle 0 0 0 0 --party 1 & ; pid1=$!
-
-wait $pid0 $pid1
-
-$BIN --hosts data/2 -d fri 2 2 1 7 --party 0 & ; pid0=$!
-$BIN --hosts data/2 -d fri 0 0 0 0 --party 1 & ; pid1=$!
-
-wait $pid0 $pid1
+# $BIN --hosts data/2 -d merkle 1 2 3 4 --party 0 & ; pid0=$!
+# $BIN --hosts data/2 -d merkle 0 0 0 0 --party 1 & ; pid1=$!
+# 
+# wait $pid0 $pid1
+# 
+# $BIN --hosts data/2 -d fri 2 2 1 7 --party 0 & ; pid0=$!
+# $BIN --hosts data/2 -d fri 0 0 0 0 --party 1 & ; pid1=$!
+# 
+# wait $pid0 $pid1
 
 # sum-check (G1)
 $BIN --hosts data/2 -d dh 0 4 6 --party 0 & ; pid0=$!

@@ -20,6 +20,7 @@ use mpc_algebra::honest_but_curious as hbc;
 use mpc_algebra::malicious_majority as mm;
 use mpc_algebra::*;
 use mpc_trait::MpcWire;
+use mpc_net::{MpcNet, MpcMultiNet};
 
 use clap::arg_enum;
 use merlin::Transcript;
@@ -482,7 +483,7 @@ impl Computation {
             }
             c => unimplemented!("Cannot run_bls {:?}", c),
         };
-        println!("Stats: {:#?}", mpc_net::two::stats());
+        println!("Stats: {:#?}", MpcMultiNet::stats());
         drop(inputs);
         println!("Outputs:");
         for (i, v) in outputs.iter().enumerate() {
@@ -871,7 +872,7 @@ fn main() -> () {
         env_logger::init();
     }
     let domain = opt.domain();
-    mpc_net::two::init_from_path(opt.hosts.to_str().unwrap(), opt.party as usize);
+    MpcMultiNet::init_from_file(opt.hosts.to_str().unwrap(), opt.party as usize);
     debug!("Start");
     if opt.spdz {
         let inputs = opt
@@ -962,7 +963,7 @@ fn main() -> () {
             d => panic!("Bad domain: {:?}", d),
         }
     }
-    debug!("Stats: {:#?}", mpc_net::two::stats());
-    mpc_net::two::deinit();
+    debug!("Stats: {:#?}", MpcMultiNet::stats());
+    MpcMultiNet::deinit();
     debug!("Done");
 }
