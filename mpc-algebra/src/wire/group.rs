@@ -21,7 +21,7 @@ use std::ops::*;
 use super::super::share::group::GroupShare;
 use super::super::share::BeaverSource;
 use super::field::MpcField;
-use mpc_net::{MpcNet, MpcTwoNet as Net};
+use mpc_net::{MpcNet, MpcMultiNet as Net};
 use crate::Reveal;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]

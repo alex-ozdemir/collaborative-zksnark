@@ -354,7 +354,7 @@ impl ShareInfo {
     fn setup(&self) {
         match self.alg {
             MpcAlg::Spdz | MpcAlg::Hbc => {
-                MpcTwoNet::init_from_file(self.hosts.to_str().unwrap(), self.party as usize)
+                MpcMultiNet::init_from_file(self.hosts.to_str().unwrap(), self.party as usize)
             }
             MpcAlg::Gsz => {
                 MpcMultiNet::init_from_file(self.hosts.to_str().unwrap(), self.party as usize)
@@ -364,7 +364,7 @@ impl ShareInfo {
     fn teardown(&self) {
         debug!("Stats: {:#?}", MpcTwoNet::stats());
         match self.alg {
-            MpcAlg::Spdz | MpcAlg::Hbc => MpcTwoNet::deinit(),
+            MpcAlg::Spdz | MpcAlg::Hbc => MpcMultiNet::deinit(),
             MpcAlg::Gsz => MpcMultiNet::deinit(),
         }
     }

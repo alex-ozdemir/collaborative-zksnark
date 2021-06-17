@@ -19,7 +19,7 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
-use mpc_net::{MpcNet, MpcTwoNet as Net};
+use mpc_net::{MpcNet, MpcMultiNet as Net};
 use crate::channel::MpcSerNet;
 
 use super::field::{

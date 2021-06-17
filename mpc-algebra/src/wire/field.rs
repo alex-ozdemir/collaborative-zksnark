@@ -21,7 +21,7 @@ use std::ops::*;
 use super::super::share::field::FieldShare;
 use super::super::share::BeaverSource;
 use crate::Reveal;
-use mpc_net::{MpcNet, MpcTwoNet as Net};
+use mpc_net::{MpcNet, MpcMultiNet as Net};
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MpcField<F: Field, S: FieldShare<F>> {
