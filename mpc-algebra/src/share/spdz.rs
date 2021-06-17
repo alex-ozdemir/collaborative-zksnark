@@ -16,8 +16,8 @@ use std::hash::Hash;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 
-use crate::channel;
-use mpc_net::two as net_two;
+use mpc_net::{MpcNet, MpcTwoNet as Net};
+use crate::channel::{can_cheat, MpcSerNet};
 
 use super::add::{AdditiveFieldShare, AdditiveGroupShare, MulFieldShare};
 use super::field::{DenseOrSparsePolynomial, DensePolynomial, ExtFieldShare, FieldShare};
@@ -29,7 +29,7 @@ use crate::Reveal;
 
 #[inline]
 pub fn mac_share<F: Field>() -> F {
-    if net_two::am_first() {
+    if Net::am_king() {
         F::one()
     } else {
         F::zero()
@@ -39,7 +39,7 @@ pub fn mac_share<F: Field>() -> F {
 #[inline]
 /// A huge cheat. Useful for importing shares.
 pub fn mac<F: Field>() -> F {
-    if channel::can_cheat() {
+    if can_cheat() {
         F::one()
     } else {
         panic!("Attempted to grab the MAC secret while cheating was not allowed")
@@ -120,12 +120,12 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
     type Base = F;
 
     fn reveal(self) -> F {
-        let other_val: F = channel::exchange(&self.sh.val);
+        let vals: Vec<F> = Net::broadcast(&self.sh.val);
         // _Pragmatic MPC_ 6.6.2
-        let x: F = self.sh.val + other_val;
+        let x: F = vals.iter().sum();
         let dx_t: F = mac_share::<F>() * x - self.mac.val;
-        let other_dx_t: F = channel::atomic_exchange(&dx_t);
-        let sum: F = dx_t + other_dx_t;
+        let all_dx_ts: Vec<F> = Net::atomic_broadcast(&dx_t);
+        let sum: F = all_dx_ts.iter().sum();
         assert!(sum.is_zero());
         x
     }
@@ -142,21 +142,23 @@ impl<F: Field> Reveal for SpdzFieldShare<F> {
         }
     }
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        let r = Self::Base::rand(rng);
-        let share0 = f - r;
-        let share1 = r;
-        let share1 = channel::exchange(&share1);
-        Self::from_add_shared(if net_two::am_first() { share0 } else { share1 })
+        let mut r: Vec<F> = (0..(Net::n_parties()-1)).map(|_| F::rand(rng)).collect();
+        let sum_r: F = r.iter().sum();
+        r.push(f - sum_r);
+        Self::from_add_shared(Net::recv_from_king( if Net::am_king() { Some(r) } else { None }))
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-        let r: Vec<Self::Base> = (0..f.len()).map(|_| Self::Base::rand(rng)).collect();
-        let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
-        let share1 = r;
-        let share1 = channel::exchange(&share1);
-        (if net_two::am_first() { share0 } else { share1 })
-            .into_iter()
-            .map(Self::from_add_shared)
-            .collect()
+        let mut rs: Vec<Vec<Self::Base>> =
+            (0..(Net::n_parties()-1)).map(|_| {
+            (0..f.len()).map(|_| {
+                F::rand(rng)
+            }).collect()
+        }).collect();
+        let final_shares: Vec<Self::Base> = (0..rs[0].len()).map(|i| {
+            f[i] - &rs.iter().map(|r| &r[i]).sum()
+        }).collect();
+        rs.push(final_shares);
+        Net::recv_from_king(if Net::am_king() { Some(rs) } else {None}).into_iter().map(Self::from_add_shared).collect()
     }
 }
 
@@ -164,20 +166,19 @@ impl<F: Field> FieldShare<F> for SpdzFieldShare<F> {
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
         let (s_vals, macs): (Vec<F>, Vec<F>) =
             selfs.into_iter().map(|s| (s.sh.val, s.mac.val)).unzip();
-        let o_vals = channel::exchange(&s_vals);
-        let vals: Vec<F> = s_vals
-            .iter()
-            .zip(o_vals.iter())
-            .map(|(a, b)| *a + b)
-            .collect();
-        let dx_ts: Vec<F> = macs
+        let n = s_vals.len();
+        let all_vals = Net::broadcast(&s_vals);
+        let vals: Vec<F> =
+            (0..n).map(|i| all_vals.iter().map(|v| &v[i]).sum()).collect();
+        let dx_ts: Vec<F> =
+            macs
             .iter()
             .zip(vals.iter())
             .map(|(mac, val)| mac_share::<F>() * val - mac)
             .collect();
-        let o_dx_ts: Vec<F> = channel::atomic_exchange(&dx_ts);
-        for (a, b) in dx_ts.into_iter().zip(o_dx_ts) {
-            let sum: F = a + b;
+        let all_dx_ts: Vec<Vec<F>> = Net::atomic_broadcast(&dx_ts);
+        for i in 0..n {
+            let sum: F = all_dx_ts.iter().map(|dx_ts| &dx_ts[i]).sum();
             assert!(sum.is_zero());
         }
         vals
@@ -259,16 +260,16 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
     type Base = G;
 
     fn reveal(self) -> G {
-        let other_val: G = channel::exchange(&self.sh.val);
+        let vals: Vec<G> = Net::broadcast(&self.sh.val);
         // _Pragmatic MPC_ 6.6.2
-        let x: G = self.sh.val + other_val;
+        let x: G = vals.iter().sum();
         let dx_t: G = {
             let mut t = x.clone();
             t *= mac_share::<G::ScalarField>();
             t - self.mac.val
         };
-        let other_dx_t: G = channel::atomic_exchange(&dx_t);
-        let sum: G = dx_t + other_dx_t;
+        let all_dx_ts: Vec<G> = Net::atomic_broadcast(&dx_t);
+        let sum: G = all_dx_ts.iter().sum();
         assert!(sum.is_zero());
         x
     }
@@ -293,21 +294,23 @@ impl<G: Group, M> Reveal for SpdzGroupShare<G, M> {
         }
     }
     fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-        let r = Self::Base::rand(rng);
-        let share0 = f - r;
-        let share1 = r;
-        let share1 = channel::exchange(&share1);
-        Self::from_add_shared(if net_two::am_first() { share0 } else { share1 })
+        let mut r: Vec<G> = (0..(Net::n_parties()-1)).map(|_| G::rand(rng)).collect();
+        let sum_r: G = r.iter().sum();
+        r.push(f - sum_r);
+        Self::from_add_shared(Net::recv_from_king( if Net::am_king() { Some(r) } else { None }))
     }
     fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-        let r: Vec<Self::Base> = (0..f.len()).map(|_| Self::Base::rand(rng)).collect();
-        let share0: Vec<Self::Base> = f.into_iter().zip(&r).map(|(a, b)| a - b).collect();
-        let share1 = r;
-        let share1 = channel::exchange(&share1);
-        (if net_two::am_first() { share0 } else { share1 })
-            .into_iter()
-            .map(Self::from_add_shared)
-            .collect()
+        let mut rs: Vec<Vec<Self::Base>> =
+            (0..(Net::n_parties()-1)).map(|_| {
+            (0..f.len()).map(|_| {
+                Self::Base::rand(rng)
+            }).collect()
+        }).collect();
+        let final_shares: Vec<Self::Base> = (0..rs[0].len()).map(|i| {
+            f[i] - &rs.iter().map(|r| &r[i]).sum()
+        }).collect();
+        rs.push(final_shares);
+        Net::recv_from_king(if Net::am_king() { Some(rs) } else {None}).into_iter().map(Self::from_add_shared).collect()
     }
 }
 macro_rules! impl_spdz_basics_2_param {
@@ -382,24 +385,19 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
     fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<G> {
         let (s_vals, macs): (Vec<G>, Vec<G>) =
             selfs.into_iter().map(|s| (s.sh.val, s.mac.val)).unzip();
-        let o_vals = channel::exchange(&s_vals);
-        let vals: Vec<G> = s_vals
-            .iter()
-            .zip(o_vals.iter())
-            .map(|(a, b)| *a + b)
-            .collect();
-        let dx_ts: Vec<G> = macs
+        let n = s_vals.len();
+        let all_vals = Net::broadcast(&s_vals);
+        let vals: Vec<G> =
+            (0..n).map(|i| all_vals.iter().map(|v| &v[i]).sum()).collect();
+        let dx_ts: Vec<G> =
+            macs
             .iter()
             .zip(vals.iter())
-            .map(|(mac, val)| {
-                let mut t = *val;
-                t *= mac_share::<G::ScalarField>();
-                t - mac
-            })
+            .map(|(mac, val)| val.mul(&mac_share::<G::ScalarField>()) - mac)
             .collect();
-        let o_dx_ts: Vec<G> = channel::atomic_exchange(&dx_ts);
-        for (a, b) in dx_ts.into_iter().zip(o_dx_ts) {
-            let sum: G = a + b;
+        let all_dx_ts: Vec<Vec<G>> = Net::atomic_broadcast(&dx_ts);
+        for i in 0..n {
+            let sum: G = all_dx_ts.iter().map(|dx_ts| &dx_ts[i]).sum();
             assert!(sum.is_zero());
         }
         vals
@@ -430,7 +428,7 @@ impl<G: Group, M: Msm<G, G::ScalarField>> GroupShare<G> for SpdzGroupShare<G, M>
     }
 
     fn shift(&mut self, other: &G) -> &mut Self {
-        if net_two::am_first() {
+        if Net::am_king() {
             self.sh.shift(other);
         }
         let mut other = other.clone();
@@ -469,12 +467,12 @@ impl<F: Field, S: PrimeField> Reveal for SpdzMulFieldShare<F, S> {
     type Base = F;
 
     fn reveal(self) -> F {
-        let other_val: F = channel::exchange(&self.sh.val);
+        let vals: Vec<F> = Net::broadcast(&self.sh.val);
         // _Pragmatic MPC_ 6.6.2
-        let x: F = self.sh.val * other_val;
+        let x: F = vals.iter().product();
         let dx_t: F = x.pow(&mac_share::<S>().into_repr()) / self.mac.val;
-        let other_dx_t: F = channel::atomic_exchange(&dx_t);
-        let prod: F = dx_t * other_dx_t;
+        let all_dx_ts: Vec<F> = Net::atomic_broadcast(&dx_t);
+        let prod: F = all_dx_ts.iter().product();
         assert!(prod.is_one());
         x
     }
@@ -500,7 +498,7 @@ impl<F: Field, S: PrimeField> FieldShare<F> for SpdzMulFieldShare<F, S> {
     }
 
     fn scale(&mut self, other: &F) -> &mut Self {
-        if net_two::am_first() {
+        if Net::am_king() {
             self.sh.scale(other);
         }
         self.mac.scale(&other.pow(&mac_share::<S>().into_repr()));
@@ -609,7 +607,7 @@ macro_rules! groups_share {
                 mut a: Self::ProjectiveShare,
                 o: &E::$affine,
             ) -> Self::ProjectiveShare {
-                if net_two::am_first() {
+                if Net::am_king() {
                     a.sh.val.add_assign_mixed(&o);
                 }
                 a.mac.val += &o.scalar_mul(mac_share::<E::Fr>());
