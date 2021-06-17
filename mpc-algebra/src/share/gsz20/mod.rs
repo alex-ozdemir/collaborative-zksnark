@@ -296,7 +296,54 @@ pub mod field {
         }
 
         fn inv<S: super::BeaverSource<Self, Self, Self>>(self, _source: &mut S) -> Self {
-            todo!()
+            let mut r = rand::<F>();
+            let self_r = self.mul(r, _source);
+            let self_r = open(&self_r);
+            let self_r_inv = self_r.inverse().unwrap();
+            r.scale(&self_r_inv);
+            r
+        }
+        fn batch_inv<S: BeaverSource<Self, Self, Self>>(
+            xs: Vec<Self>,
+            source: &mut S,
+        ) -> Vec<Self> {
+            let rs: Vec<_> = (0..xs.len()).map(|_| rand::<F>()).collect();
+            let self_rs = Self::batch_mul(xs, rs.clone(), source);
+            let mut self_rs = Self::batch_open(self_rs);
+            for x in &mut self_rs {
+                x.inverse_in_place().unwrap();
+            }
+            rs.into_iter()
+                .zip(&self_rs)
+                .map(|(mut x, i)| {
+                    x.scale(i);
+                    x
+                })
+                .collect()
+        }
+        fn partial_products<S: BeaverSource<Self, Self, Self>>(
+            x: Vec<Self>,
+            src: &mut S,
+        ) -> Vec<Self> {
+            let n = x.len();
+            let m: Vec<Self> = (0..(n+1)).map(|_| rand::<F>()).collect();
+            let m_inv = Self::batch_inv(m.clone(), src);
+            let mx = Self::batch_mul(m[..n].iter().cloned().collect(), x, src);
+            let mxm = Self::batch_mul(mx, m_inv[1..].iter().cloned().collect(), src);
+            let mut mxm_pub = Self::batch_open(mxm);
+            for i in 1..mxm_pub.len() {
+                let last = mxm_pub[i - 1];
+                mxm_pub[i] *= &last;
+            }
+            let m0 = vec![m[0]; n];
+            let mms = Self::batch_mul(m0, m_inv[1..].iter().cloned().collect(), src);
+            let mut mms_inv = Self::batch_inv(mms, src);
+            //let mms_pub = Self::batch_open(mms);
+            for i in 0..mxm_pub.len() {
+                mms_inv[i].scale(&mxm_pub[i]);
+            }
+            debug_assert!(mxm_pub.len() == n);
+            mms_inv
         }
         fn univariate_div_qr<'a>(
             num: DenseOrSparsePolynomial<Self>,
