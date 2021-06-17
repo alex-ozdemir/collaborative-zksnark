@@ -6,7 +6,7 @@ use mpc_algebra::{
     msm::NaiveMsm, share::field::FieldShare, share::group::GroupShare, share::gsz20::*,
     share::pairing::PairingShare, Reveal,
 };
-use mpc_net::multi;
+use mpc_net::{MpcNet, MpcMultiNet as Net};
 
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -209,7 +209,7 @@ fn main() {
     debug!("Start");
     let opt = Opt::from_args();
     println!("{:?}", opt);
-    multi::init_from_path(opt.input.to_str().unwrap(), opt.id);
+    Net::init_from_file(opt.input.to_str().unwrap(), opt.id);
 
     test::<ark_bls12_377::Fr>();
     test_ip::<ark_bls12_377::Fr>();
@@ -221,5 +221,5 @@ fn main() {
     test_pairing::<ark_bls12_377::Bls12_377, GszPairingShare<ark_bls12_377::Bls12_377>>();
 
     debug!("Done");
-    multi::uninit();
+    Net::deinit();
 }

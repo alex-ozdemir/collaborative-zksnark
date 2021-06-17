@@ -21,7 +21,7 @@ use std::ops::*;
 use super::super::share::group::GroupShare;
 use super::super::share::BeaverSource;
 use super::field::MpcField;
-use mpc_net::two as net_two;
+use mpc_net::{MpcNet, MpcTwoNet as Net};
 use crate::Reveal;
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -46,7 +46,7 @@ impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::FieldShare, S>
     fn triple(&mut self) -> (S, S::FieldShare, S) {
         (
             S::from_add_shared(T::zero()),
-            <S::FieldShare as Reveal>::from_add_shared(if net_two::am_first() {
+            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
@@ -57,12 +57,12 @@ impl<T: Group, S: GroupShare<T>> BeaverSource<S, S::FieldShare, S>
     #[inline]
     fn inv_pair(&mut self) -> (S::FieldShare, S::FieldShare) {
         (
-            <S::FieldShare as Reveal>::from_add_shared(if net_two::am_first() {
+            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
             }),
-            <S::FieldShare as Reveal>::from_add_shared(if net_two::am_first() {
+            <S::FieldShare as Reveal>::from_add_shared(if Net::am_king() {
                 T::ScalarField::one()
             } else {
                 T::ScalarField::zero()
