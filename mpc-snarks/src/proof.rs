@@ -126,7 +126,7 @@ mod squarings {
                 >(a, n);
                 let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
                 end_timer!(computation_timer);
-                MpcTwoNet::reset_stats();
+                MpcMultiNet::reset_stats();
                 let timer = start_timer!(|| timer_label);
                 let proof = channel::without_cheating(|| {
                     create_random_proof::<MpcPairingEngine<E, S>, _, _>(circ_data, &mpc_params, rng)
@@ -188,6 +188,7 @@ mod squarings {
                 let public_inputs = vec![circ_data.chain.last().unwrap().unwrap().reveal()];
                 end_timer!(computation_timer);
 
+                MpcMultiNet::reset_stats();
                 let timer = start_timer!(|| timer_label);
                 let zk_rng = &mut test_rng();
                 let proof = channel::without_cheating(|| {
@@ -278,6 +279,7 @@ mod squarings {
                     MarlinPcPlonk::<E::Fr, E>::universal_setup(n.next_power_of_two(), setup_rng);
                 let (pk, vk) = MarlinPcPlonk::<E::Fr, E>::circuit_setup(&srs, &circ_no_data);
                 let mpc_pk = Reveal::from_public(pk);
+                MpcMultiNet::reset_stats();
                 let t = start_timer!(|| timer_label);
                 let pf = channel::without_cheating(|| {
                     MarlinPcPlonk::<
@@ -352,21 +354,11 @@ struct ShareInfo {
 
 impl ShareInfo {
     fn setup(&self) {
-        match self.alg {
-            MpcAlg::Spdz | MpcAlg::Hbc => {
-                MpcMultiNet::init_from_file(self.hosts.to_str().unwrap(), self.party as usize)
-            }
-            MpcAlg::Gsz => {
-                MpcMultiNet::init_from_file(self.hosts.to_str().unwrap(), self.party as usize)
-            }
-        }
+        MpcMultiNet::init_from_file(self.hosts.to_str().unwrap(), self.party as usize)
     }
     fn teardown(&self) {
-        debug!("Stats: {:#?}", MpcTwoNet::stats());
-        match self.alg {
-            MpcAlg::Spdz | MpcAlg::Hbc => MpcMultiNet::deinit(),
-            MpcAlg::Gsz => MpcMultiNet::deinit(),
-        }
+        debug!("Stats: {:#?}", MpcMultiNet::stats());
+        MpcMultiNet::deinit();
     }
     fn run<E: PairingEngine, B: SnarkBench>(
         &self,
@@ -505,5 +497,4 @@ fn main() {
             TIMED_SECTION_LABEL,
         ),
     }
-    println!("Exchange stats: {:#?}", MpcTwoNet::stats());
 }
