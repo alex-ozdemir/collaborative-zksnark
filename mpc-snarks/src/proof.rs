@@ -13,8 +13,8 @@ use blake2::Blake2s;
 use clap::arg_enum;
 use log::debug;
 use mpc_algebra::{channel, MpcPairingEngine, PairingShare, Reveal};
+use mpc_net::{MpcMultiNet, MpcNet, MpcTwoNet};
 use structopt::StructOpt;
-use mpc_net::{MpcNet, MpcMultiNet, MpcTwoNet};
 
 use std::path::PathBuf;
 
@@ -282,11 +282,15 @@ mod squarings {
                 MpcMultiNet::reset_stats();
                 let t = start_timer!(|| timer_label);
                 let pf = channel::without_cheating(|| {
-                    MarlinPcPlonk::<
+                    let pf = MarlinPcPlonk::<
                         <MpcPairingEngine<E, S> as PairingEngine>::Fr,
                         MpcPairingEngine<E, S>,
-                    >::prove(&mpc_pk, &plonk_circ_data, zk_rng)
-                    .reveal()
+                    >::prove(&mpc_pk, &plonk_circ_data, zk_rng);
+
+                    let reveal_timer = start_timer!(|| "reveal");
+                    let pf = pf.reveal();
+                    end_timer!(reveal_timer);
+                    pf
                 });
                 end_timer!(t);
                 MarlinPcPlonk::<E::Fr, E>::verify(&vk, &circ_no_data, pf, &public_inputs);
@@ -433,6 +437,7 @@ impl FieldOpt {
             FieldOpt::Mpc { party_info, .. } => party_info.teardown(),
             _ => {}
         }
+        println!("Stats: {:#?}", MpcMultiNet::stats());
     }
     fn run<E: PairingEngine, B: SnarkBench>(
         &self,

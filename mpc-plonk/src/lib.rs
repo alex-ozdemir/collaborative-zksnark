@@ -134,6 +134,7 @@ where
         //     assert!(r.is_zero());
         //     q
         // };
+        let q_timer = start_timer!(|| "q");
         let q = {
             // get f(wX) over coset
             let mut f_evals = f.coeffs.clone();
@@ -156,6 +157,7 @@ where
             domain.coset_ifft_in_place(&mut tw_evals);
             DensePolynomial::from_coefficients_vec(tw_evals)
         };
+        end_timer!(q_timer);
         // assert_eq!(q, qq);
         let (q_cmt, q, q_rand) = self.commit("q", q.clone(), None, None).unwrap();
         let k = domain.size();
@@ -345,6 +347,7 @@ where
         p_c: &LabeledCommitment<PC::Commitment>,
         x: F,
     ) -> Result<(F, PC::Proof), Error<PC::Error>> {
+        let timer = start_timer!(|| format!("open: {}", p.label()));
         let pf_p = PC::open(
             &self.pk.pc_ck,
             once(p),
@@ -355,7 +358,10 @@ where
             Some(&mut *self.zk_rng.borrow_mut()),
         )?;
         let mut y = p.polynomial().evaluate(&x);
+        let p_timer = start_timer!(|| "publicize");
         y.publicize();
+        end_timer!(p_timer);
+        end_timer!(timer);
         Ok((y, pf_p))
     }
 
@@ -377,6 +383,7 @@ where
         Error<PC::Error>,
     > {
         debug!("commit: {}", label);
+        let timer = start_timer!(|| format!("commit: {}", label));
         let label_p = LabeledPolynomial::new(format!("{}", label), p, degree, hiding_bound);
         let (mut cs, mut rs) = PC::commit(
             &self.pk.pc_ck,
@@ -390,6 +397,7 @@ where
         self.fs_rng
             .borrow_mut()
             .absorb(&ark_ff::to_bytes![c].expect("failed serialization"));
+        end_timer!(timer);
         Ok((c, label_p, rs.pop().unwrap()))
     }
 

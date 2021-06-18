@@ -279,6 +279,20 @@ pub mod field {
             self
         }
 
+        fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
+            let (self_vec, mut deg_vec): (Vec<F>, Vec<usize>) = selfs.into_iter().map(|s| (s.val, s.degree)).unzip();
+            let timer = start_timer!(|| format!("Batch open: {}", self_vec.len()));
+            let mut all_vals = Net::broadcast(&self_vec);
+            let mut out = Vec::new();
+            while all_vals[0].len() > 0 {
+                let vals: Vec<F> = all_vals.iter_mut().map(|v| v.pop().unwrap()).collect();
+                out.push(open_degree_vec(vals, deg_vec.pop().unwrap()));
+            }
+            out.reverse();
+            end_timer!(timer);
+            out
+        }
+
         /// Multiply two t-shares, consuming a double-share.
         ///
         /// Protocol 8.
