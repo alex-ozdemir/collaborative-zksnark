@@ -35,6 +35,7 @@ use ark_serialize::{
 use ark_std::{end_timer, start_timer};
 use mpc_net::{MpcMultiNet as Net, MpcNet};
 
+use once_cell::sync::OnceCell;
 use std::any::{Any, TypeId};
 use std::borrow::Cow;
 use std::cmp::Ord;
@@ -61,6 +62,7 @@ use crate::Reveal;
 lazy_static! {
     static ref TYPE_LISTS: Mutex<HashMap<TypeId, Vec<Box<dyn Any + Send>>>> =
         Mutex::new(HashMap::new());
+    static ref SHARE_DOMAIN: OnceCell<Box<dyn Any + Send + Sync>> = OnceCell::new();
 }
 
 fn take_types<T: Any + Send>() -> Vec<T> {
@@ -93,11 +95,13 @@ pub fn t() -> usize {
     (Net::n_parties() - 1) / 2
 }
 
-pub fn domain<F: FftField>() -> impl EvaluationDomain<F> {
-    let d = MixedRadixEvaluationDomain::new(Net::n_parties()).unwrap();
-    assert_eq!(d.size(), Net::n_parties(),
-        "Attempted to build an evaluation domain of size {}, but could only get one of size {}.\nThis domain is needed in order to support Shamir shares for this many parties", Net::n_parties(), d.size(), );
-    d
+pub fn domain<F: FftField>() -> &'static MixedRadixEvaluationDomain<F> {
+    SHARE_DOMAIN.get_or_init(|| {
+        let d = MixedRadixEvaluationDomain::<F>::new(Net::n_parties()).unwrap();
+        assert_eq!(d.size(), Net::n_parties(),
+            "Attempted to build an evaluation domain of size {}, but could only get one of size {}.\nThis domain is needed in order to support Shamir shares for this many parties", Net::n_parties(), d.size(), );
+        Box::new(d)
+    }).downcast_ref().unwrap()
 }
 
 pub mod field {
@@ -280,7 +284,8 @@ pub mod field {
         }
 
         fn batch_open(selfs: impl IntoIterator<Item = Self>) -> Vec<F> {
-            let (self_vec, mut deg_vec): (Vec<F>, Vec<usize>) = selfs.into_iter().map(|s| (s.val, s.degree)).unzip();
+            let (self_vec, mut deg_vec): (Vec<F>, Vec<usize>) =
+                selfs.into_iter().map(|s| (s.val, s.degree)).unzip();
             let timer = start_timer!(|| format!("Batch open: {}", self_vec.len()));
             let mut all_vals = Net::broadcast(&self_vec);
             let mut out = Vec::new();
@@ -340,7 +345,7 @@ pub mod field {
             src: &mut S,
         ) -> Vec<Self> {
             let n = x.len();
-            let m: Vec<Self> = (0..(n+1)).map(|_| rand::<F>()).collect();
+            let m: Vec<Self> = (0..(n + 1)).map(|_| rand::<F>()).collect();
             let m_inv = Self::batch_inv(m.clone(), src);
             let mx = Self::batch_mul(m[..n].iter().cloned().collect(), x, src);
             let mxm = Self::batch_mul(mx, m_inv[1..].iter().cloned().collect(), src);
@@ -433,8 +438,13 @@ pub mod field {
     }
 
     fn open_degree_vec<F: FftField>(mut shares: Vec<F>, d: usize) -> F {
+        //let build_domain_timer = start_timer!(|| "domain");
         let domain = domain::<F>();
+        //end_timer!(build_domain_timer);
+        //let ifft_timer = start_timer!(|| "ifft");
         domain.ifft_in_place(&mut shares);
+        //end_timer!(ifft_timer);
+        //let eval_timer = start_timer!(|| "polyeval");
         let p = ark_poly::univariate::DensePolynomial::from_coefficients_vec(shares);
         assert!(
             p.degree() <= d,
@@ -443,7 +453,9 @@ pub mod field {
             p.degree(),
             d
         );
-        p.evaluate(&F::zero())
+        let r = p.evaluate(&F::zero());
+        //end_timer!(eval_timer);
+        r
     }
 
     /// Given
@@ -486,6 +498,7 @@ pub mod field {
     ) -> Vec<GszFieldShare<F>> {
         let values: Vec<F> = shares.iter().map(|s| s.val).collect();
         let king_answer = Net::send_to_king(&values).map(|all_shares| {
+            let kc_timer = start_timer!(|| format!("King computation"));
             let n = all_shares.len();
             let mut outputs = vec![Vec::new(); n];
             for i in 0..all_shares[0].len() {
@@ -497,6 +510,7 @@ pub mod field {
             }
             assert_eq!(outputs.len(), all_shares.len());
             assert_eq!(outputs[0].len(), all_shares[0].len());
+            end_timer!(kc_timer);
             outputs
         });
         let from_king = Net::recv_from_king(king_answer);
@@ -547,6 +561,7 @@ pub mod field {
         y: &[GszFieldShare<F>],
         queue_check: bool,
     ) -> Vec<GszFieldShare<F>> {
+        let timer = start_timer!(|| format!("Batch mult: {}", x.len()));
         let n = x.len();
         let d = x[0].degree;
         assert_eq!(x.len(), y.len());
@@ -559,7 +574,9 @@ pub mod field {
             x.val += r2.val;
         }
         // king just reduces the sharing degree
+        let kc_timer = start_timer!(|| format!("King compute wrapper"));
         let mut shift_res = batch_king_compute(&x_cp, x_cp[0].degree / 2, |r| r);
+        end_timer!(kc_timer);
         for (shift_res, r) in shift_res.iter_mut().zip(r) {
             shift_res.val -= r.val;
         }
@@ -572,6 +589,7 @@ pub mod field {
                 .collect();
             add_types(triples);
         }
+        end_timer!(timer);
         shift_res
     }
 
@@ -968,9 +986,14 @@ pub mod group {
                 0
             };
             assert!(scalars.iter().all(|s| s.degree == degree));
+            let s_t = start_timer!(|| "Collecting scalar shares");
             let scalars: Vec<G::ScalarField> = scalars.into_iter().map(|s| s.val.clone()).collect();
+            end_timer!(s_t);
+            let msm_t = start_timer!(|| "MSM");
+            let msm = M::msm(bases, &scalars);
+            end_timer!(msm_t);
             Self {
-                val: M::msm(bases, &scalars),
+                val: msm,
                 degree,
                 _phants: Default::default(),
             }

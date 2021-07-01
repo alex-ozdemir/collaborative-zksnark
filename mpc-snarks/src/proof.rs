@@ -129,9 +129,12 @@ mod squarings {
                 MpcMultiNet::reset_stats();
                 let timer = start_timer!(|| timer_label);
                 let proof = channel::without_cheating(|| {
-                    create_random_proof::<MpcPairingEngine<E, S>, _, _>(circ_data, &mpc_params, rng)
-                        .unwrap()
-                        .reveal()
+                    let pf = create_random_proof::<MpcPairingEngine<E, S>, _, _>(circ_data, &mpc_params, rng)
+                        .unwrap();
+                    let reveal_timer = start_timer!(|| "reveal");
+                    let pf = pf.reveal();
+                    end_timer!(reveal_timer);
+                    pf
                 });
                 end_timer!(timer);
 

@@ -25,6 +25,8 @@ use ark_std::{
     hash::Hash,
     ops::{Add, AddAssign, MulAssign, Neg, Sub, SubAssign},
     vec::Vec,
+    start_timer,
+    end_timer,
 };
 use num_traits::Zero;
 use zeroize::Zeroize;
@@ -298,11 +300,13 @@ pub trait AffineCurve:
     /// Perform a multi-scalar multiplication.
     /// That is, compute P = sum_i s_i * P_i
     fn multi_scalar_mul(bases: &[Self], scalars: &[Self::ScalarField]) -> Self::Projective {
+        let msm_timer = start_timer!(|| "Base MSM");
         //assert_eq!(bases.len(), scalars.len());
         let bigint_scalars = cfg_into_iter!(scalars)
             .map(|s| s.into_repr())
             .collect::<Vec<_>>();
         let product = crate::msm::VariableBaseMSM::multi_scalar_mul(&bases, &bigint_scalars);
+        end_timer!(msm_timer);
         product
     }
     fn scalar_mul<S: Into<Self::ScalarField>>(&self, other: S)

@@ -37,8 +37,10 @@ where
     //use ark_ff::One;
     //let r = <E as PairingEngine>::Fr::one();
     //let s = <E as PairingEngine>::Fr::one();
+    let t = start_timer!(|| "zk sampling");
     let r = <E as PairingEngine>::Fr::rand(rng);
     let s = <E as PairingEngine>::Fr::rand(rng);
+    end_timer!(t);
 
     create_proof::<E, C>(circuit, pk, r, s)
 }
@@ -218,7 +220,7 @@ fn calculate_coeff<G: AffineCurve>(
     assignment: &[G::ScalarField],
 ) -> G::Projective where {
     let el = query[0];
-    let t = start_timer!(|| "MSM");
+    let t = start_timer!(|| format!("MSM size {} {}", query.len() - 1, assignment.len()));
     let acc = G::multi_scalar_mul(&query[1..], assignment);
     end_timer!(t);
     let mut res = initial;

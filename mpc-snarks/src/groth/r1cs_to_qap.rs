@@ -1,6 +1,6 @@
 use ark_ff::{One, PrimeField, Zero};
 use ark_poly::EvaluationDomain;
-use ark_std::{cfg_iter, cfg_iter_mut, vec};
+use ark_std::{cfg_iter, cfg_iter_mut, vec, start_timer, end_timer};
 
 use ark_relations::r1cs::{ConstraintSystemRef, Result as R1CSResult, SynthesisError};
 use core::ops::{AddAssign, Deref};
@@ -88,7 +88,9 @@ impl R1CStoQAP {
         domain.coset_fft_in_place(&mut a);
         domain.coset_fft_in_place(&mut b);
         let mut ab = a.clone();
+        let batch_product_timer = start_timer!(|| "batch product");
         F::batch_product_in_place(&mut ab, &b);
+        end_timer!(batch_product_timer);
 
         let mut c = vec![zero; domain_size];
         cfg_iter_mut!(c[..prover.num_constraints])

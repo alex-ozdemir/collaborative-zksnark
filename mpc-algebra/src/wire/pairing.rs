@@ -441,7 +441,10 @@ macro_rules! impl_ext_field_wrapper {
             }
             #[inline]
             fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-                $wrapped::king_share_batch(f, rng).into_iter().map(Self::wrap).collect()
+                $wrapped::king_share_batch(f, rng)
+                    .into_iter()
+                    .map(Self::wrap)
+                    .collect()
             }
         }
         from_prim!(bool, Field, ExtFieldShare, $wrap);
@@ -578,11 +581,16 @@ macro_rules! impl_pairing_curve_wrapper {
             }
             #[inline]
             fn king_share<R: Rng>(f: Self::Base, rng: &mut R) -> Self {
-                Self { val: $wrapped::king_share(f, rng) }
+                Self {
+                    val: $wrapped::king_share(f, rng),
+                }
             }
             #[inline]
             fn king_share_batch<R: Rng>(f: Vec<Self::Base>, rng: &mut R) -> Vec<Self> {
-                $wrapped::king_share_batch(f, rng).into_iter().map(|val| Self { val }).collect()
+                $wrapped::king_share_batch(f, rng)
+                    .into_iter()
+                    .map(|val| Self { val })
+                    .collect()
             }
         }
         impl_pairing_mpc_wrapper!($wrapped, $bound1, $bound2, $base, $share, $wrap);
@@ -749,12 +757,18 @@ macro_rules! impl_aff_proj {
                             let r = $w_pro {
                                 // wat?
                                 val: if true {
-                                    MpcGroup::Shared(<PS::$share_proj as Reveal>::from_public(
-                                        <E::$aff as AffineCurve>::multi_scalar_mul(
-                                            &bases,
-                                            &pub_scalars,
-                                        ),
-                                    ))
+                                    let t1 = start_timer!(|| "do msm");
+                                    let r = <E::$aff as AffineCurve>::multi_scalar_mul(
+                                        &bases,
+                                        &pub_scalars,
+                                    );
+                                    end_timer!(t1);
+                                    let t1 = start_timer!(|| "cast");
+                                    let r = MpcGroup::Shared(
+                                        <PS::$share_proj as Reveal>::from_public(r),
+                                    );
+                                    end_timer!(t1);
+                                    r
                                 } else {
                                     MpcGroup::Public(<E::$aff as AffineCurve>::multi_scalar_mul(
                                         &bases,
