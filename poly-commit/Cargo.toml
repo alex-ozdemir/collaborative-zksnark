@@ -1,0 +1,67 @@
+[package]
+name = "ark-poly-commit"
+version = "0.2.0"
+authors = [
+  "Alessandro Chiesa <alexch@berkeley.edu>",
+  "Mary Maller <mary.maller.15@ucl.ac.uk>",
+  "Yuncong Hu <huyuncongh@gmail.com>",
+  "William Lin",
+  "Pratyush Mishra <pratyush@berkeley.edu>",
+  "Noah Vesely <noah.vesely.18@ucl.ac.uk>",
+  "Nicholas Ward <npward@berkeley.edu>",
+  "arkworks contributors"
+]
+description = "A library for constructing polynomial commitment schemes for use in zkSNARKs"
+repository = "https://github.com/arkworks-rs/poly-commit"
+documentation = "https://docs.rs/ark-poly-commit/"
+keywords = ["cryptography", "commitments", "elliptic-curves", "pairing"]
+categories = ["cryptography"]
+include = ["Cargo.toml", "src", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+
+[dependencies]
+ark-serialize = { path = "../algebra/serialize", version = "^0.2.0", default-features = false, features = [ "derive" ] }
+ark-ff = { path = "../algebra/ff", version = "^0.2.0", default-features = false }
+ark-ec = { path = "../algebra/ec", version = "^0.2.0", default-features = false }
+ark-poly = { path = "../algebra/poly", version = "^0.2.0", default-features = false }
+ark-bls12-377 = { path = "../curves/bls12_377" ,version = "^0.2.0", default-features = false, features = [ "curve" ] }
+
+ark-std = { path = "../utils", default-features = false }
+ark-relations = { path = "../snark/relations", version = "^0.2.0", default-features = false, optional = true }
+ark-r1cs-std = { path = "../r1cs-std", version = "^0.2.0", default-features = false, optional = true }
+ark-nonnative-field = { path = "../nonnative", version = "^0.2.0", default-features = false, optional = true }
+hashbrown = { version = "0.9", optional = true }
+
+digest = "0.9"
+rayon = { version = "1", optional = true }
+derivative = { version = "2", features = [ "use_core" ] }
+
+tracing = { version = "0.1", default-features = false, features = [ "attributes" ] }
+
+mpc-trait = { path = "../mpc-trait" }
+mpc-algebra = { path = "../mpc-algebra" }
+
+[dev-dependencies]
+ark-ed-on-bls12-381 = { version = "^0.2.0", path = "../curves/ed_on_bls12_381", default-features = false }
+ark-bls12-381 = { path = "../curves/bls12_381", version = "^0.2.0", default-features = false, features = [ "curve" ] }
+blake2 = { version = "0.9", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+incremental = true
+debug = true
+
+[profile.test]
+opt-level = 3
+debug-assertions = true
+incremental = true
+debug = true
+
+[features]
+default = [ "std" ]
+std = [ "ark-ff/std", "ark-ec/std", "ark-nonnative-field/std", "ark-poly/std", "ark-std/std", "ark-relations/std", "ark-serialize/std" ]
+r1cs = [ "ark-relations", "ark-r1cs-std", "ark-nonnative-field", "hashbrown" ]
+print-trace = [ "ark-std/print-trace" ]
+parallel = [ "std", "ark-ff/parallel", "ark-ec/parallel", "ark-poly/parallel", "ark-std/parallel", "rayon" ]
