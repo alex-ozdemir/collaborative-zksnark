@@ -1,13 +1,12 @@
 #!/usr/bin/env zsh
-set -e
+trap "exit" INT TERM
+trap "kill 0" EXIT
 
-exit "This file is broken b/c of the host config change. Fix it."
-
-self=$1
-other=$2
-party=$3
-proof=$4
-size=$5
+proof=$1
+infra=$2
+size=$3
+hostsfile=$4
+partyid=$5
 if [[ -z $BIN ]]
 then
     BIN=./target/release/proof
@@ -16,7 +15,7 @@ LABEL="timed section"
 
 
 function usage {
-  echo "Usage: $0 SELF_HOST OTHER_HOST PARTY_N {groth16,marlin,plonk} N_SQUARINGS" >&2
+  echo "Usage: $0 {groth16,marlin,plonk} {hbc,spdz,gsz,local,ark-local} N_SQUARINGS HOSTSFILE PARTY_ID" >&2
   exit 1
 }
 
@@ -31,4 +30,20 @@ case $proof in
         usage
 esac
 
-$BIN -p $proof -c squaring --computation-size $size mpc --host $self --peer-host $other --party $party | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s'
+case $infra in
+    hbc|spdz|gsz|local|ark-local)
+        ;;
+    *)
+        usage
+esac
+
+case $infra in
+    hbc|spdz|gsz)
+        $BIN -p $proof -c squaring --computation-size $size mpc --hosts $hostsfile --party $partyid --alg $infra | rg "End: *$LABEL" | rg -o '[0-9][0-9.]*.s'
+    ;;
+    *)
+        usage
+    ;;
+esac
+
+trap - INT TERM EXIT
