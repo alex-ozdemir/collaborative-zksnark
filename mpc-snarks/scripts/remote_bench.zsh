@@ -25,6 +25,8 @@ if [ "$#" -ne 5 ] ; then
     usage
 fi
 
+sleep 1
+
 case $proof in
     groth16|marlin|plonk)
         ;;

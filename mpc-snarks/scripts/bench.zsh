@@ -42,6 +42,8 @@ case $infra in
         usage
 esac
 
+sleep 1
+
 case $infra in
     hbc|spdz|gsz)
         PROCS=()
