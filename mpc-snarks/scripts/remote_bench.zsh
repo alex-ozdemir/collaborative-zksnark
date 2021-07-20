@@ -2,7 +2,7 @@
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
-pkill proof || echo no proofs running
+pkill proof || true
 
 proof=$1
 infra=$2
