@@ -7,7 +7,7 @@ dd <- dd %>%
   mutate(alg = ifelse(alg == "local1", "Single Prover", alg)) %>%
   mutate(alg = ifelse(alg == "spdz2", "SPDZ 2", alg)) %>%
   mutate(alg = ifelse(alg == "spdz3", "SPDZ 3", alg)) %>%
-  mutate(alg = ifelse(alg == "gsz3", "GSZ 3", alg))%>%
+  mutate(alg = ifelse(alg == "gsz3", "GSZ/DN 3", alg))%>%
   mutate(proof_system = ifelse(proof_system == "groth16", "Groth16", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
@@ -35,5 +35,5 @@ ggplot(dd, mapping = aes(x = size, y = time, color = alg)) +
     x = "Constraints",
     color = "MPC Type"
   )
-ggsave("analysis/plots/mpc.png", width = 8, height = 3.5, units = "in")
+ggsave("analysis/plots/mpc.pdf", width = 8, height = 3, units = "in")
              
