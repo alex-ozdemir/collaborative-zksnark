@@ -5,35 +5,40 @@ dd <- d
 dd$alg <- paste(dd$alg, dd$parties, sep="")
 dd <- dd %>%
   mutate(alg = ifelse(alg == "local1", "Single Prover", alg)) %>%
-  mutate(alg = ifelse(alg == "spdz2", "SPDZ 2", alg)) %>%
-  mutate(alg = ifelse(alg == "spdz3", "SPDZ 3", alg)) %>%
-  mutate(alg = ifelse(alg == "gsz3", "GSZ/DN 3", alg))%>%
+  mutate(alg = ifelse(alg == "spdz2", "2PC: SPDZ", alg)) %>%
+  mutate(alg = ifelse(alg == "spdz3", "3PC: SPDZ", alg)) %>%
+  mutate(alg = ifelse(alg == "gsz3", "3PC: GSZ/DN", alg))%>%
   mutate(proof_system = ifelse(proof_system == "groth16", "Groth16", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
-  mutate()
+  mutate() %>%
+  group_by(alg, proof_system, size) %>%
+  summarise(time=mean(time))
 
 x_breaks = c(0:20 %>% map(function (x) 2 ^x)) %>% as_vector()
 x_labels = c(math_format(2^.x)(0:20))
 c(1,2)
 
-ggplot(dd, mapping = aes(x = size, y = time, color = alg)) +
+ggplot(dd, mapping = aes(x = size, y = time, color = alg, shape = alg)) +
   geom_point() +
   geom_line() +
   facet_wrap(vars(proof_system)) +
   scale_x_continuous(trans = log2_trans(),
-                     limits = c(1, 2^20),
+                     limits = c(2^0, 2^15),
                      breaks = trans_breaks("log2", function(x) 2^x),
                      labels = trans_format("log2", math_format(2^.x))) +
   scale_y_continuous(trans = log2_trans(),
-                     breaks = trans_breaks("log2", function(x) 2^x),
-                     labels = trans_format("log2", math_format(2^.x))) +
+                     breaks = trans_breaks("log2", function(x) 2^x, 4),
+                     labels = trans_format("log2", math_format(2^.x)),
+                     minor_breaks = trans_breaks("log2", function(x) 2^x, 16),
+                     ) +
+  scale_shape_manual(values = c(1, 2, 3, 4)) +
   # scale_x_continuous(trans = "log2",
   #                    breaks = x_breaks) +
   labs(
     y = "Time (s)",
     x = "Constraints",
-    color = "MPC Type"
+    color = "MPC Type",
+    shape = "MPC Type"
   )
-ggsave("analysis/plots/mpc.pdf", width = 8, height = 3, units = "in")
-             
+ggsave("analysis/plots/mpc.pdf", width = 6, height = 2.5, units = "in")
