@@ -7,9 +7,10 @@ if [ ! -f hosts ]; then
   ./analysis/collect/create_vms.zsh 24 1
 fi
 #log2sizes=(1 2 3 4 5)
-log2sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13)
+#log2sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13)
+log2sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)
 proofs=(groth16 plonk marlin)
-trials=1
+trials=3
 
 (
 # 2pc
