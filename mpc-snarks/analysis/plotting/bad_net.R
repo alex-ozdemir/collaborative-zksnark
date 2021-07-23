@@ -17,10 +17,11 @@ ggplot(dd, mapping = aes(x = kb_s / 2^10, y = slowdown, color = proof_system, sh
   geom_point(size=2) +
   geom_line() +
   scale_x_continuous(trans = log2_trans(),
-                     breaks = trans_breaks("log2", function(x) 2^x),
+                     breaks = trans_breaks("log2", function(x) 2^x, 3),
                      labels = trans_format("log2", math_format(2^.x))) +
   scale_y_continuous(trans = log2_trans(),
-                     breaks = trans_breaks("log2", function(x) 2^x),
+                     breaks = trans_breaks("log2", function(x) 2^x, 4),
+                     minor_breaks = trans_breaks("log2", function(x) 2^x, 4),
                      labels = trans_format("log2", math_format(2^.x))) +
   # scale_x_continuous(trans = "log2",
   #                    breaks = x_breaks) +
@@ -28,8 +29,8 @@ ggplot(dd, mapping = aes(x = kb_s / 2^10, y = slowdown, color = proof_system, sh
     y = "Slowdown",
     x = "Bandwidth (Mb/s)",
     color = "Proof System",
-    shape = "Proof System",
+    shape = "Proof System"
   ) + 
   annotate("segment", x = 2^0, xend = 2^6, y =  1, yend= 1) +
-  annotate("text", x = 2^3, y =1, vjust=-0.5, label ="high bandwidth")
-ggsave("analysis/plots/bad_net.pdf", width = 4, height = 3, units = "in")
+  annotate("text", x = 2^3, y =1, vjust=-0.5, label ="high bandwidth", size=2)
+ggsave("analysis/plots/bad_net.pdf", width = 3.00, height = 2.00, units = "in")
