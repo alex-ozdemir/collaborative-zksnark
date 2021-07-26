@@ -7,7 +7,7 @@ dd <- dd %>%
   mutate(alg = ifelse(alg == "local1", "Single Prover", alg)) %>%
   mutate(alg = ifelse(alg == "spdz2", "2PC: SPDZ", alg)) %>%
   mutate(alg = ifelse(alg == "spdz3", "3PC: SPDZ", alg)) %>%
-  mutate(alg = ifelse(alg == "gsz3", "3PC: GSZ/DN", alg))%>%
+  mutate(alg = ifelse(alg == "gsz3", "3PC: GSZ", alg))%>%
   mutate(proof_system = ifelse(proof_system == "groth16", "Groth16", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
