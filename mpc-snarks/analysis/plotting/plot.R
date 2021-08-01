@@ -13,6 +13,7 @@ dd <- dd %>%
   mutate(proof_system = ifelse(proof_system == "groth16", "Groth16", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
+  filter(parties < 4) %>%
   mutate() %>%
   group_by(alg, proof_system, size) %>%
   summarise(time=mean(time))
