@@ -187,7 +187,8 @@ def benchmarks_from_file(path: str) -> List[BenchmarkInput]:
             if a == MARLIN:
                 assert parties >= 2
             if a == GSZ:
-                assert parties >= 3
+                pass
+                #assert parties >= 3
             out.append(BenchmarkInput(ps, a, parties, n, int(s), int(t)))
     return out
 
