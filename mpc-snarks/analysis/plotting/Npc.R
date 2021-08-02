@@ -2,8 +2,8 @@ library(tidyverse)
 library(scales)
 d <- read_csv("./analysis/data/Npc.csv")
 baselines <- data.frame(
-  proof_system = c("Groth16", "Marlin", "Plonk"),
-  baseline = c(0.722, 2.209, 5.642)
+  alg = c("Malicious Maj.", "Honest Maj."),
+  baseline = c(0.726, 0.448)
 )
 dd <- d %>%
   filter(proof_system == "groth16") %>%
@@ -13,9 +13,11 @@ dd <- d %>%
   mutate(alg = ifelse(alg == "gsz", "Honest Maj.", alg)) %>%
   mutate(alg = ifelse(alg == "spdz", "Malicious Maj.", alg)) %>%
   group_by(parties,alg,size,proof_system) %>% summarise(time=mean(time)) %>%
+  left_join(baselines) %>%
+  mutate(slowdown = time/baseline) %>%
   mutate()
 
-ggplot(dd, mapping = aes(x = parties, y = time, color = alg, shape=alg)) +
+ggplot(dd, mapping = aes(x = parties, y = slowdown, color = alg, shape=alg)) +
   geom_point(size=2) +
   geom_line() +
   scale_x_continuous(trans = log2_trans(),
@@ -28,7 +30,7 @@ ggplot(dd, mapping = aes(x = parties, y = time, color = alg, shape=alg)) +
   # scale_x_continuous(trans = "log2",
   #                    breaks = x_breaks) +
   labs(
-    y = "Time (s)",
+    y = "Slowdown",
     x = "Parties",
     color = "MPC Type",
     shape = "MPC Type"
