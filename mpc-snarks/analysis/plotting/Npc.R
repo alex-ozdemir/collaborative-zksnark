@@ -34,5 +34,7 @@ ggplot(dd, mapping = aes(x = parties, y = slowdown, color = alg, shape=alg)) +
     x = "Parties",
     color = "MPC Type",
     shape = "MPC Type"
-  )
+  ) +
+  annotate("segment", x = 2^1, xend = 2^5, y =  1, yend= 1) +
+  annotate("text", x = 2^4.3, y =1, vjust=-0.5, label ="3 parties", size=2)
 ggsave("analysis/plots/Npc.pdf", width = 3.00, height = 2.00, units = "in")
