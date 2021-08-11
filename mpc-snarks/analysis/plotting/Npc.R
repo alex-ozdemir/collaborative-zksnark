@@ -1,20 +1,17 @@
 library(tidyverse)
+library(stringr)
 library(scales)
 d <- read_csv("./analysis/data/Npc.csv")
-baselines <- data.frame(
-  alg = c("Malicious Maj.", "Honest Maj."),
-  baseline = c(0.726, 0.448)
-)
+baseline_time = 0.346
 dd <- d %>%
   filter(proof_system == "groth16") %>%
   mutate(proof_system = ifelse(proof_system == "groth16", "Groth16", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
-  mutate(alg = ifelse(alg == "gsz", "Honest Maj.", alg)) %>%
-  mutate(alg = ifelse(alg == "spdz", "Malicious Maj.", alg)) %>%
-  group_by(parties,alg,size,proof_system) %>% summarise(time=mean(time)) %>%
-  left_join(baselines) %>%
-  mutate(slowdown = time/baseline) %>%
+  mutate(alg = ifelse(alg == "gsz", str_wrap("Honest Maj. (GSZ)",14), alg)) %>%
+  mutate(alg = ifelse(alg == "spdz", str_wrap("Dishonest Maj. (SPDZ)",14), alg)) %>%
+  group_by(parties,alg,size,proof_system) %>% summarise(time=mean(time)) %>% 
+  mutate(slowdown = time/baseline_time) %>%
   mutate()
 
 ggplot(dd, mapping = aes(x = parties, y = slowdown, color = alg, shape=alg)) +
@@ -36,5 +33,6 @@ ggplot(dd, mapping = aes(x = parties, y = slowdown, color = alg, shape=alg)) +
     shape = "MPC Type"
   ) +
   annotate("segment", x = 2^1, xend = 2^5, y =  1, yend= 1) +
-  annotate("text", x = 2^4.3, y =1, vjust=-0.5, label ="3 parties", size=2)
+  annotate("text", x = 2^4.0, y =1, vjust=-0.5, label ="single prover", size=2) +
+  theme(legend.key.height = unit(2, "lines"))
 ggsave("analysis/plots/Npc.pdf", width = 3.00, height = 2.00, units = "in")
