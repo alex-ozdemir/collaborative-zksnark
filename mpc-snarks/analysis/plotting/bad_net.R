@@ -15,7 +15,7 @@ dd <- d %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
   mutate() %>%
-  left_join(baselines) %>%
+  left_join(one_p_time) %>%
   mutate(slowdown = time/baseline)
 
 ggplot(dd, mapping = aes(x = kb_s / 2^10, y = slowdown, color = proof_system, shape=proof_system)) +
