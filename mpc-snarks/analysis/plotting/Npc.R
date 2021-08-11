@@ -19,6 +19,7 @@ ggplot(dd, mapping = aes(x = parties, y = slowdown, color = alg, shape=alg)) +
   geom_line() +
   scale_x_continuous(trans = log2_trans(),
                      breaks = trans_breaks("log2", function(x) 2^x, 5),
+                     minor_breaks = trans_breaks("log2", function(x) 2^x, 5),
                      labels = trans_format("log2", math_format(2^.x))) +
   scale_y_continuous(trans = log2_trans(),
                      breaks = trans_breaks("log2", function(x) 2^x, 4),
