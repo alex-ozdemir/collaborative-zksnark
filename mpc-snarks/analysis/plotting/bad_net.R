@@ -14,6 +14,7 @@ dd <- d %>%
   mutate(proof_system = ifelse(proof_system == "groth16", "Groth16", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
+  group_by(alg,kb_s,proof_system) %>% summarise(time=median(time)) %>% 
   mutate() %>%
   left_join(one_p_time) %>%
   mutate(slowdown = time/baseline)
