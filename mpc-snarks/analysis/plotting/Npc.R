@@ -10,7 +10,7 @@ dd <- d %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
   mutate(alg = ifelse(alg == "gsz", str_wrap("Honest Maj. (GSZ)",14), alg)) %>%
   mutate(alg = ifelse(alg == "spdz", str_wrap("Dishonest Maj. (SPDZ)",14), alg)) %>%
-  group_by(parties,alg,size,proof_system) %>% summarise(time=mean(time)) %>% 
+  group_by(parties,alg,size,proof_system) %>% summarise(time=median(time)) %>% 
   mutate(slowdown = time/baseline_time) %>%
   mutate()
 

@@ -15,7 +15,7 @@ dd <- dd %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
   mutate() %>%
   group_by(alg, proof_system, size) %>%
-  summarise(time=mean(time))
+  summarise(time=median(time))
 
 x_breaks = c(0:20 %>% map(function (x) 2 ^x)) %>% as_vector()
 x_labels = c(math_format(2^.x)(0:20))
