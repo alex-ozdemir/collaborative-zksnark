@@ -4,8 +4,8 @@ trap "kill 0" EXIT
 
 set -xe
 if [ ! -f hosts ]; then
-  ./analysis/collect/create_vms.zsh 48 1 n2-highmem
-  #./analysis/collect/create_vms.zsh 48 1 n2-standard
+  #./analysis/collect/create_vms.zsh 48 1 n2-highmem
+  ./analysis/collect/create_vms.zsh 48 1 n2-standard
 fi
 #log2sizes=(1 2 3 4 5 6)
 log2sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20)
