@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from typing import NamedTuple, List, Tuple
+from typing import NamedTuple, List, Tuple, Optional
 
 import os
 import sys
@@ -140,7 +140,7 @@ class BenchmarkInput(NamedTuple):
     def host_need(self):
         return 1 if self.net == NET_COHOST else self.parties
 
-    def run(self, host_path: str, bin_path: str, hosts: Hosts) -> float:
+    def run(self, host_path: str, bin_path: str, hosts: Hosts) -> Optional[float]:
         count = len(hosts.hosts)
         cmds = [
             [ssh.path, host.str()] + cmd
@@ -154,6 +154,8 @@ class BenchmarkInput(NamedTuple):
             if outputs is None:
                 print("TIMEOUT", self, 'after', self.timeout())
         print('done', self, self.estimated_time(), outputs)
+        if '' in outputs:
+            return None
         return sum(time_str_to_secs(o) for o in outputs) / count
 
     def csv_line(self) -> str:
@@ -367,7 +369,7 @@ while len(benchmarks) < tasks:
             threads.append(t)
     time.sleep(0.01)
     update_ctr += 1
-    update_ctr %= 200
+    update_ctr %= 1000
     if update_ctr == 0:
         print(f"{n_workers-len(machines)}/{n_workers} hosts busy, {len(benchmarks)}/{tasks} tasks done")
         if len(incomplete) < 10:
@@ -384,7 +386,8 @@ with open(args.output, 'w') as f:
     f.write(benchmarks[0].csv_header())
     f.write('\n')
     for r in benchmarks:
-        f.write(r.csv_line())
-        f.write('\n')
+        if r.time is not None:
+            f.write(r.csv_line())
+            f.write('\n')
 
 print("done")

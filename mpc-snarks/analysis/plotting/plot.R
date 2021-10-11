@@ -26,13 +26,13 @@ ggplot(dd, mapping = aes(x = size, y = time, color = alg, shape = alg)) +
   geom_line() +
   facet_wrap(vars(proof_system)) +
   scale_x_continuous(trans = log2_trans(),
-                     limits = c(2^0, 2^15),
+                     limits = c(2^0, 2^20),
                      breaks = trans_breaks("log2", function(x) 2^x),
                      labels = trans_format("log2", math_format(2^.x))) +
   scale_y_continuous(trans = log2_trans(),
-                     breaks = trans_breaks("log2", function(x) 2^x, 4),
+                     breaks = trans_breaks("log2", function(x) 2^x, 5),
                      labels = trans_format("log2", math_format(2^.x)),
-                     minor_breaks = trans_breaks("log2", function(x) 2^x, 16),
+                     minor_breaks = trans_breaks("log2", function(x) 2^x, 21),
                      ) +
   scale_shape_manual(values = c(1, 2, 3, 4, 5, 6)) +
   # scale_x_continuous(trans = "log2",

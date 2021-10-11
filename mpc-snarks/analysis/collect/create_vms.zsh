@@ -6,6 +6,7 @@ set -xe
 
 n=$1
 cores=$2
+ty=$3
 
 IMAGE='with-kill'
 
@@ -14,7 +15,7 @@ function usage {
   exit 1
 }
 
-if [ "$#" -ne 2 ] ; then
+if [ "$#" -ne 3 ] ; then
     usage
 fi
 
@@ -35,7 +36,7 @@ gcloud beta compute instances create $=names \
     --project soe-collaborative-proof \
     --image-project soe-collaborative-proof \
     --image $IMAGE \
-    --machine-type=n2-standard-$((2 * $cores))
+    --machine-type=$ty-$((2 * $cores))
 for name in $=names
 do
   echo $name >> $VM_FILE
