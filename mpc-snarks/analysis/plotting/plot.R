@@ -1,7 +1,7 @@
 library(tidyverse)
 library(stringr)
 library(scales)
-d <- bind_rows(read_csv("./analysis/data/weak.csv"), read_csv("./analysis/data/6pc.csv"))
+d <- bind_rows(read_csv("./analysis/data/weak_1_20.csv"), read_csv("./analysis/data/6pc.csv"))
 dd <- d
 dd$alg <- paste(dd$alg, dd$parties, sep="")
 dd <- dd %>%

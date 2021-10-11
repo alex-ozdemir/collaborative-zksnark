@@ -36,4 +36,4 @@ ggplot(dd, mapping = aes(x = parties, y = slowdown, color = alg, shape=alg)) +
   annotate("segment", x = 2^1, xend = 2^5, y =  1, yend= 1) +
   annotate("text", x = 2^4.0, y =1, vjust=-0.5, label ="single prover", size=2) +
   theme(legend.key.height = unit(2, "lines"))
-ggsave("analysis/plots/Npc.pdf", width = 3.00, height = 2.00, units = "in")
+ggsave("analysis/plots/Npc.pdf", width = 3.00, height = 1.75, units = "in")
