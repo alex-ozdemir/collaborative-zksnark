@@ -1,4 +1,6 @@
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(readr)
 library(stringr)
 library(scales)
 d <- read_csv("./analysis/data/Npc.csv")

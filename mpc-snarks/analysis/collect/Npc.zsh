@@ -5,18 +5,18 @@ trap "kill 0" EXIT
 
 set -xe
 if [ ! -f hosts ]; then
-  ./analysis/collect/create_vms.zsh 32 1
+  ./analysis/collect/create_vms.zsh 16 1 n2-standard
 fi
 #log2sizes=(1 2 3 4 5)
 #log2sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13)
 log2sizes=(10)
 proofs=(groth16 plonk marlin)
-trials=3
+trials=1
 
 (
 # 6pc
 net=lan
-for parties in 2 4 8 16 32
+for parties in 2 4 8 16
 do
   for ps in ${proofs[@]}
   do
@@ -37,7 +37,7 @@ done
 
 cat benches
 
-./analysis/lib/runner.py hosts benches --output ./analysis/data/Npc.csv
+./analysis/lib/runner.py hosts benches --output ./analysis/data/Npc.csv --user aozdemir
 
 ./analysis/collect/delete_vms.zsh
 trap - INT TERM EXIT

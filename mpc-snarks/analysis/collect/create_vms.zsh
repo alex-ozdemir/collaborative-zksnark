@@ -56,7 +56,7 @@ do
   echo $pubip $privip >> $HOSTS_FILE
   #ssh-keyscan $ip >> ~/.ssh/known_hosts
   ssh-keygen -R $pubip
-  ssh -o "StrictHostKeyChecking accept-new" $pubip 'sudo ./hyperthreading.sh -d'
+  ssh -o "StrictHostKeyChecking accept-new" aozdemir@$pubip 'sudo ./hyperthreading.sh -d'
 done
 
 # gcloud beta compute instances delete $name \

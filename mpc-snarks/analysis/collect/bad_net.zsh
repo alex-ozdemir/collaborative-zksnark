@@ -15,7 +15,7 @@ echo proof_system,alg,kb_s,size,trial,time
 parties=2
 net=lan
 log2size=10
-trials=3
+trials=1
 for ps in ${proofs[@]}
 do
   for t in $(seq 0 $(($trials - 1)))

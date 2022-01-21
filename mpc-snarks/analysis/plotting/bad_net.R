@@ -1,4 +1,6 @@
-library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(readr)
 library(scales)
 d <- read_csv("./analysis/data/bad_net.csv")
 baselines <- data.frame(

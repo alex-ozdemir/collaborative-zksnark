@@ -85,6 +85,7 @@ impl Connections {
                             Ok(s) => break s,
                             Err(e) => match e.kind() {
                                 std::io::ErrorKind::ConnectionRefused
+                                | std::io::ErrorKind::NetworkUnreachable
                                 | std::io::ErrorKind::ConnectionReset => {
                                     ms_waited += 10;
                                     std::thread::sleep(std::time::Duration::from_millis(10));

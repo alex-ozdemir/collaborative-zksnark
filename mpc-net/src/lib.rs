@@ -1,3 +1,4 @@
+#![feature(io_error_more)]
 pub mod multi;
 pub mod two;
 
