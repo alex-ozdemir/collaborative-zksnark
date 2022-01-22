@@ -1,0 +1,337 @@
+\hypertarget{artifact-evaluation-instructions}{%
+\section{Artifact Evaluation
+Instructions}\label{artifact-evaluation-instructions}}
+
+Welcome to the ``Collaborative zkSNARKs'' artifact. The artifact is a
+distributed protocol; it requires many machines to evaluate. Our
+experimental infrastructure uses GCP, so we're going to give you access
+to a ``coordinator'' machine that is logged in with GCP.
+
+Please follow the directions below. The coordinator is a real machine
+(not a VM), is used by us regularly, and is logged into our GCP account.
+
+At the end of this document we provide instructions for using a local VM
+to replicate the experiments that can be run locally.
+
+\hypertarget{connect-to-the-coordinator}{%
+\subsection{Connect to the
+coordinator}\label{connect-to-the-coordinator}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Give us your public key using HotCRP.
+\item
+  Wait for us to confirm that we have granted that key access.
+\item
+  \texttt{ssh\ aeval@128.12.176.8}
+\end{enumerate}
+
+\hypertarget{build-the-collaborative-proofs}{%
+\subsection{Build the collaborative
+proofs}\label{build-the-collaborative-proofs}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \texttt{cd\ \textasciitilde{}/multiprover-snark/mpc-snarks}
+\item
+  \texttt{git\ clean\ -fd}
+\item
+  Check that \texttt{git\ rev-parse\ HEAD} outputs
+  98cc63c7b885ade04989a5505050504ae7f2aac0.
+\item
+  \texttt{cargo\ build\ -\/-release}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  You can \texttt{cargo\ clean} first to force a clean build.
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{4}
+\tightlist
+\item
+  Optional: run the test suite \texttt{./test.zsh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  If it exits with a zero return code, it was successful.
+\end{itemize}
+
+\hypertarget{collect-the-data}{%
+\subsection{Collect the data}\label{collect-the-data}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Run all experiments with
+  \texttt{time\ ./analysis/collect/artifact\_eval.zsh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  This should take approximately 24 minutes.
+\item
+  Alternatively: you can run the experiments one-by-one:
+
+  \begin{enumerate}
+  \def\labelenumi{\arabic{enumi}.}
+  \tightlist
+  \item
+    \texttt{time\ ./analysis/collect/bad\_net.zsh\ \textbar{}\ tee\ ./analysis/data/bad\_net.csv}
+  \end{enumerate}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    This runs locally and should take approximately 6 minutes
+  \end{itemize}
+
+  \begin{enumerate}
+  \def\labelenumi{\arabic{enumi}.}
+  \setcounter{enumi}{1}
+  \tightlist
+  \item
+    \texttt{time\ ./analysis/collect/weak\_machines.zsh}
+  \end{enumerate}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    This runs on GCP and should take approximately 10 minutes
+  \end{itemize}
+
+  \begin{enumerate}
+  \def\labelenumi{\arabic{enumi}.}
+  \setcounter{enumi}{2}
+  \tightlist
+  \item
+    \texttt{time\ ./analysis/collect/Npc.zsh}
+  \end{enumerate}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    This runs on GCP should take approximately 8 minutes
+  \end{itemize}
+\end{itemize}
+
+\hypertarget{make-inspect-the-plots}{%
+\subsection{Make \& inspect the plots}\label{make-inspect-the-plots}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Generate all plots: \texttt{./analysis/plotting/artifact\_eval.zsh}
+\item
+  Copy plots to your machine:
+  \texttt{scp\ \textquotesingle{}aeval@128.12.176.8:multiprover-snark/mpc-snarks/analysis/plots/*.pdf\textquotesingle{}\ .}
+\item
+  Analyze:
+
+  \begin{enumerate}
+  \def\labelenumii{\arabic{enumii}.}
+  \tightlist
+  \item
+    Varying constraint counts: mpc.pdf should be comparable to Figure 8
+
+    \begin{itemize}
+    \tightlist
+    \item
+      At large constraint counts, 3PC GSZ should have runtime similar to
+      ``Single Prover''. The SPDZ MPCs should have approximately twice
+      the runtime.
+    \end{itemize}
+  \item
+    Varying prover count: Npc.pdf should be comparable to Figure 9
+
+    \begin{itemize}
+    \tightlist
+    \item
+      Both SPDZ and GSZ should be parabolas. Slowdown should be
+      \textasciitilde2x and \textasciitilde1x respectively for 2
+      parties.
+    \end{itemize}
+  \item
+    Varying link capacity: bad\_net.pdf should be comparable to Figure
+    10
+
+    \begin{itemize}
+    \tightlist
+    \item
+      Slowdown should be going to \textasciitilde2x as bandwidth
+      increases. Plonk should be slower than the others.
+    \end{itemize}
+  \end{enumerate}
+\end{enumerate}
+
+\hypertarget{optional-reproduce-the-local-experiments-using-a-vm}{%
+\section{Optional: reproduce the local experiments using a
+VM}\label{optional-reproduce-the-local-experiments-using-a-vm}}
+
+\hypertarget{ubuntu-machine-setup}{%
+\subsection{Ubuntu machine setup}\label{ubuntu-machine-setup}}
+
+(You can skip this, the VM is already set up. We include it so you know
+how that machine was set up)
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  New machine, at least 8GB RAM, 10GB disk
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Ubuntu 20.04 server
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{1}
+\tightlist
+\item
+  Do Ubuntu installation
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  username: user password: user
+\item
+  updating took a while
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{2}
+\tightlist
+\item
+  \texttt{apt\ install\ zsh\ libgmp-dev\ neovim\ autoconf\ pkg-config\ libtool\ apache2-dev\ apache2\ dnsmasq-base\ protobuf-compiler\ libprotobuf-dev\ libssl-dev\ libxcb-present-dev\ libcairo2-dev\ libpango1.0-dev\ tmux\ units\ r-base\ virutalbox-guest-utils}
+\item
+  \texttt{curl\ -\/-proto\ \textquotesingle{}=https\textquotesingle{}\ -\/-tlsv1.2\ -sSf\ https://sh.rustup.rs\ \textbar{}\ sh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  nightly
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{4}
+\tightlist
+\item
+  \texttt{cargo\ install\ ripgrep}
+\item
+  Install the mahimahi shell network emulator
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  clone it
+\item
+  apply patches
+
+  \begin{itemize}
+  \tightlist
+  \item
+    empty PICKY\_CXXFLAGS in configure.ac (compiler is pickier now)
+  \item
+    add mm-rate-to-events to install list in scripts/Makefile.am (need
+    this)
+  \end{itemize}
+\item
+  \texttt{./autogen.sh\ \&\&\ ./configure\ \&\&\ make\ -j\ 8}
+\item
+  \texttt{sudo\ sysctl\ -w\ net.ipv4.ip\_forward=1}
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{6}
+\tightlist
+\item
+  Install R libraries: ggplot2, dplyr, readr, scales
+\item
+  Set up folder sharing
+  \texttt{sudo\ adduser\ user\ vboxsf\ \&\&\ sudo\ systemctl\ enable\ virutalbox-guest-utils.service}
+\end{enumerate}
+
+\hypertarget{build-the-collaborative-proofs-1}{%
+\subsection{Build the collaborative
+proofs}\label{build-the-collaborative-proofs-1}}
+
+Download the VM here: \url{https://doi.org/10.5281/zenodo.5889564}.
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \texttt{cd\ \textasciitilde{}}
+\item
+  \texttt{git\ clone\ -b\ artiface-eval\ https://github.com/alex-ozdemir/multiprover-snark}
+\item
+  \texttt{cd\ multiprover-snark/mpc-snarks}
+\item
+  \texttt{cargo\ build\ -\/-release}
+\item
+  Optional: run the test suite \texttt{./test.zsh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  If it exits with a zero return code, it was successful.
+\end{itemize}
+
+\hypertarget{collect-the-data-1}{%
+\subsection{Collect the data}\label{collect-the-data-1}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \texttt{time\ ./analysis/collect/bad\_net.zsh\ \textbar{}\ tee\ ./analysis/data/bad\_net.csv}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  This should take approximately 6 minutes
+\end{itemize}
+
+\hypertarget{make-inspect-the-plots-1}{%
+\subsection{Make \& inspect the plots}\label{make-inspect-the-plots-1}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Varying numbers of provers
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Run: \texttt{Rscript\ ./analysis/plotting/bad\_net.R}
+\item
+  Output plot: ./analysis/plots/bad\_net.pdf
+\item
+  It should be comparable to Figure 10
+\end{itemize}

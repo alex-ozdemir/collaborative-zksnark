@@ -1,0 +1,467 @@
+% LaTeX template for Artifact Evaluation V20220119
+%
+% Original Authors 
+% * Grigori Fursin (cTuning foundation, France) 2014-2020
+% * Bruce Childers (University of Pittsburgh, USA) 2014
+% 
+% Modified by
+% * Clémentine Maurice (CNRS, France) 2021-2022
+% * Cristiano Giuffrida (Vrije Universiteit Amsterdam, Netherlands) 2021-2022
+%
+% (C)opyright 2014-2022
+%
+% CC BY 4.0 license
+%
+
+\documentclass[letterpaper,twocolumn,10pt]{article}
+\usepackage{usenix-2020-09}
+
+\usepackage{hyperref}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\pagestyle{empty}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% To add the badges to the final version after notification, first download
+% the appropriate `usenixbadges` package version as detailed on the Final
+% Artifact Appendix instructions page on the USENIX Security website.
+%
+% Then, uncomment the following line using the appropriate options:
+% \usepackage[available,functional,reproduced]{usenixbadges}
+%
+% In the options, list the badges that have been awarded to your paper.
+% The possible badges are:
+%
+%  * `available`  --- affix the "Artifacts Available" badge
+%  * `functional` --- affix the "Artifacts Functional" badge
+%  * `reproduced` --- affix the "Results Reproduced" badge
+%
+% Example:
+%  \usepackage[available,functional]{usenixbadges}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\special{papersize=8.5in,11in}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% When adding this appendix to your paper, 
+% please remove the part above
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+\section{Artifact Appendix}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% See the Artifact Appendix guidelines page on the USENIX
+% Security website to compile the appendix. Please preserve
+% the provided Artifact Appendix template as much as
+% possible (e.g., keep the original (sub)section names
+% and order). 
+%
+% See also examples of past reproduced papers with a similar Artifact Appendix at: https://cknowledge.io/?q=%22reproduced-papers%22+AND+lib+AND+%28secur*+OR+harden*+OR+mitigat*+OR+defen*+OR+attack*+OR+bug*+OR+vulnerab*%29
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Abstract}
+
+This artifact reproduces distributed systems experiments
+that benchmark the \textit{collaborative zkSNARKs} that we evaluate in our
+paper.
+
+Some experiments run on Google Cloud Platform, so we will give the evaluators
+SSH access to one of our machines which has appropriate credentials to launch
+the experiments.
+
+The artifact includes scripts to re-run a limited version of our experiments,
+and to re-render our plots.
+
+\subsection{Artifact check-list (meta-information)}
+
+{\small
+\begin{itemize}
+  \item {\bf Algorithm: } GSZ20 and SPDZ MCP protocols. Groth16, Marlin, and
+    PLONK zkSNARKs.
+  \item {\bf Compilation: } Rust compiler, nightly.
+  \item {\bf Run-time environment: } Linux, some experiments on GCP
+  \item {\bf Execution: } A distributed protocol
+  \item {\bf How much time is needed to prepare workflow (approximately)?: } 30
+    minutes
+  \item {\bf How much time is needed to complete experiments (approximately)?: }
+    30 minutes
+  \item {\bf Publicly available (explicitly provide evolving version
+    reference)?: } Yes, at
+    \url{https://github.com/alex-ozdemir/multiprover-snark}.
+  \item {\bf Archived (explicitly provide DOI or stable reference)?: }
+    \url{https://github.com/alex-ozdemir/multiprover-snark/tree/98cc63c7b885ade04989a5505050504ae7f2aac0}
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Description}
+
+\subsubsection{How to access}
+
+The source is available at
+\url{https://github.com/alex-ozdemir/multiprover-snark/tree/98cc63c7b885ade04989a5505050504ae7f2aac0}.
+
+We will provide access to a machine that can run the experiments.
+
+\subsubsection{Hardware dependencies}
+
+At least 8GB of RAM.
+
+\subsubsection{Software dependencies}
+
+Ubuntu packages: zsh libgmp-dev neovim autoconf pkg-config libtool apache2-dev
+apache2 dnsmasq-base protobuf-compiler libprotobuf-dev libssl-dev
+libxcb-present-dev libcairo2-dev libpango1.0-dev tmux units r-base
+
+Rust compiler: nightly after 2022-01-31.
+
+Ripgrep
+
+Mahimahi network emulator, patched as described in the source distribution at
+\texttt{/mpc-snarks/artifact\_eval.md}
+
+R libraries: ggplot2, dplyr, readr, scales
+
+\subsubsection{Data sets}
+
+N/A
+
+\subsubsection{Models}
+N/A
+
+\subsubsection{Security, privacy, and ethical concerns}
+N/A
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Installation}
+
+(You can skip this. We'll give you access to a machine with the software set up,
+and alternatively to a VM that is already set up.)
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  New machine, at least 8GB RAM, 10GB disk
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Ubuntu 20.04 server
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{1}
+\tightlist
+\item
+  Do Ubuntu installation
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  username: user password: user
+\item
+  updating took a while
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{2}
+\tightlist
+\item
+  \texttt{apt\ install\ zsh\ libgmp-dev\ neovim\ autoconf\ pkg-config\ libtool\ apache2-dev\ apache2\ dnsmasq-base\ protobuf-compiler\ libprotobuf-dev\ libssl-dev\ libxcb-present-dev\ libcairo2-dev\ libpango1.0-dev\ tmux\ units\ r-base\ virutalbox-guest-utils}
+\item
+  \texttt{curl\ -\/-proto\ \textquotesingle{}=https\textquotesingle{}\ -\/-tlsv1.2\ -sSf\ https://sh.rustup.rs\ \textbar{}\ sh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  nightly
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{4}
+\tightlist
+\item
+  \texttt{cargo\ install\ ripgrep}
+\item
+  Install the mahimahi shell network emulator
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  clone it
+\item
+  apply patches
+
+  \begin{itemize}
+  \tightlist
+  \item
+    empty PICKY\_CXXFLAGS in configure.ac (compiler is pickier now)
+  \item
+    add mm-rate-to-events to install list in scripts/Makefile.am (need
+    this)
+  \end{itemize}
+\item
+  \texttt{./autogen.sh\ \&\&\ ./configure\ \&\&\ make\ -j\ 8}
+\item
+  \texttt{sudo\ sysctl\ -w\ net.ipv4.ip\_forward=1}
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{6}
+\tightlist
+\item
+  Install R libraries: ggplot2, dplyr, readr, scales
+\item
+  Set up folder sharing
+  \texttt{sudo\ adduser\ user\ vboxsf\ \&\&\ sudo\ systemctl\ enable\ virutalbox-guest-utils.service}
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Experiment workflow}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Give us your public key using HotCRP.
+\item
+  Wait for us to confirm that we have granted that key access.
+\item
+  \texttt{ssh\ aeval@128.12.176.8}
+\item
+  \texttt{cd\ \textasciitilde{}/multiprover-snark/mpc-snarks}
+\item
+  Run \texttt{git\ clean\ -fd} to clear any existing data.
+\item
+  Check that \texttt{git\ rev-parse\ HEAD} outputs
+  98cc63c7b885ade04989a5505050504ae7f2aac0.
+\item
+  \texttt{cargo\ build\ -\/-release}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  You can \texttt{cargo\ clean} first to force a clean build.
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{4}
+\tightlist
+\item
+  Optional: run the test suite \texttt{./test.zsh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  If it exits with a zero return code, it was successful.
+\end{itemize}
+Now, run the experiments (next section)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Evaluation and expected results}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Run all experiments with
+  \texttt{time\ ./analysis/collect/artifact\_eval.zsh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  This should take approximately 24 minutes.
+\item
+  Alternatively: you can run the experiments one-by-one:
+
+  \begin{enumerate}
+  \def\labelenumi{\arabic{enumi}.}
+  \tightlist
+  \item
+    \texttt{time\ ./analysis/collect/bad\_net.zsh\ \textbar{}\ tee\ ./analysis/data/bad\_net.csv}
+  \end{enumerate}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    This runs locally and should take approximately 6 minutes
+  \end{itemize}
+
+  \begin{enumerate}
+  \def\labelenumi{\arabic{enumi}.}
+  \setcounter{enumi}{1}
+  \tightlist
+  \item
+    \texttt{time\ ./analysis/collect/weak\_machines.zsh}
+  \end{enumerate}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    This runs on GCP and should take approximately 10 minutes
+  \end{itemize}
+
+  \begin{enumerate}
+  \def\labelenumi{\arabic{enumi}.}
+  \setcounter{enumi}{2}
+  \tightlist
+  \item
+    \texttt{time\ ./analysis/collect/Npc.zsh}
+  \end{enumerate}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    This runs on GCP should take approximately 8 minutes
+  \end{itemize}
+\end{itemize}
+\begin{enumerate}
+  \setcounter{enumi}{1}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Generate all plots: \texttt{./analysis/plotting/artifact\_eval.zsh}
+\item
+  Copy plots to your machine:
+  \texttt{scp\ \textquotesingle{}aeval@128.12.176.8:multiprover-snark/mpc-snarks/analysis/plots/*.pdf\textquotesingle{}\ .}
+\item
+  Analyze:
+
+  \begin{enumerate}
+  \def\labelenumii{\arabic{enumii}.}
+  \tightlist
+  \item
+    Varying constraint counts: mpc.pdf should be comparable to Figure 8
+
+    \begin{itemize}
+    \tightlist
+    \item
+      At large constraint counts, 3PC GSZ should have runtime similar to
+      ``Single Prover''. The SPDZ MPCs should have approximately twice
+      the runtime.
+    \end{itemize}
+  \item
+    Varying prover count: Npc.pdf should be comparable to Figure 9
+
+    \begin{itemize}
+    \tightlist
+    \item
+      Both SPDZ and GSZ should be parabolas. Slowdown should be
+      \textasciitilde2x and \textasciitilde1x respectively for 2
+      parties.
+    \end{itemize}
+  \item
+    Varying link capacity: bad\_net.pdf should be comparable to Figure
+    10
+
+    \begin{itemize}
+    \tightlist
+    \item
+      Slowdown should be going to \textasciitilde2x as bandwidth
+      increases. Plonk should be slower than the others.
+    \end{itemize}
+  \end{enumerate}
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Experiment customization}
+
+If you want to reproduce the single-machine experiments (those that vary link
+capacity using a network emulator) on your machine, follow the directions below.
+
+This is optional. You have already produced this graph on our machine.
+
+\hypertarget{build-the-collaborative-proofs-1}{%
+\subsubsection{Build the collaborative
+proofs}\label{build-the-collaborative-proofs-1}}
+
+Download the VM here: \url{https://doi.org/10.5281/zenodo.5889564}. User: user.
+Password: user.
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \texttt{cd\ \textasciitilde{}}
+\item
+  \texttt{git\ clone\ -b\ artiface-eval\ https://github.com/alex-ozdemir/multiprover-snark}
+\item
+  \texttt{cd\ multiprover-snark/mpc-snarks}
+\item
+  \texttt{cargo\ build\ -\/-release}
+\item
+  Optional: run the test suite \texttt{./test.zsh}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  If it exits with a zero return code, it was successful.
+\end{itemize}
+
+\hypertarget{collect-the-data-1}{%
+\subsubsection{Collect the data}\label{collect-the-data-1}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \texttt{time\ ./analysis/collect/bad\_net.zsh\ \textbar{}\ tee\ ./analysis/data/bad\_net.csv}
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  This should take approximately 6 minutes
+\end{itemize}
+
+\hypertarget{make-inspect-the-plots-1}{%
+\subsubsection{Make \& inspect the plots}\label{make-inspect-the-plots-1}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Varying numbers of provers
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Run: \texttt{Rscript\ ./analysis/plotting/bad\_net.R}
+\item
+  Output plot: ./analysis/plots/bad\_net.pdf
+\item
+  It should be comparable to Figure 10
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Notes}
+\vspace{1in}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Version}
+%%%%%%%%%%%%%%%%%%%%
+% Obligatory.
+% Do not change/remove.
+%%%%%%%%%%%%%%%%%%%%
+Based on the LaTeX template for Artifact Evaluation V20220119.
+
+\end{document}
