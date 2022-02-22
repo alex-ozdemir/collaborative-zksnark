@@ -40,3 +40,4 @@ ggplot(dd, mapping = aes(x = kb_s / 2^10, y = slowdown, color = proof_system, sh
   annotate("segment", x = 2^0, xend = 2^6, y =  1, yend= 1) +
   annotate("text", x = 2^3, y =1, vjust=-0.5, label ="single prover", size=2)
 ggsave("analysis/plots/bad_net.pdf", width = 3.00, height = 2.00, units = "in")
+embedFonts("analysis/plots/bad_net.pdf")

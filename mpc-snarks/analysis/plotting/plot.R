@@ -45,3 +45,4 @@ ggplot(dd, mapping = aes(x = size, y = time, color = alg, shape = alg)) +
   ) +
   theme(legend.key.height = unit(1.75, 'lines'))
 ggsave("analysis/plots/mpc.pdf", width = 6, height = 2.5, units = "in")
+embedFonts("analysis/plots/mpc.pdf")

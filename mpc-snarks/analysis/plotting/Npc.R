@@ -37,3 +37,4 @@ ggplot(dd, mapping = aes(x = parties, y = slowdown, color = alg, shape=alg)) +
   annotate("text", x = 2^4.0, y =1, vjust=-0.5, label ="single prover", size=2) +
   theme(legend.key.height = unit(2, "lines"))
 ggsave("analysis/plots/Npc.pdf", width = 3.00, height = 1.75, units = "in")
+embedFonts("analysis/plots/Npc.pdf")
