@@ -4,18 +4,26 @@ library(scales)
 d <- bind_rows(read_csv("./analysis/data/weak_1_20.csv"), read_csv("./analysis/data/6pc.csv"))
 dd <- d
 dd$alg <- paste(dd$alg, dd$parties, sep="")
+ord <- c("2 Provers, t=1", "3 Provers, t=2", "3 Provers, t=1", "Single Prover")
 dd <- dd %>%
   filter(parties < 4) %>%
   mutate(alg = ifelse(alg == "local1", str_wrap("Single Prover", 14), alg)) %>%
-  mutate(alg = ifelse(alg == "spdz2",  str_wrap("2PC: Dishonest Maj. (SDPZ)", 14), alg)) %>%
-  mutate(alg = ifelse(alg == "spdz3",  str_wrap("3PC: Dishonest Maj. (SDPZ)", 14), alg)) %>%
-  mutate(alg = ifelse(alg == "gsz3",   str_wrap("3PC: Honest Maj. (GSZ)", 14), alg))%>%
+  mutate(alg = ifelse(alg == "spdz2",  str_wrap("2 Provers, t=1", 14), alg)) %>%
+  mutate(alg = ifelse(alg == "spdz3",  str_wrap("3 Provers, t=2", 14), alg)) %>%
+  mutate(alg = ifelse(alg == "gsz3",   str_wrap("3 Provers, t=1", 14), alg))%>%
+  mutate(alg = fct_relevel(alg, levels = ord)) %>%
   mutate(proof_system = ifelse(proof_system == "groth16", "Groth16", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "marlin", "Marlin", proof_system)) %>%
   mutate(proof_system = ifelse(proof_system == "plonk", "Plonk", proof_system)) %>%
   mutate() %>%
   group_by(alg, proof_system, size) %>%
-  summarise(time=median(time))
+  summarise(time=median(time)) %>%
+  filter(proof_system != "Groth16" |
+         alg == "Single Prover" |
+         alg == "3 Provers, t=1" |
+         alg == "3 Provers, t=2" |
+         alg == "2 Provers, t=1" |
+         FALSE)
 
 x_breaks = c(0:20 %>% map(function (x) 2 ^x)) %>% as_vector()
 x_labels = c(math_format(2^.x)(0:20))
@@ -40,9 +48,9 @@ ggplot(dd, mapping = aes(x = size, y = time, color = alg, shape = alg)) +
   labs(
     y = "Time (s)",
     x = "Constraints",
-    color = "MPC Type",
-    shape = "MPC Type"
+    color = "Provers",
+    shape = "Provers"
   ) +
   theme(legend.key.height = unit(1.75, 'lines'))
-ggsave("analysis/plots/mpc.pdf", width = 6, height = 2.5, units = "in")
+ggsave("analysis/plots/mpc.png", width = 6, height = 2.5, units = "in")
 embedFonts("analysis/plots/mpc.pdf")
