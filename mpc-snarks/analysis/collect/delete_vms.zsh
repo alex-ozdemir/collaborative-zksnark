@@ -1,4 +1,6 @@
 #!/usr/bin/env zsh
+# Reads the file `vms` and deletes all VMs listed there.
+# Also deletes the `hosts` file.
 trap "exit" INT TERM
 trap "kill 0" EXIT
 
