@@ -335,7 +335,7 @@ where
                 .iter()
                 .zip(segment_powers.borrow())
             {
-                let base_power = base_power.borrow();
+                let base_power = base_power;
                 let mut acc_power = *base_power;
                 let mut coords = vec![];
                 for _ in 0..4 {
