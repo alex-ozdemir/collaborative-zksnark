@@ -15,7 +15,7 @@ edition = "2018"
 [dependencies]
 ark-ff = { version = "^0.2.0", default-features = false }
 ark-ec = { version = "^0.2.0", default-features = false }
-ark-std = { path = "../util",  path = "../util", default-features = false }
+ark-std = { path = "../../utils", default-features = false }
 ark-r1cs-std = { version = "^0.2.0", default-features = false, optional = true }
 ark-mnt4-753 = { version = "^0.2.0", path = "../mnt4_753", default-features = false, features = [ "scalar_field" ] }
 
