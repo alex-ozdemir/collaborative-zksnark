@@ -16,7 +16,7 @@ edition = "2018"
 ark-ff = { version = "^0.2.0", default-features = false }
 ark-ec = { version = "^0.2.0", default-features = false }
 ark-r1cs-std = { version = "^0.2.0", default-features = false, optional = true }
-ark-std = { path = "../util",  path = "../util", default-features = false }
+ark-std = { path = "../../utils", default-features = false }
 ark-pallas = { version = "^0.2.0", path = "../pallas", default-features = false, features = [ "scalar_field", "base_field" ] }
 
 [dev-dependencies]

@@ -16,7 +16,7 @@ edition = "2018"
 ark-ff = { path="../../algebra/ff", version="^0.2.0", default-features = false }
 ark-ec = { path="../../algebra/ec", version="^0.2.0", default-features = false }
 ark-r1cs-std = { path="../../r1cs-std", version="^0.2.0", default-features = false, optional = true }
-ark-std = { path = "../util",  version="^0.2.0", default-features = false }
+ark-std = { path = "../../utils",  version="^0.2.0", default-features = false }
 ark-mnt4-753 = { version = "^0.2.0", path = "../mnt4_753", default-features = false, features = [ "scalar_field", "base_field" ] }
 
 
