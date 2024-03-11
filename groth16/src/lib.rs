@@ -1,7 +1,8 @@
 //! An implementation of the [`Groth16`] zkSNARK.
 //!
 //! [`Groth16`]: https://eprint.iacr.org/2016/260.pdf
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![warn(
     unused,
     future_incompatible,
@@ -12,6 +13,8 @@
 #![allow(clippy::many_single_char_names, clippy::op_ref)]
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "std")]
+extern crate std;
 #[macro_use]
 extern crate ark_std;
 

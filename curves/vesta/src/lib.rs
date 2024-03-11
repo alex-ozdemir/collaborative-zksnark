@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -24,6 +25,8 @@
 //! * Valuation(q - 1, 2) = 32
 //! * Valuation(r - 1, 2) = 32
 
+#[cfg(feature = "std")]
+extern crate std;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 mod curves;

@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -27,6 +28,8 @@
 //!    * B = Fq3(b * NON_RESIDUE, 0, 0)
 //!    * NON_RESIDUE = 11 is the cubic non-residue used to construct the extension field Fq3
 
+#[cfg(feature = "std")]
+extern crate std;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 mod curves;

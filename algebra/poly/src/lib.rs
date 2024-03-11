@@ -1,6 +1,7 @@
 //! This crate implements functions for manipulating polynomials over finite
 //! fields, including FFTs.
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![warn(unused, future_incompatible, nonstandard_style, rust_2018_idioms)]
 #![forbid(unsafe_code)]
 #![allow(
@@ -8,6 +9,9 @@
     clippy::suspicious_op_assign_impl,
     clippy::suspicious_arithmetic_impl
 )]
+
+#[cfg(feature = "std")]
+extern crate std;
 
 #[macro_use]
 extern crate derivative;

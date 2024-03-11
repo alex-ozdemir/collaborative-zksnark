@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -7,6 +8,8 @@
     rust_2018_idioms
 )]
 #![forbid(unsafe_code)]
+#[cfg(feature = "std")]
+extern crate std;
 
 //! This library implements a twisted Edwards curve whose base field is the scalar field of the
 //! curve BN254. This allows defining cryptographic primitives that use elliptic curves over

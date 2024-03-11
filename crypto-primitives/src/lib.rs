@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -8,6 +9,8 @@
     // missing_docs
 )]
 #![forbid(unsafe_code)]
+#[cfg(feature = "std")]
+extern crate std;
 
 #[macro_use]
 extern crate ark_std;

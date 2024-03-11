@@ -13,6 +13,7 @@ use ark_std::{
     vec,
     vec::Vec,
 };
+use crate::std::string::ToString;
 
 /// Computations are expressed in terms of rank-1 constraint systems (R1CS).
 /// The `generate_constraints` method is called to generate constraints for

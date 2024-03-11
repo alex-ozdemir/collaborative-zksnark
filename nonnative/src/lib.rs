@@ -15,7 +15,8 @@
 //!
 //! The Python script mentioned above can be found in the subdirectory `scripts`.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -24,6 +25,7 @@
     rust_2018_idioms,
     missing_docs
 )]
+#![allow(unused_imports)]
 #![allow(
     clippy::redundant_closure_call,
     clippy::enum_glob_use,
@@ -32,6 +34,9 @@
     clippy::unseparated_literal_suffix
 )]
 #![forbid(unsafe_code)]
+
+#[cfg(feature = "std")]
+extern crate std;
 
 #[macro_use]
 extern crate ark_r1cs_std;

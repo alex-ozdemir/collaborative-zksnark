@@ -1,6 +1,11 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![warn(unused, future_incompatible, nonstandard_style, rust_2018_idioms)]
 #![forbid(unsafe_code)]
+
+#[cfg(feature = "std")]
+extern crate std;
+
 mod error;
 mod flags;
 

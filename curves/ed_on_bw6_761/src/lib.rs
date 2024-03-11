@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![forbid(unsafe_code)]
 //! This library implements a twisted Edwards curve whose base field is the scalar field of the
 //! curve BW6_761.  *It is the same curve as that in `ark-ed_on_cp6_782`.*
@@ -14,6 +15,8 @@
 //! * Curve equation: ax^2 + y^2 =1 + dx^2y^2, where
 //!    * a = -1
 //!    * d = 79743
+#[cfg(feature = "std")]
+extern crate std;
 
 pub use ark_ed_on_cp6_782::*;
 

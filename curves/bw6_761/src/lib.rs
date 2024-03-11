@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -8,6 +9,8 @@
 )]
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "std")]
+extern crate std;
 //! This library implements the BW6_761 curve generated in [\[EG20\]](https://eprint.iacr.org/2020/351).
 //! The name denotes that it is a curve generated using the Brezing--Weng method, and that
 //! its embedding degree is 6.
