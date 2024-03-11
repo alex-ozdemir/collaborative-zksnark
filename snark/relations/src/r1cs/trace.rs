@@ -1,5 +1,7 @@
 // adapted from `tracing_error::{SpanTrace, ErrorLayer}`.
 
+use std::vec::Vec;
+
 use core::{
     any::{type_name, TypeId},
     fmt,

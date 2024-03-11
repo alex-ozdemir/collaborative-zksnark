@@ -2,7 +2,8 @@
 //! zkSNARKs. At the moment, we only implement APIs for working with Rank-1
 //! Constraint Systems (R1CS).
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![warn(
     unused,
     future_incompatible,
@@ -12,6 +13,8 @@
 )]
 #![deny(unsafe_code)]
 
+#[cfg(feature = "std")]
+extern crate std;
 #[macro_use]
 extern crate ark_std;
 

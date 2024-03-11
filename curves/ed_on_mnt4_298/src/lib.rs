@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -21,6 +22,8 @@
 //!    * a = -1
 //!    * d = 4212 mod q
 
+#[cfg(feature = "std")]
+extern crate std;
 #[cfg(feature = "r1cs")]
 pub mod constraints;
 mod curves;

@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -23,6 +24,9 @@
 //! * G1 curve equation: y^2 = x^3 + 1
 //! * G2 curve equation: y^2 = x^3 + B, where
 //!    * B = Fq2(0, 155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906)
+
+#[cfg(feature = "std")]
+extern crate std;
 
 #[cfg(feature = "curve")]
 mod curves;

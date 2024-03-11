@@ -1,6 +1,7 @@
 //! This crate contains traits that define the basic behaviour of SNARKs.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![warn(
     unused,
     future_incompatible,
@@ -9,6 +10,8 @@
     missing_docs
 )]
 #![forbid(unsafe_code)]
+#[cfg(feature = "std")]
+extern crate std;
 
 use ark_ff::{PrimeField, ToBytes};
 use ark_relations::r1cs::ConstraintSynthesizer;

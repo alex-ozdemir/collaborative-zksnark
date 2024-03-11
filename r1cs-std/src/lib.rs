@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 //! This crate implements common "gadgets" that make
 //! programming rank-1 constraint systems easier.
 #![deny(
@@ -8,7 +9,13 @@
     nonstandard_style,
     rust_2018_idioms
 )]
+
+#![allow(unused_imports)]
+
 #![allow(clippy::op_ref)]
+
+#[cfg(feature = "std")]
+extern crate std;
 
 #[macro_use]
 extern crate ark_std;

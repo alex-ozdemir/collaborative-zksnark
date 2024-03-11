@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
+
 #![deny(
     warnings,
     unused,
@@ -28,6 +29,8 @@
 //!    * B = Fq2(0, b * NON_RESIDUE)
 //!    * NON_RESIDUE = 17 is the quadratic non-residue used for constructing the extension field Fq2
 
+#[cfg(feature = "std")]
+extern crate std;
 #[cfg(feature = "curve")]
 mod curves;
 #[cfg(any(feature = "scalar_field", feature = "base_field"))]
